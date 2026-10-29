@@ -1,0 +1,86 @@
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { DEFAULT_PREFS } from "./types";
+import type {
+  DirEvent, DirHandle, DriveUsage, FileProps, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, Theme, UndoResult,
+} from "./types";
+
+export class TauriProvider implements FsProvider {
+  readonly available = true;
+
+  openDir(path: string, onEvent: (e: DirEvent) => void): DirHandle {
+    const channel = new Channel<DirEvent>();
+    channel.onmessage = onEvent;
+    let id: number | null = null;
+    let cancelled = false;
+
+    invoke<number>("open_dir", { path, onEvent: channel })
+      .then((jobId) => {
+        id = jobId;
+        // Se canceló antes de recibir el id: avisar al backend ahora.
+        if (cancelled) void invoke("cancel_dir", { id });
+      })
+      .catch((e) => onEvent({ type: "error", message: String(e) }));
+
+    return {
+      cancel() {
+        cancelled = true;
+        if (id !== null) void invoke("cancel_dir", { id }).catch(() => {});
+      },
+    };
+  }
+
+  getPlaces(): Promise<PlacesInfo> {
+    return invoke<PlacesInfo>("get_places");
+  }
+
+  async loadPrefs(): Promise<Prefs> {
+    return { ...DEFAULT_PREFS, ...(await invoke<Partial<Prefs>>("get_prefs")) };
+  }
+
+  savePrefs(p: Prefs): Promise<void> {
+    return invoke("set_prefs", { prefs: p });
+  }
+
+  vibrancy(): Promise<boolean> {
+    return invoke<{ vibrancy: boolean }>("get_platform_info").then((i) => i.vibrancy);
+  }
+
+  async setWindowTheme(theme: Theme): Promise<void> {
+    await getCurrentWindow().setTheme(theme === "system" ? null : theme);
+  }
+
+  async showWindow(): Promise<void> {
+    await getCurrentWindow().show();
+  }
+
+  startOp(req: OpRequest, onEvent: (e: OpEvent) => void): OpHandle {
+    const channel = new Channel<OpEvent>();
+    channel.onmessage = onEvent;
+    const id = invoke<number>("start_op", { req, onEvent: channel });
+    id.catch((e) => onEvent({ type: "done", completed: 0, skipped: 0, cancelled: false, undoable: false, errors: [{ path: "", message: String(e), kind: "other" }] }));
+    return {
+      cancel: () => void id.then((i) => invoke("cancel_job", { id: i })).catch(() => {}),
+      resolve: (decision, applyAll) => void id.then((i) => invoke("resolve_conflict", { id: i, decision, applyAll })).catch(() => {}),
+    };
+  }
+
+  renamePath = (path: string, newName: string) => invoke<string>("rename_path", { path, newName });
+  createFolder = (parent: string, name: string) => invoke<string>("create_folder", { parent, name });
+  createFile = (parent: string, name: string) => invoke<string>("create_file", { parent, name });
+  undoLast = () => invoke<UndoResult>("undo_last");
+  peekUndo = () => invoke<string | null>("peek_undo");
+  openPath = (path: string) => invoke<void>("open_path", { path });
+  revealPath = (path: string) => invoke<void>("reveal_path", { path });
+  createShortcut = (target: string) => invoke<string>("create_shortcut", { target });
+  getProperties = (path: string) => invoke<FileProps>("get_properties", { path });
+  getDriveUsage = (root: string) => invoke<DriveUsage>("get_drive_usage", { root });
+
+  startStats(paths: string[], onEvent: (e: StatsEvent) => void) {
+    const channel = new Channel<StatsEvent>();
+    channel.onmessage = onEvent;
+    const id = invoke<number>("start_stats", { paths, onEvent: channel });
+    id.catch(() => onEvent({ type: "done", stats: { files: 0, dirs: 0, bytes: 0, errors: 1 }, cancelled: true }));
+    return { cancel: () => void id.then((i) => invoke("cancel_job", { id: i })).catch(() => {}) };
+  }
+}

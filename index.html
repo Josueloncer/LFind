@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es" data-theme="dark" data-vibrancy="off">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>NOVA Explorer</title>
+    <!-- Fondo inmediato: se pinta antes de que cargue ningún JS/CSS de la app. -->
+    <style>
+      html { background: #18191c; }
+      html[data-theme="light"] { background: #e8e9ee; }
+      html[data-vibrancy="on"] { background: transparent; }
+      body { margin: 0; }
+    </style>
+    <!-- Aplica el último tema y el estado de Mica conocidos (script externo: compatible con la CSP). -->
+    <script src="/boot.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,78 @@
+/* ───────── NOVA · tokens de diseño ─────────
+   Todo el color vive aquí. Los componentes solo usan variables, así un tema nuevo
+   (o el modo claro) es únicamente un bloque más en este archivo. */
+
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+
+  --r-xs: 5px;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+
+  --titlebar-h: 46px;
+  --toolbar-h: 52px;
+  --row-h: 34px;
+
+  --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --t-fast: 110ms;
+  --t-med: 200ms;
+
+  --accent: #8e9dff;
+  --accent-rgb: 142, 157, 255;
+}
+
+/* ── Oscuro · grafito ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-chrome: #18191c;
+  --bg-content: #1e1f23;
+  --bg-raised: #2b2c32;
+  --bg-field: rgba(255, 255, 255, 0.055);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-press: rgba(255, 255, 255, 0.1);
+  --sel: rgba(var(--accent-rgb), 0.2);
+  --sel-edge: rgba(var(--accent-rgb), 0.38);
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --text: #ededf1;
+  --text-2: #a6a7b1;
+  --text-3: #6f707b;
+  --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --page-a: #eceef5;
+  --page-b: #c9ccda;
+  --fold-back-a: #6e7cdc;
+  --fold-back-b: #5360c2;
+  --fold-front-a: #b4bfff;
+  --fold-front-b: #8493f5;
+}
+
+/* ── Claro · refinado ── */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-chrome: #e8e9ee;
+  --bg-content: #fbfbfd;
+  --bg-raised: #ffffff;
+  --bg-field: rgba(20, 22, 40, 0.055);
+  --bg-hover: rgba(20, 22, 40, 0.055);
+  --bg-press: rgba(20, 22, 40, 0.1);
+  --sel: rgba(var(--accent-rgb), 0.2);
+  --sel-edge: rgba(94, 110, 230, 0.45);
+  --line: rgba(20, 22, 40, 0.08);
+  --line-strong: rgba(20, 22, 40, 0.15);
+  --text: #1b1c24;
+  --text-2: #5b5d6b;
+  --text-3: #8d8f9c;
+  --shadow-s: 0 1px 2px rgba(20, 22, 40, 0.12), 0 0 0 1px rgba(20, 22, 40, 0.05);
+  --page-a: #ffffff;
+  --page-b: #e3e5ee;
+  --fold-back-a: #7d8bea;
+  --fold-back-b: #6471d3;
+  --fold-front-a: #c3ccff;
+  --fold-front-b: #97a5fa;
+}
+
+/* ── Con Mica activo (Windows 11): el marco deja ver el fondo del sistema ── */
+:root[data-vibrancy="on"][data-theme="dark"] { --bg-chrome: transparent; }
+:root[data-vibrancy="on"][data-theme="light"] { --bg-chrome: transparent; }

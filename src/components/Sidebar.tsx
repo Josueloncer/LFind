@@ -1,0 +1,93 @@
+import { useMemo } from "react";
+import { Clock, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, MonitorCog, Moon, Music, Star, Sun, X } from "./icons";
+import type { ComponentType } from "react";
+import type { DriveUsage, Place, Theme } from "../lib/fs";
+import { formatBytes } from "../lib/format";
+import { useDropTarget } from "../hooks/useDropTarget";
+import { basename, samePath } from "../lib/path";
+import { useApp } from "../stores/app";
+import { selectActiveTab, useNav } from "../stores/nav";
+import { usePrefs } from "../stores/prefs";
+
+const ICONS: Record<Place["kind"], ComponentType<{ className?: string }>> = {
+  home: Home, desktop: Monitor, documents: FileText, downloads: Download,
+  pictures: ImageIcon, music: Music, videos: Film, drive: HardDrive,
+};
+
+const THEMES: { id: Theme; label: string; Icon: ComponentType }[] = [
+  { id: "system", label: "Tema: sistema", Icon: MonitorCog },
+  { id: "dark", label: "Tema: oscuro", Icon: Moon },
+  { id: "light", label: "Tema: claro", Icon: Sun },
+];
+
+function Item({ label, path, Icon, active, onOpen, onRemove, usage }: {
+  label: string; path: string; Icon: ComponentType<{ className?: string }>; active: boolean;
+  onOpen(p: string): void; onRemove?: () => void; usage?: DriveUsage;
+}) {
+  // Soltar archivos sobre una ubicación los mueve/copia allí (Ctrl copia, Mayús mueve).
+  const { over, bind } = useDropTarget(path);
+  const pct = usage && usage.total > 0 ? Math.min(100, (usage.used / usage.total) * 100) : null;
+  return (
+    <div className="side-row" data-drop={over || undefined} {...bind}>
+      <button className="side-item" data-active={active} data-tall={usage ? true : undefined} title={usage ? `${label} — ${formatBytes(usage.free)} libres de ${formatBytes(usage.total)}` : `${label} — ${path}`} onClick={() => onOpen(path)}>
+        <Icon className="side-ico" />
+        <span className="side-main">
+          <span className="side-label">{label}</span>
+          {pct !== null && usage && (
+            <>
+              <span className="drive-bar" data-low={pct > 90 || undefined}><i style={{ width: `${pct}%` }} /></span>
+              <span className="drive-text">{formatBytes(usage.free)} libres de {formatBytes(usage.total)}</span>
+            </>
+          )}
+        </span>
+      </button>
+      {onRemove && (
+        <button className="side-unpin" aria-label={`Quitar ${label} de favoritos`} title="Quitar de favoritos" onClick={onRemove}><X /></button>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar() {
+  const { places, drives, usage } = useApp();
+  const recents = usePrefs((s) => s.recents);
+  const tab = useNav(selectActiveTab);
+  const navigate = useNav((s) => s.navigate);
+  const { favorites, theme, update, toggleFavorite } = usePrefs();
+  const cur = tab?.path ?? "";
+  const th = useMemo(() => THEMES.find((t) => t.id === theme) ?? THEMES[0], [theme]);
+  const next = () => update({ theme: THEMES[(THEMES.findIndex((t) => t.id === theme) + 1) % THEMES.length].id });
+
+  return (
+    <nav className="sidebar" aria-label="Ubicaciones">
+      <div className="side-scroll">
+        <div className="side-title">Favoritos</div>
+        {favorites.length === 0 && <div className="side-hint">Pulsa ☆ en la barra superior para fijar la carpeta actual.</div>}
+        {favorites.map((f) => (
+          <Item key={f.path} label={f.label} path={f.path} Icon={Star} active={samePath(cur, f.path)} onOpen={navigate} onRemove={() => toggleFavorite(f.path, f.label)} />
+        ))}
+
+        {recents.length > 0 && <div className="side-title">Recientes</div>}
+        {recents.filter((r) => !favorites.some((f) => samePath(f.path, r))).slice(0, 6).map((r) => (
+          <Item key={r} label={basename(r) || r} path={r} Icon={Clock} active={samePath(cur, r)} onOpen={navigate} />
+        ))}
+
+        {places.length > 0 && <div className="side-title">Ubicaciones</div>}
+        {places.map((p) => (
+          <Item key={p.id} label={p.label} path={p.path} Icon={ICONS[p.kind]} active={samePath(cur, p.path)} onOpen={navigate} />
+        ))}
+
+        {drives.length > 0 && <div className="side-title">Unidades</div>}
+        {drives.map((p) => (
+          <Item key={p.id} label={usage[p.path]?.label ? `${usage[p.path].label} (${p.path.replace(/[\\/]+$/, "")})` : p.label} path={p.path} Icon={ICONS.drive} active={samePath(cur, p.path)} onOpen={navigate} usage={usage[p.path]} />
+        ))}
+      </div>
+      <div className="side-foot">
+        <button className="side-theme" title={`${th.label} (clic para cambiar)`} onClick={next}>
+          <th.Icon />
+          <span className="side-label">{th.label.replace("Tema: ", "Tema ")}</span>
+        </button>
+      </div>
+    </nav>
+  );
+}

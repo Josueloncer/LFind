@@ -1,0 +1,39 @@
+[package]
+name = "nova-explorer"
+version = "0.1.0"
+description = "NOVA Explorer"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "nova_explorer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+nova-core = { path = "../crates/nova-core" }
+# Papelera de reciclaje (IFileOperation en Windows). Solo se usa desde la capa Tauri.
+trash = "5"
+
+# `tauri dev` compila en modo debug. En debug, serializar 100 000 entradas a JSON
+# tarda ~221 ms frente a ~14 ms con optimización (medido con el banco de pruebas
+# `crates/nova-core/examples/bench_dir.rs`, en Linux). Se optimiza solo el código
+# propio y serde_json: no obliga a recompilar todo Tauri y mantiene la depuración.
+[profile.dev.package.nova-core]
+opt-level = 3
+[profile.dev.package.nova-explorer]
+opt-level = 2
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -103,6 +103,10 @@ pub struct Prefs {
     pub columns: Vec<Column>,
     pub recents: Vec<String>,
     pub folder_views: Vec<FolderView>,
+    /// Mostrar miniaturas reales de imágenes, PDF, etc. (se pueden desactivar en discos lentos).
+    pub thumbnails: bool,
+    /// Panel de vista previa a la derecha de la lista.
+    pub preview_pane: bool,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
     #[serde(default = "zero")]
     pub version: u32,
@@ -153,6 +157,8 @@ impl Default for Prefs {
             columns: vec![Column::Modified, Column::Type, Column::Size],
             recents: vec![],
             folder_views: vec![],
+            thumbnails: true,
+            preview_pane: false,
             version: CURRENT_VERSION,
         }
     }
@@ -258,6 +264,22 @@ mod tests {
         // Con la versión actual, "list" ya es la vista de lista compacta.
         fs::write(&f, r#"{"viewMode":"list","version":2}"#).unwrap();
         assert_eq!(load(&f).view_mode, ViewMode::List);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn old_files_get_the_new_preferences_with_safe_defaults() {
+        let d = dir("newprefs");
+        fs::create_dir_all(&d).unwrap();
+        let f = d.join("prefs.json");
+        fs::write(&f, r#"{"theme":"dark","viewMode":"icons","version":2}"#).unwrap();
+        let p = load(&f);
+        assert!(p.thumbnails, "las miniaturas están activadas por defecto");
+        assert!(!p.preview_pane);
+        assert_eq!(p.view_mode, ViewMode::Icons);
+        fs::write(&f, r#"{"thumbnails":false,"previewPane":true}"#).unwrap();
+        let p = load(&f);
+        assert!(!p.thumbnails && p.preview_pane);
         let _ = fs::remove_dir_all(d);
     }
 

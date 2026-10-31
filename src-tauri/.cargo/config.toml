@@ -1,0 +1,39 @@
+# Solo afecta a `tauri dev` (perfil «dev»); el instalador (`tauri build`) ya compila todo optimizado.
+# Decodificar imágenes en una compilación sin optimizar es 10-30 veces más lento y haría que las
+# miniaturas parecieran rotas durante el desarrollo. Se optimizan únicamente las crates de decodificación.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.simd-adler32]
+opt-level = 3
+[profile.dev.package.adler2]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.gif]
+opt-level = 3
+[profile.dev.package.weezl]
+opt-level = 3
+[profile.dev.package.tiff]
+opt-level = 3
+[profile.dev.package.jpeg-decoder]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.bytemuck]
+opt-level = 3
+[profile.dev.package.color_quant]
+opt-level = 3
+[profile.dev.package.byteorder-lite]
+opt-level = 3

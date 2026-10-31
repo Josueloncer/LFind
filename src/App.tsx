@@ -95,6 +95,7 @@ export default function App() {
       if (e.altKey && e.key === "ArrowRight") return e.preventDefault(), nav.goForward();
       if (e.altKey && e.key === "ArrowUp") return e.preventDefault(), nav.goUp();
       if (e.key === "Backspace" && !typing) return e.preventDefault(), nav.goUp();
+      if (e.altKey && e.key.toLowerCase() === "p") return e.preventDefault(), update({ previewPane: !usePrefs.getState().previewPane });
       if (!ctrl) return;
       switch (e.key.toLowerCase()) {
         case "t": e.preventDefault(); nav.openTab(); break;

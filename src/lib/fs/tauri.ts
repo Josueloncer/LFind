@@ -2,7 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, DriveUsage, FileProps, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, Theme, UndoResult,
+  DirEvent, DirHandle, DriveUsage, FileProps, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, TextPreview, Theme, ThumbReply, UndoResult,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -83,4 +83,9 @@ export class TauriProvider implements FsProvider {
     id.catch(() => onEvent({ type: "done", stats: { files: 0, dirs: 0, bytes: 0, errors: 1 }, cancelled: true }));
     return { cancel: () => void id.then((i) => invoke("cancel_job", { id: i })).catch(() => {}) };
   }
+
+  getThumbnail = (path: string, px: number, epoch: number | null) => invoke<ThumbReply>("get_thumbnail", { path, px, epoch });
+  setThumbEpoch = (epoch: number) => invoke<void>("set_thumb_epoch", { epoch });
+  clearThumbCache = () => invoke<number>("clear_thumb_cache");
+  getTextPreview = (path: string) => invoke<TextPreview>("get_text_preview", { path });
 }

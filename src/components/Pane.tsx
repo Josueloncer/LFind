@@ -22,6 +22,7 @@ import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import { EmptyState } from "./EmptyState";
 import { FileView } from "./FileView";
+import { PreviewPane } from "./PreviewPane";
 import { StatusBar } from "./StatusBar";
 import { Toolbar } from "./Toolbar";
 
@@ -29,7 +30,7 @@ export function Pane() {
   const tab = useNav(selectActiveTab);
   const p = usePrefs(useShallow((s) => ({
     viewMode: s.viewMode, iconSize: s.iconSize, sortKey: s.sortKey, sortDir: s.sortDir, groupBy: s.groupBy, folderViews: s.folderViews,
-    showHidden: s.showHidden, columns: s.columns, loaded: s.loaded,
+    showHidden: s.showHidden, columns: s.columns, loaded: s.loaded, thumbnails: s.thumbnails, previewPane: s.previewPane,
   })));
   const { setFolderView, applyViewToAll, pushRecent, update } = usePrefs.getState();
   const appReady = useApp((s) => s.ready);
@@ -231,7 +232,7 @@ export function Pane() {
     body = (
       <FileView
         key={tab.path}
-        entries={visible} mode={view.viewMode} iconSize={view.iconSize} columns={p.columns} groupBy={view.groupBy}
+        entries={visible} basePath={tab.path} thumbs={p.thumbnails} mode={view.viewMode} iconSize={view.iconSize} columns={p.columns} groupBy={view.groupBy}
         sortKey={view.sortKey} sortDir={view.sortDir} onSort={onSort}
         selected={selected} onSelect={setSelected} cut={cutNames}
         renaming={renaming} onRename={(o, n) => (setRenaming(null), A.rename(o, n))} onCancelRename={() => setRenaming(null)}
@@ -251,7 +252,10 @@ export function Pane() {
       />
       <div className="content">
         {(loading || sorting) && <div className="progress" />}
-        {body}
+        <div className="content-row">
+          <div className="content-main">{body}</div>
+          {p.previewPane && tab && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />}
+        </div>
       </div>
       <StatusBar
         total={dir.entries.length} shown={visible.length} selected={selCount} selectedBytes={selectedBytes}

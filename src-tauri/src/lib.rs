@@ -1,5 +1,6 @@
 mod commands;
 mod state;
+mod thumbs_cmd;
 
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -10,6 +11,9 @@ pub fn run() {
     tauri::Builder::default()
         .manage(state::AppState::default())
         .setup(|app| {
+            // Miniaturas: caché en la carpeta de caché local de la app (no en Roaming).
+            let thumbs_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("thumbs");
+            app.manage(thumbs_cmd::ThumbState(std::sync::Arc::new(nova_core::thumbs::ThumbService::with_defaults(thumbs_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
             if let Some(win) = app.get_webview_window("main") {
@@ -48,6 +52,10 @@ pub fn run() {
             commands::get_properties,
             commands::start_stats,
             commands::get_drive_usage,
+            thumbs_cmd::get_thumbnail,
+            thumbs_cmd::set_thumb_epoch,
+            thumbs_cmd::clear_thumb_cache,
+            thumbs_cmd::get_text_preview,
             commands::get_places,
             commands::get_platform_info,
             commands::get_prefs,

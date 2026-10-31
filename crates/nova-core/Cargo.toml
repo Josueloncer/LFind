@@ -9,3 +9,10 @@ description = "Lógica de archivos de NOVA Explorer, independiente de Tauri y te
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
+# Decodificación/codificación de miniaturas. Versión fijada: es la probada. Solo los codecs necesarios
+# (sin `rayon` ni formatos exóticos) para limitar tamaño del binario y superficie de ataque.
+image = { version = "=0.25.6", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp", "ico"] }
+
+[lints.rust]
+# `nova_winck` solo se usa para comprobar los tipos del código de Windows desde otros sistemas.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nova_winck)'] }

@@ -41,7 +41,7 @@ export function FolderGlyph({ className = "glyph", style }: { className?: string
 
 const CAT_COLOR: Record<Category, string> = {
   folder: "#8e9dff", image: "#2fbf8a", video: "#a46bff", audio: "#ff6b9d", archive: "#f0a23c",
-  code: "#33bfe0", doc: "#5b8cff", sheet: "#2fb36b", slides: "#ff8a4c", pdf: "#ef5350", exec: "#8b90a0", other: "#7d8291",
+  code: "#33bfe0", doc: "#5b8cff", sheet: "#2fb36b", slides: "#ff8a4c", pdf: "#ef5350", design: "#e8913a", exec: "#8b90a0", other: "#7d8291",
 };
 
 export function FileGlyph({ entry, className = "glyph", showExt = false, style }: { entry: Pick<Entry, "kind" | "ext">; className?: string; showExt?: boolean; style?: CSSProperties }) {

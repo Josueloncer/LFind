@@ -66,4 +66,9 @@ export class BrowserProvider implements FsProvider {
     queueMicrotask(() => onEvent({ type: "done", stats: { files: 0, dirs: 0, bytes: 0, errors: 0 }, cancelled: true }));
     return { cancel() {} };
   }
+
+  getThumbnail = () => Promise.reject({ kind: "unsupported", message: "Sin acceso al disco fuera de la aplicación de escritorio." });
+  setThumbEpoch = async () => {};
+  clearThumbCache = async () => 0;
+  getTextPreview = NA as FsProvider["getTextPreview"];
 }

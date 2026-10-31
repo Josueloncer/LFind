@@ -70,6 +70,8 @@ export interface Prefs {
   columns: Column[];
   recents: string[];
   folderViews: FolderView[];
+  thumbnails: boolean;
+  previewPane: boolean;
   version: number;
 }
 
@@ -86,6 +88,8 @@ export const DEFAULT_PREFS: Prefs = {
   columns: ["modified", "type", "size"],
   recents: [],
   folderViews: [],
+  thumbnails: true,
+  previewPane: false,
   version: 2,
 };
 
@@ -165,6 +169,15 @@ export interface DriveUsage {
   label: string | null;
   fs: string | null;
 }
+export type ThumbFailKind = "unsupported" | "toolarge" | "cancelled" | "failed";
+export interface ThumbReply {
+  dataUrl: string;
+}
+export interface TextPreview {
+  text: string;
+  truncated: boolean;
+  totalBytes: number;
+}
 export interface UndoResult {
   description: string;
   restored: number;
@@ -201,6 +214,13 @@ export interface FsProvider {
   getProperties(path: string): Promise<FileProps>;
   startStats(paths: string[], onEvent: (e: StatsEvent) => void): { cancel(): void };
   getDriveUsage(root: string): Promise<DriveUsage>;
+
+  // Miniaturas y vista previa. `epoch`: las solicitudes con una época anterior a la vigente se descartan
+  // sin trabajo en el backend; `null` = no caduca (panel de vista previa).
+  getThumbnail(path: string, px: number, epoch: number | null): Promise<ThumbReply>;
+  setThumbEpoch(epoch: number): Promise<void>;
+  clearThumbCache(): Promise<number>;
+  getTextPreview(path: string): Promise<TextPreview>;
 }
 
 /** Extrae un mensaje legible de lo que rechaza una llamada IPC (texto u objeto OpError). */

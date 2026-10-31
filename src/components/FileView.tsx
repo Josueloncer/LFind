@@ -5,15 +5,15 @@ import { kindLabel } from "../lib/fileKinds";
 import { formatBytes, formatDate } from "../lib/format";
 import type { Column, Entry, GroupBy, SortDir, SortKey, ViewMode } from "../lib/fs";
 import { buildLayout } from "../lib/layout";
+import { MarqueeSession, combineSelection, edgeScroll, hitTest, makeGeometry, namesOf, rectFrom, sameSet } from "../lib/marquee";
+import type { Rect } from "../lib/marquee";
+import { isThumbEligible } from "../lib/thumbKinds";
+import { thumbService } from "../lib/thumbService";
 import { iconGeometry } from "../lib/view";
+import { CONTENT_H, DETAILS_H, HEADER_H, LIST, TILE } from "../lib/viewGeometry";
 import { EntryGlyph } from "./Glyphs";
 import { ArrowDown, ArrowUp, Link2 } from "./icons";
-
-const HEADER_H = 38;
-const DETAILS_H = 32;
-const CONTENT_H = 60;
-const TILE = { w: 264, h: 68 };
-const LIST = { w: 232, h: 30 };
+import { Thumb } from "./Thumb";
 
 export const COL_ORDER: Column[] = ["modified", "created", "type", "size"];
 export const COL_LABEL: Record<Column, string> = { modified: "Fecha de modificación", created: "Fecha de creación", type: "Tipo", size: "Tamaño" };
@@ -25,6 +25,10 @@ type Variant = "details" | "content" | "tile" | "icon" | "small" | "list";
 
 export interface FileViewProps {
   entries: Entry[];
+  /** Carpeta que se está mostrando (para componer la ruta de cada elemento). */
+  basePath: string;
+  /** Mostrar miniaturas reales (solo en las vistas con iconos de tamaño suficiente). */
+  thumbs: boolean;
   mode: ViewMode;
   iconSize: number;
   columns: Column[];
@@ -110,6 +114,11 @@ function cellValue(c: Column, e: Entry): string {
   }
 }
 
+/** Miniatura real si procede (y está lista); si no, el icono del tipo de archivo. */
+function Visual({ e, size, thumbs, basePath }: { e: Entry; size: number; thumbs: boolean; basePath: string }) {
+  return thumbs && isThumbEligible(e) ? <Thumb entry={e} basePath={basePath} size={size} /> : <EntryGlyph entry={e} size={size} />;
+}
+
 interface ItemProps {
   e: Entry;
   i: number;
@@ -122,10 +131,12 @@ interface ItemProps {
   drop: boolean;
   cols: Column[];
   h: Handlers;
+  thumbs: boolean;
+  basePath: string;
   style?: CSSProperties;
 }
 
-const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming, drop, cols, h, style }: ItemProps) {
+const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming, drop, cols, h, thumbs, basePath, style }: ItemProps) {
   const name = renaming ? <RenameInput entry={e} onCommit={(n) => h.rename(e.name, n)} onCancel={h.cancelRename} /> : <span className="nm" title={e.name}>{e.name}</span>;
   const link = e.link && <Link2 className="link-badge" />;
   const common = {
@@ -160,21 +171,21 @@ const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming
     case "content":
       return (
         <div {...common}>
-          <EntryGlyph entry={e} size={40} />
+          <Visual e={e} size={40} thumbs={thumbs} basePath={basePath} />
           <div className="meta"><div className="nm-line">{name}{link}</div><div className="sub">{[kindLabel(e), e.kind === "dir" ? "" : formatBytes(e.size), formatDate(e.modified)].filter(Boolean).join("  ·  ")}</div></div>
         </div>
       );
     case "tile":
       return (
         <div {...common}>
-          <EntryGlyph entry={e} size={46} />
+          <Visual e={e} size={46} thumbs={thumbs} basePath={basePath} />
           <div className="meta"><div className="nm-line">{name}{link}</div><div className="sub">{kindLabel(e)}</div><div className="sub">{e.kind === "dir" ? formatDate(e.modified) : formatBytes(e.size)}</div></div>
         </div>
       );
     case "icon":
       return (
         <div {...common} title={e.name}>
-          <EntryGlyph entry={e} size={size} />
+          <Visual e={e} size={size} thumbs={thumbs} basePath={basePath} />
           <div className="gname">{name}</div>
         </div>
       );
@@ -192,6 +203,10 @@ export function FileView(props: FileViewProps) {
   const P = useRef(props);
   P.current = props;
 
+  // Cada carpeta abierta es una «época» nueva: lo que quedaba en cola de la anterior se descarta.
+  // Se hace al crear el componente (antes de que sus hijos pidan nada), no en un efecto.
+  useState(() => thumbService.newEpoch());
+
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [dim, setDim] = useState({ w: 800, h: 600 });
@@ -200,6 +215,9 @@ export function FileView(props: FileViewProps) {
   const anchor = useRef<number | null>(null);
   const collapse = useRef<number | null>(null);
   const typed = useRef({ buf: "", t: 0 });
+  const marquee = useRef<HTMLDivElement>(null);
+  const stopMarquee = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopMarquee.current?.(), []); // si el componente se desmonta a mitad de un arrastre
 
   // El tamaño del área solo importa en los modos que reparten por columnas o filas.
   useLayoutEffect(() => {
@@ -403,6 +421,76 @@ export function FileView(props: FileViewProps) {
     }
   };
 
+  /** Rectángulo de selección: nace al pulsar en una zona vacía y se activa al superar el umbral de arrastre. */
+  const startMarquee = (ev: React.MouseEvent<HTMLDivElement>) => {
+    const el = scroller.current;
+    if (!el || ev.button !== 0 || P.current.renaming) return;
+    if ((ev.target as HTMLElement).closest(".item")) return; // sobre un elemento: abrir/arrastrar/seleccionar, no rectángulo
+    const box0 = el.getBoundingClientRect();
+    if (ev.clientX >= box0.left + el.clientWidth || ev.clientY >= box0.top + el.clientHeight) return; // barras de desplazamiento
+    ev.preventDefault(); // sin selección de texto ni arrastre nativo
+    stopMarquee.current?.();
+
+    const mods = { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey };
+    const base = new Set(P.current.selected);
+    const sess = new MarqueeSession({ x: ev.clientX, y: ev.clientY });
+    const geom = makeGeometry({ mode: P.current.mode, iconSize: P.current.iconSize, width: el.clientWidth, layout: L.current, rpc });
+    const anchor = { x: ev.clientX - box0.left + el.scrollLeft, y: ev.clientY - box0.top + el.scrollTop };
+    let pointer = { x: ev.clientX, y: ev.clientY };
+    let raf = 0;
+    let last: Set<string> | null = null;
+
+    const draw = (r: Rect) => {
+      const m = marquee.current;
+      if (m) m.style.cssText = `display:block;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+    };
+    const tick = () => {
+      raf = 0;
+      const b = el.getBoundingClientRect();
+      const dx = edgeScroll(pointer.x - b.left, el.clientWidth);
+      const dy = edgeScroll(pointer.y - b.top, el.clientHeight);
+      if (dx || dy) {
+        el.scrollLeft += dx; // desplazamiento automático al arrastrar junto a un borde
+        el.scrollTop += dy;
+        raf = requestAnimationFrame(tick);
+      }
+      const cur = { x: pointer.x - b.left + el.scrollLeft, y: pointer.y - b.top + el.scrollTop };
+      const rect = rectFrom(anchor, cur, { w: el.scrollWidth, h: el.scrollHeight });
+      draw(rect);
+      const next = combineSelection(base, namesOf(L.current.flat, hitTest(rect, geom)), mods);
+      if (!last || !sameSet(last, next)) {
+        last = next;
+        P.current.onSelect(next);
+      }
+    };
+    const onMove = (e: globalThis.MouseEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      if (sess.update(pointer) && !raf) raf = requestAnimationFrame(tick);
+    };
+    const end = (restore: boolean) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("blur", onBlur);
+      cancelAnimationFrame(raf);
+      if (marquee.current) marquee.current.style.display = "none";
+      stopMarquee.current = null;
+      if (sess.active) {
+        if (restore) P.current.onSelect(base); // Esc o pérdida de foco: se deshace el arrastre
+      } else if (!restore && !mods.ctrl && !mods.shift) {
+        P.current.onSelect(new Set()); // clic en una zona vacía sin arrastrar: limpia la selección
+      }
+    };
+    const onUp = () => end(false);
+    const onBlur = () => end(true);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (e.stopPropagation(), end(true));
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("blur", onBlur);
+    stopMarquee.current = () => end(true);
+  };
+
   const sortIcon = sortDir === "asc" ? <ArrowUp /> : <ArrowDown />;
   const head = (key: SortKey, label: string, cls = "") => (
     <button key={key} className={cls} aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : undefined} onClick={() => props.onSort(key)}>
@@ -412,7 +500,8 @@ export function FileView(props: FileViewProps) {
 
   const item = (e: Entry, i: number, style?: CSSProperties) => (
     <Item key={e.name} e={e} i={i} variant={variant} size={iconSize} sel={selected.has(e.name)} focus={focusIdx === i}
-      cut={cut.has(e.name)} renaming={renaming === e.name} drop={dropName === e.name} cols={cols} h={H} style={style} />
+      cut={cut.has(e.name)} renaming={renaming === e.name} drop={dropName === e.name} cols={cols} h={H}
+      thumbs={props.thumbs && (variant === "icon" || variant === "tile" || variant === "content")} basePath={props.basePath} style={style} />
   );
 
   return (
@@ -436,7 +525,7 @@ export function FileView(props: FileViewProps) {
       <div
         className="scroller"
         ref={scroller}
-        onMouseDown={(ev) => ev.target === ev.currentTarget && props.onSelect(new Set())}
+        onMouseDown={startMarquee}
         onContextMenu={(ev) => (ev.preventDefault(), props.onContext(ev, null))}
         onDragOver={(ev) => {
           setDropName(null);
@@ -453,6 +542,7 @@ export function FileView(props: FileViewProps) {
       >
         {mode === "list" ? (
           <div className="vs" style={{ width: hv.getTotalSize(), height: "100%" }}>
+            <div ref={marquee} className="marquee" />
             {hv.getVirtualItems().map((vc) => {
               const from = vc.index * rpc;
               return (
@@ -464,6 +554,7 @@ export function FileView(props: FileViewProps) {
           </div>
         ) : (
           <div className="vs" style={{ height: vv.getTotalSize() }}>
+            <div ref={marquee} className="marquee" />
             {vv.getVirtualItems().map((vr) => {
               const row = layout.rows[vr.index];
               if (!row) return null;

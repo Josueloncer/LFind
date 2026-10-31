@@ -2,7 +2,7 @@ import type { Entry } from "./fs";
 
 export type Category =
   | "folder" | "image" | "video" | "audio" | "archive" | "code"
-  | "doc" | "sheet" | "slides" | "pdf" | "exec" | "other";
+  | "doc" | "sheet" | "slides" | "pdf" | "design" | "exec" | "other";
 
 const MAP: Record<Exclude<Category, "folder" | "other">, string[]> = {
   image: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "heic", "avif", "tif", "tiff", "raw"],
@@ -14,6 +14,7 @@ const MAP: Record<Exclude<Category, "folder" | "other">, string[]> = {
   sheet: ["xls", "xlsx", "csv", "ods", "tsv"],
   slides: ["ppt", "pptx", "odp", "key"],
   pdf: ["pdf"],
+  design: ["psd", "psb", "ai", "eps", "indd", "xcf", "sketch", "fig", "cdr"],
   exec: ["exe", "msi", "dll", "lnk"],
 };
 
@@ -27,11 +28,17 @@ export function categoryOf(e: Pick<Entry, "kind" | "ext">): Category {
 
 const LABEL: Record<Category, string> = {
   folder: "Carpeta", image: "Imagen", video: "Vídeo", audio: "Audio", archive: "Archivo comprimido",
-  code: "Código", doc: "Documento", sheet: "Hoja de cálculo", slides: "Presentación", pdf: "PDF",
+  code: "Código", doc: "Documento", sheet: "Hoja de cálculo", slides: "Presentación", pdf: "PDF", design: "Diseño",
   exec: "Aplicación", other: "Archivo",
 };
 
+const EXT_LABEL: Record<string, string> = {
+  psd: "Documento de Photoshop", psb: "Documento grande de Photoshop", ai: "Documento de Illustrator",
+  eps: "PostScript encapsulado", indd: "Documento de InDesign", svg: "Imagen SVG", webp: "Imagen WebP", heic: "Imagen HEIC",
+};
+
 export function kindLabel(e: Pick<Entry, "kind" | "ext">): string {
+  if (e.kind === "file" && e.ext && EXT_LABEL[e.ext]) return EXT_LABEL[e.ext];
   const c = categoryOf(e);
   if (c === "other" && e.ext) return `Archivo ${e.ext.toUpperCase()}`;
   return LABEL[c];

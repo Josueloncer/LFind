@@ -50,3 +50,5 @@ export { default as Rows3 } from "lucide-react/dist/esm/icons/rows-3.js";
 export { default as Columns3 } from "lucide-react/dist/esm/icons/columns-3.js";
 export { default as SquareArrowOutUpRight } from "lucide-react/dist/esm/icons/square-arrow-out-up-right.js";
 export { default as Folder } from "lucide-react/dist/esm/icons/folder.js";
+export { default as PanelRight } from "lucide-react/dist/esm/icons/panel-right.js";
+export { default as ImageOff } from "lucide-react/dist/esm/icons/image-off.js";

@@ -23,7 +23,13 @@ export function columnsMenu(columns: Column[], a: Pick<ViewActions, "setColumns"
   ];
 }
 
-export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions): MenuItem[] {
+export interface ThumbActions {
+  thumbnails: boolean;
+  toggleThumbnails(): void;
+  clearThumbCache(): void;
+}
+
+export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t: ThumbActions): MenuItem[] {
   const nearest = ICON_PRESETS.reduce((b, p) => (Math.abs(p.size - v.iconSize) < Math.abs(b.size - v.iconSize) ? p : b));
   const mode = (m: ViewMode): MenuItem => ({ kind: "item", label: VIEW_LABEL[m], checked: v.viewMode === m, run: () => a.setView({ viewMode: m }) });
   return [
@@ -38,6 +44,10 @@ export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions): M
     ...columnsMenu(columns, a),
     { kind: "sep" },
     { kind: "item", label: "Usar esta vista en todas las carpetas", run: a.applyAll },
+    { kind: "sep" },
+    { kind: "header", label: "Miniaturas" },
+    { kind: "item", label: "Mostrar miniaturas", checked: t.thumbnails, run: t.toggleThumbnails },
+    { kind: "item", label: "Borrar la caché de miniaturas", run: t.clearThumbCache },
   ];
 }
 

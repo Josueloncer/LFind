@@ -6,8 +6,8 @@ const items = (m: MenuItem[]) => m.filter((i): i is Extract<MenuItem, { kind: "i
 const view = { viewMode: "icons" as const, iconSize: 96, sortKey: "name" as const, sortDir: "asc" as const, groupBy: "none" as const };
 
 describe("menú Ver", () => {
-  const a = () => ({ setView: vi.fn(), setColumns: vi.fn(), applyAll: vi.fn() });
-  const t = () => ({ thumbnails: true, toggleThumbnails: vi.fn(), clearThumbCache: vi.fn() });
+  const a = (pinned = false) => ({ setView: vi.fn(), setColumns: vi.fn(), applyAll: vi.fn(), pinned, togglePin: vi.fn() });
+  const t = () => ({ thumbnails: true, toggleThumbnails: vi.fn(), systemIcons: true, toggleSystemIcons: vi.fn(), clearThumbCache: vi.fn() });
 
   it("marca el modo y el tamaño de icono actuales", () => {
     const m = items(viewMenu(view, ["size"], a(), t()));
@@ -29,9 +29,20 @@ describe("menú Ver", () => {
     m.find((i) => i.label === "Tamaño")!.run();
     expect(act.setColumns).toHaveBeenCalledWith([]);
     m.find((i) => i.label === "Mostrar miniaturas")!.run();
-    m.find((i) => i.label === "Borrar la caché de miniaturas")!.run();
+    m.find((i) => i.label === "Borrar la caché de miniaturas e iconos")!.run();
     expect(th.toggleThumbnails).toHaveBeenCalled();
     expect(th.clearThumbCache).toHaveBeenCalled();
+  });
+
+  it("ofrece recordar la vista solo para la carpeta (acción explícita) y dejar de hacerlo", () => {
+    const act = a();
+    items(viewMenu(view, [], act, t())).find((i) => i.label === "Recordar esta vista solo para esta carpeta")!.run();
+    expect(act.togglePin).toHaveBeenCalledTimes(1);
+    const pinned = a(true);
+    const m = items(viewMenu(view, [], pinned, t()));
+    expect(m.find((i) => i.label === "Recordar esta vista solo para esta carpeta")).toBeUndefined();
+    m.find((i) => i.label === "Dejar de recordar la vista de esta carpeta")!.run();
+    expect(pinned.togglePin).toHaveBeenCalledTimes(1);
   });
 
   it("el menú Ordenar permite agrupar y cambiar el sentido", () => {

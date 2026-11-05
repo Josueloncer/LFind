@@ -3,7 +3,7 @@ name = "nova-core"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-description = "Lógica de archivos de NOVA Explorer, independiente de Tauri y testeable en cualquier plataforma."
+description = "Lógica de archivos de LFind, independiente de Tauri y testeable en cualquier plataforma."
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

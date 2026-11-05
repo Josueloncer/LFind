@@ -6,7 +6,8 @@ import { basename } from "../lib/path";
 import { useDropTarget } from "../hooks/useDropTarget";
 import type { Tab } from "../stores/nav";
 import { useNav } from "../stores/nav";
-import { FolderGlyph, NovaMark } from "./Glyphs";
+import { usePrefs } from "../stores/prefs";
+import { FolderGlyph, BrandMark } from "./Glyphs";
 
 function WindowControls() {
   const [max, setMax] = useState(false);
@@ -42,7 +43,7 @@ function WindowControls() {
           <svg viewBox="0 0 10 10" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="9" height="9" /></svg>
         )}
       </button>
-      <button className="close" aria-label="Cerrar" onClick={() => void w.close()}>
+      <button className="close" aria-label="Cerrar" onClick={() => void usePrefs.getState().flush().finally(() => w.close())}>
         <svg viewBox="0 0 10 10" stroke="currentColor"><path d="M0 0l10 10M10 0L0 10" /></svg>
       </button>
     </div>
@@ -73,7 +74,7 @@ export function TitleBar() {
   const { tabs, activeId, setActive, closeTab, openTab } = useNav();
   return (
     <header className="titlebar" data-tauri-drag-region>
-      <div className="brand" data-tauri-drag-region><NovaMark /></div>
+      <div className="brand" data-tauri-drag-region><BrandMark /></div>
       <div className="tabs" role="tablist" data-tauri-drag-region>
         {tabs.map((t) => (
           <TabItem key={t.id} t={t} active={t.id === activeId} many={tabs.length > 1} onSelect={() => setActive(t.id)} onClose={() => closeTab(t.id)} />

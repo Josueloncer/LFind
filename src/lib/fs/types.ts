@@ -34,7 +34,7 @@ export interface PlacesInfo {
   drives: Place[];
 }
 
-export type Theme = "system" | "dark" | "light";
+export type Theme = "system" | "dark" | "light" | "cyberpunk" | "hacker" | "minimal";
 export type ViewMode = "details" | "list" | "tiles" | "content" | "icons";
 export type SortKey = "name" | "modified" | "size" | "kind" | "created";
 export type SortDir = "asc" | "desc";
@@ -50,6 +50,8 @@ export interface FolderView {
   sortKey: SortKey;
   sortDir: SortDir;
   groupBy: GroupBy;
+  /** `true` = el usuario pidió recordar el modo y el tamaño de icono para esta carpeta. Si no, se hereda la vista global. */
+  pinned?: boolean;
 }
 
 export interface Favorite {
@@ -71,6 +73,8 @@ export interface Prefs {
   recents: string[];
   folderViews: FolderView[];
   thumbnails: boolean;
+  /** Iconos del sistema (Explorador de Windows) en lugar de los glifos propios. */
+  systemIcons: boolean;
   previewPane: boolean;
   version: number;
 }
@@ -89,6 +93,7 @@ export const DEFAULT_PREFS: Prefs = {
   recents: [],
   folderViews: [],
   thumbnails: true,
+  systemIcons: true,
   previewPane: false,
   version: 2,
 };
@@ -173,6 +178,17 @@ export type ThumbFailKind = "unsupported" | "toolarge" | "cancelled" | "failed";
 export interface ThumbReply {
   dataUrl: string;
 }
+/** Elemento de un lote de iconos del sistema. */
+export interface IconItem {
+  path: string;
+  dir: boolean;
+}
+export interface IconsReply {
+  /** Una clave por elemento pedido, en el mismo orden. `null` = sin icono del sistema (se usa el glifo propio). */
+  keys: (string | null)[];
+  /** `data:` URL de los iconos que la interfaz aún no tenía, por clave. */
+  icons: Record<string, string>;
+}
 export interface TextPreview {
   text: string;
   truncated: boolean;
@@ -221,6 +237,10 @@ export interface FsProvider {
   setThumbEpoch(epoch: number): Promise<void>;
   clearThumbCache(): Promise<number>;
   getTextPreview(path: string): Promise<TextPreview>;
+
+  /** Iconos del sistema (los del Explorador de Windows) de un lote de elementos. `have`: claves que ya se tienen. */
+  getIcons(items: IconItem[], px: number, have: string[]): Promise<IconsReply>;
+  clearIconCache(): Promise<number>;
 }
 
 /** Extrae un mensaje legible de lo que rechaza una llamada IPC (texto u objeto OpError). */

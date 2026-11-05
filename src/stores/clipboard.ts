@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /**
- * Portapapeles interno de NOVA (copiar/cortar entre carpetas, pestañas y paneles).
+ * Portapapeles interno de LFind (copiar/cortar entre carpetas, pestañas y paneles).
  * No se sincroniza con el portapapeles de Windows: pegar en el Explorador de Windows no está soportado todavía.
  */
 interface ClipState {

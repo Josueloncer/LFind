@@ -1,8 +1,9 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, DriveUsage, FileProps, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, TextPreview, Theme, ThumbReply, UndoResult,
+  DirEvent, DirHandle, DriveUsage, FileProps, IconItem, IconsReply, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, TextPreview, Theme, ThumbReply, UndoResult,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -47,7 +48,8 @@ export class TauriProvider implements FsProvider {
   }
 
   async setWindowTheme(theme: Theme): Promise<void> {
-    await getCurrentWindow().setTheme(theme === "system" ? null : theme);
+    // Cyberpunk/Hacker → oscuro, Minimal → claro; «system» devuelve el control al sistema.
+    await getCurrentWindow().setTheme(schemeOf(theme));
   }
 
   async showWindow(): Promise<void> {
@@ -86,6 +88,9 @@ export class TauriProvider implements FsProvider {
 
   getThumbnail = (path: string, px: number, epoch: number | null) => invoke<ThumbReply>("get_thumbnail", { path, px, epoch });
   setThumbEpoch = (epoch: number) => invoke<void>("set_thumb_epoch", { epoch });
-  clearThumbCache = () => invoke<number>("clear_thumb_cache");
+  // Vaciar «miniaturas» vacía también los iconos propios de archivo guardados en disco.
+  clearThumbCache = async () => (await invoke<number>("clear_thumb_cache")) + (await invoke<number>("clear_icon_cache").catch(() => 0));
+  getIcons = (items: IconItem[], px: number, have: string[]) => invoke<IconsReply>("get_icons", { items, px, have });
+  clearIconCache = () => invoke<number>("clear_icon_cache");
   getTextPreview = (path: string) => invoke<TextPreview>("get_text_preview", { path });
 }

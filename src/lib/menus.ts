@@ -8,6 +8,9 @@ export interface ViewActions {
   setView(patch: Partial<EffectiveView>): void;
   setColumns(c: Column[]): void;
   applyAll(): void;
+  /** ¿Esta carpeta tiene su propia vista (modo y tamaño) recordada? */
+  pinned: boolean;
+  togglePin(): void;
 }
 
 const COLS: [Column, string][] = [["modified", "Fecha de modificación"], ["created", "Fecha de creación"], ["type", "Tipo"], ["size", "Tamaño"]];
@@ -26,6 +29,8 @@ export function columnsMenu(columns: Column[], a: Pick<ViewActions, "setColumns"
 export interface ThumbActions {
   thumbnails: boolean;
   toggleThumbnails(): void;
+  systemIcons: boolean;
+  toggleSystemIcons(): void;
   clearThumbCache(): void;
 }
 
@@ -43,11 +48,13 @@ export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t:
     { kind: "sep" },
     ...columnsMenu(columns, a),
     { kind: "sep" },
-    { kind: "item", label: "Usar esta vista en todas las carpetas", run: a.applyAll },
+    { kind: "item", label: a.pinned ? "Dejar de recordar la vista de esta carpeta" : "Recordar esta vista solo para esta carpeta", run: a.togglePin },
+    { kind: "item", label: "Usar esta vista (orden incluido) en todas las carpetas", run: a.applyAll },
     { kind: "sep" },
     { kind: "header", label: "Miniaturas" },
     { kind: "item", label: "Mostrar miniaturas", checked: t.thumbnails, run: t.toggleThumbnails },
-    { kind: "item", label: "Borrar la caché de miniaturas", run: t.clearThumbCache },
+    { kind: "item", label: "Usar iconos del sistema", checked: t.systemIcons, run: t.toggleSystemIcons },
+    { kind: "item", label: "Borrar la caché de miniaturas e iconos", run: t.clearThumbCache },
   ];
 }
 

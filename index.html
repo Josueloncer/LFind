@@ -4,12 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
-    <title>NOVA Explorer</title>
+    <title>LFind</title>
     <!-- Fondo inmediato: se pinta antes de que cargue ningún JS/CSS de la app. -->
     <style>
       html { background: #18191c; }
       html[data-theme="light"] { background: #e8e9ee; }
-      html[data-vibrancy="on"] { background: transparent; }
+      html[data-theme="cyberpunk"] { background: #07060d; }
+      html[data-theme="hacker"] { background: #000000; }
+      html[data-theme="minimal"] { background: #f1f1f1; }
+      html[data-vibrancy="on"][data-theme="dark"], html[data-vibrancy="on"][data-theme="light"] { background: transparent; }
       body { margin: 0; }
     </style>
     <!-- Aplica el último tema y el estado de Mica conocidos (script externo: compatible con la CSP). -->

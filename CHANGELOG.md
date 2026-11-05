@@ -1,3 +1,60 @@
+# LFind — Registro de cambios
+
+## Actualización 03: iconos del sistema, vistas globales, seis temas y sistema de diseño
+
+Actualización incremental sobre la 02 (no sustituye la arquitectura). No actualiza dependencias ni añade ninguna.
+**Estado de verificación: ver `WINDOWS_VERIFICATION.md`** (el código nativo de Windows y `src-tauri` no se pudieron compilar ni ejecutar en el entorno donde se desarrolló).
+
+### 1. Iconos nativos de Windows (distintos de las miniaturas)
+- `nova-core::icons`: servicio de iconos del sistema por **lotes**. Un icono por tipo (`docx`, `mp4`, `zip`, `psd`, `dll`…) se extrae UNA vez por sesión
+  y tamaño, aunque haya miles de archivos; los iconos propios (EXE, SCR, LNK, URL, ICO, CPL, appref-ms, raíces de unidad y carpetas cuyo `desktop.ini`
+  declara icono) se leen del archivo y se cachean en disco con clave (ruta, tamaño, fecha, px, versión): si el archivo cambia, se vuelve a extraer.
+- `nova-core::icons_win`: API nativas (`SHGetFileInfoW` + `SHGetImageList` + `ImageList_GetIcon`). **No ejecuta nada**: el shell solo lee el recurso de icono.
+  Respeta los iconos personalizados de accesos directos, carpetas y aplicaciones. No usa `THUMBNAILONLY`: iconos del sistema y miniaturas son servicios y cachés separados.
+- Extracción en hilos con tiempo límite (un manejador de iconos colgado no bloquea la interfaz) y concurrencia limitada.
+- Interfaz: `iconService` junta las solicitudes visibles en un único lote (≈24 ms), no pide lo que ya tiene (`have`), retira lo que sale de pantalla, descarta la cola al
+  cambiar de carpeta y acota la memoria (LRU). Carga progresiva: glifo propio al instante → icono del sistema → miniatura (si procede).
+- Respaldo: sin icono del sistema (o fuera de Windows) se conserva el glifo de LFind. Opción «Usar iconos del sistema» en el menú Ver (activada por defecto).
+  «Borrar la caché de miniaturas e iconos» vacía ambas.
+- Los `.dll` comparten el icono del tipo (igual que el Explorador); no se extrae el primer icono incrustado de cada DLL.
+
+### 2. Persistencia de vistas
+- Modo de visualización y tamaño de iconos se guardan como vista **global** cada vez que se cambian: se conservan al navegar, cambiar de unidad, atrás/adelante y al reiniciar
+  (guardado inmediato al cerrar la ventana).
+- «Recordar esta vista solo para esta carpeta» (menú Ver) es una acción explícita; sin ella, toda carpeta hereda la vista global. «Dejar de recordar…» la libera.
+- Orden y agrupación siguen siendo por carpeta, como antes. Las vistas por carpeta guardadas por versiones anteriores conservan su orden y heredan modo/tamaño globales.
+
+### 3. Temas
+- Seis temas: **Cyberpunk** (negro profundo, cian y magenta neón), **Hacker/Terminal** (negro, verde fósforo, tipografía monoespaciada), **Minimal** (monocromo, sin acentos),
+  **Dark**, **Light** y **System**. Selector en la barra lateral; el cambio es inmediato y se guarda. «System» sigue al tema de Windows.
+- Un tema desconocido en `prefs.json` (p. ej. de una versión futura) cae a «System» sin perder el resto de preferencias.
+- Mica solo con Dark/Light; el resto conserva su fondo propio. La barra de título nativa sigue el esquema claro/oscuro del tema.
+
+### 4. Sistema de diseño
+- `tokens.css`: escalas independientes del tema (tipografía, espaciado, tamaños de componentes, movimiento, capas).
+- `themes.css`: los 5 temas concretos con **la misma lista de 62 variables** (superficies, acento, texto, líneas, estados, sombras, radios, tipografías, iconos, categorías de archivo).
+  Una prueba comprueba que ningún tema omita o añada variables y que `app.css` no contiene colores ni sombras escritos a mano. Un tema de usuario futuro será otro bloque con esas mismas claves.
+- Se mantienen en CSS algunos valores de geometría (altos de fila, anchos de celda) porque la lista virtualizada los duplica en JavaScript.
+
+### 5. Nombre
+- «NOVA Explorer» pasa a «LFind» en la interfaz, título de ventana, `productName` y documentación. Se conservan el identificador `app.nova.explorer`, la carpeta de preferencias,
+  las claves `nova.*` y los nombres de crate/paquete para no perder configuraciones.
+
+### Archivos nuevos
+`crates/nova-core/src/icons.rs`, `icons_win.rs`, `src-tauri/src/icons_cmd.rs`, `src/styles/themes.css`, `src/lib/themes.ts`, `themes.test.ts`, `iconKinds.ts`, `iconService.ts`, `iconService.test.ts`,
+`src/hooks/useSystemIcon.ts`, `src/components/EntryIcon.tsx`, `WINDOWS_VERIFICATION.md`, `UPDATE03_PROGRESS.md`.
+
+### Archivos modificados
+Rust: `nova-core/{lib,prefs}.rs`, `src-tauri/src/lib.rs`, `src-tauri/{Cargo.toml,tauri.conf.json}`, `nova-core/Cargo.toml`. Interfaz: `App.tsx`, `main.tsx`, `index.html`, `public/boot.js`, `styles/{tokens,app}.css`,
+`components/{FileView,Glyphs,Pane,Sidebar,Thumb,TitleBar,Toolbar,icons}`, `lib/{menus,viewState,layout.test,menus.test}`, `lib/fs/{types,tauri,browser}.ts`, `stores/{prefs,clipboard}.ts`, `README.md`, `PROJECT_STATUS.md`.
+
+### Limitaciones conocidas
+- Un icono propio cambia con el archivo, pero el icono de un acceso directo no se invalida si solo cambia el icono de su destino (sí si cambia el `.lnk`).
+- Si el sistema no tiene icono para un tipo, no se reintenta durante la sesión.
+- Las entradas de vista por carpeta creadas antes de esta versión dejan de fijar modo/tamaño (ahora heredan el global): es consecuencia directa de la regla pedida.
+
+---
+
 # LFind — Actualización 02: selección por rectángulo, miniaturas y cola de operaciones
 
 Actualización incremental sobre el proyecto existente (no sustituye la arquitectura). No modifica

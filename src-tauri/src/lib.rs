@@ -1,4 +1,5 @@
 mod commands;
+mod icons_cmd;
 mod state;
 mod thumbs_cmd;
 
@@ -14,6 +15,9 @@ pub fn run() {
             // Miniaturas: caché en la carpeta de caché local de la app (no en Roaming).
             let thumbs_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("thumbs");
             app.manage(thumbs_cmd::ThumbState(std::sync::Arc::new(nova_core::thumbs::ThumbService::with_defaults(thumbs_dir))));
+            // Iconos del sistema: su caché en disco (solo iconos propios de archivo) va junto a la de miniaturas.
+            let icons_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("icons");
+            app.manage(icons_cmd::IconState(std::sync::Arc::new(nova_core::icons::IconService::with_defaults(icons_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
             if let Some(win) = app.get_webview_window("main") {
@@ -56,11 +60,13 @@ pub fn run() {
             thumbs_cmd::set_thumb_epoch,
             thumbs_cmd::clear_thumb_cache,
             thumbs_cmd::get_text_preview,
+            icons_cmd::get_icons,
+            icons_cmd::clear_icon_cache,
             commands::get_places,
             commands::get_platform_info,
             commands::get_prefs,
             commands::set_prefs,
         ])
         .run(tauri::generate_context!())
-        .expect("error al iniciar NOVA Explorer");
+        .expect("error al iniciar LFind");
 }

@@ -8,10 +8,11 @@ import { buildLayout } from "../lib/layout";
 import { MarqueeSession, combineSelection, edgeScroll, hitTest, makeGeometry, namesOf, rectFrom, sameSet } from "../lib/marquee";
 import type { Rect } from "../lib/marquee";
 import { isThumbEligible } from "../lib/thumbKinds";
+import { iconService } from "../lib/iconService";
 import { thumbService } from "../lib/thumbService";
 import { iconGeometry } from "../lib/view";
 import { CONTENT_H, DETAILS_H, HEADER_H, LIST, TILE } from "../lib/viewGeometry";
-import { EntryGlyph } from "./Glyphs";
+import { EntryIcon } from "./EntryIcon";
 import { ArrowDown, ArrowUp, Link2 } from "./icons";
 import { Thumb } from "./Thumb";
 
@@ -116,7 +117,7 @@ function cellValue(c: Column, e: Entry): string {
 
 /** Miniatura real si procede (y está lista); si no, el icono del tipo de archivo. */
 function Visual({ e, size, thumbs, basePath }: { e: Entry; size: number; thumbs: boolean; basePath: string }) {
-  return thumbs && isThumbEligible(e) ? <Thumb entry={e} basePath={basePath} size={size} /> : <EntryGlyph entry={e} size={size} />;
+  return thumbs && isThumbEligible(e) ? <Thumb entry={e} basePath={basePath} size={size} /> : <EntryIcon entry={e} basePath={basePath} size={size} />;
 }
 
 interface ItemProps {
@@ -164,7 +165,7 @@ const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming
     case "details":
       return (
         <div {...common}>
-          <div className="cell-name"><EntryGlyph entry={e} size={22} />{name}{link}</div>
+          <div className="cell-name"><EntryIcon entry={e} basePath={basePath} size={22} />{name}{link}</div>
           {cols.map((c) => <div key={c} className={c === "size" ? "cell cell-num" : "cell"}>{cellValue(c, e)}</div>)}
         </div>
       );
@@ -192,7 +193,7 @@ const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming
     default: // small | list
       return (
         <div {...common}>
-          <EntryGlyph entry={e} size={20} />{name}{link}
+          <EntryIcon entry={e} basePath={basePath} size={20} />{name}{link}
         </div>
       );
   }
@@ -205,7 +206,7 @@ export function FileView(props: FileViewProps) {
 
   // Cada carpeta abierta es una «época» nueva: lo que quedaba en cola de la anterior se descarta.
   // Se hace al crear el componente (antes de que sus hijos pidan nada), no en un efecto.
-  useState(() => thumbService.newEpoch());
+  useState(() => (thumbService.newEpoch(), iconService.newEpoch()));
 
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);

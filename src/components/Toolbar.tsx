@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { errMsg, fs } from "../lib/fs";
 import { formatBytes } from "../lib/format";
+import { iconService } from "../lib/iconService";
 import { thumbService } from "../lib/thumbService";
 import { newMenu, sortMenu, viewMenu } from "../lib/menus";
 import { basename, parent, samePath, segments } from "../lib/path";
@@ -28,6 +29,8 @@ interface Props {
   setView(patch: Partial<EffectiveView>): void;
   setColumns(c: Column[]): void;
   applyAll(): void;
+  pinned: boolean;
+  togglePin(): void;
   newFolder(): void;
   newFile(): void;
 }
@@ -53,13 +56,14 @@ function Crumb({ label, path, last, onGo, onMenu }: { label: string; path: strin
   );
 }
 
-export function Toolbar({ filter, onFilter, onReload, view, columns, setView, setColumns, applyAll, newFolder, newFile }: Props) {
+export function Toolbar({ filter, onFilter, onReload, view, columns, setView, setColumns, applyAll, pinned, togglePin, newFolder, newFile }: Props) {
   const tab = useNav(selectActiveTab);
   const { navigate, goBack, goForward, goUp, jump } = useNav();
   const showHidden = usePrefs((s) => s.showHidden);
   const favorites = usePrefs((s) => s.favorites);
   const sidebarCollapsed = usePrefs((s) => s.sidebarCollapsed);
   const thumbnails = usePrefs((s) => s.thumbnails);
+  const systemIcons = usePrefs((s) => s.systemIcons);
   const previewPane = usePrefs((s) => s.previewPane);
   const toast = useUi((s) => s.toast);
   const update = usePrefs((s) => s.update);
@@ -147,11 +151,13 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
       <div className="tb-group">
         <button className="tbtn" disabled={!path} title="Crear una carpeta o un archivo nuevo" onClick={(e) => below(e, newMenu({ newFolder, newFile }))}><Plus /><span className="tb-label">Nuevo</span></button>
         <button className="tbtn" disabled={!path} title="Ordenar y agrupar" onClick={(e) => below(e, sortMenu(view, { setView }))}><ArrowUpDown /><span className="tb-label">Ordenar</span></button>
-        <button className="tbtn" disabled={!path} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll }, {
+        <button className="tbtn" disabled={!path} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll, pinned, togglePin }, {
           thumbnails,
           toggleThumbnails: () => update({ thumbnails: !thumbnails }),
+          systemIcons,
+          toggleSystemIcons: () => update({ systemIcons: !systemIcons }),
           clearThumbCache: () => void fs.clearThumbCache()
-            .then((b) => (thumbService.clear(), toast(`Caché de miniaturas vaciada (${formatBytes(b)}).`, "success")))
+            .then((b) => (thumbService.clear(), iconService.clear(), toast(`Caché de miniaturas e iconos vaciada (${formatBytes(b)}).`, "success")))
             .catch((e) => toast(errMsg(e), "error")),
         }))}><ModeIcon /><span className="tb-label">Ver</span></button>
         <span className="tb-sep tb-hide-narrow" />

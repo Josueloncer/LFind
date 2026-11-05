@@ -71,4 +71,6 @@ export class BrowserProvider implements FsProvider {
   setThumbEpoch = async () => {};
   clearThumbCache = async () => 0;
   getTextPreview = NA as FsProvider["getTextPreview"];
+  getIcons: FsProvider["getIcons"] = async (items) => ({ keys: items.map(() => null), icons: {} });
+  clearIconCache = async () => 0;
 }

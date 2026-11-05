@@ -1,4 +1,4 @@
-# NOVA Explorer · Estado del proyecto
+# LFind · Estado del proyecto
 
 _Última actualización: Fase 1.1 (auditoría y optimización de arranque)._
 

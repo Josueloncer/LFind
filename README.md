@@ -1,4 +1,6 @@
-# NOVA Explorer
+# LFind
+
+> Antes «NOVA Explorer». El nombre visible cambió en la actualización 03; el identificador interno (`app.nova.explorer`), la carpeta de preferencias, las claves `nova.*` del almacenamiento local y los nombres de crates (`nova-core`) se conservan a propósito para no perder la configuración de nadie.
 
 Explorador de archivos para Windows: Tauri 2 + Rust + React + TypeScript.
 Estado actual: **Fase 1** (ventana premium + lectura real de carpetas). Ver `PROJECT_STATUS.md`.

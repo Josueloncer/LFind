@@ -1,0 +1,404 @@
+/* ───────── LFind · valores de los temas ─────────
+   Temas: dark · light · cyberpunk · hacker · minimal. «System» no tiene bloque propio: la interfaz
+   lo resuelve a dark o light según el sistema (ver `src/lib/themes.ts`).
+
+   CONTRATO: cada bloque define TODAS las variables de esta lista, en este orden.
+   Una prueba (`themes.test.ts`) lo comprueba. Para un tema nuevo: copiar un bloque y cambiar valores.
+
+   superficies  --bg-chrome --bg-content --bg-raised --bg-field --bg-hover --bg-press --scrim
+   acento       --accent --accent-rgb --accent-2 --on-accent --sel --sel-edge --focus-ring
+   texto        --text --text-2 --text-3
+   líneas       --line --line-strong
+   estados      --danger --danger-hover --danger-text --danger-edge --on-danger --success --warning
+   sombras      --shadow-s --shadow-menu --shadow-modal --shadow-toast --shadow-thumb --shadow-preview --shadow-glyph
+   forma        --r-xs --r-s --r-m --r-l
+   tipografía   --font --font-display --font-mono
+   iconos       --page-a --page-b --fold-back-a --fold-back-b --fold-front-a --fold-front-b --mark-a --mark-b --glyph-label
+   categorías   --cat-folder --cat-image --cat-video --cat-audio --cat-archive --cat-code --cat-doc
+                --cat-sheet --cat-slides --cat-pdf --cat-design --cat-exec --cat-other
+*/
+
+/* ── Dark · grafito ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-chrome: #18191c;
+  --bg-content: #1e1f23;
+  --bg-raised: #2b2c32;
+  --bg-field: rgba(255, 255, 255, 0.055);
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-press: rgba(255, 255, 255, 0.1);
+  --scrim: rgba(8, 9, 12, 0.5);
+
+  --accent: #8e9dff;
+  --accent-rgb: 142, 157, 255;
+  --accent-2: #b4bfff;
+  --on-accent: #11131f;
+  --sel: rgba(var(--accent-rgb), 0.2);
+  --sel-edge: rgba(var(--accent-rgb), 0.38);
+  --focus-ring: rgba(var(--accent-rgb), 0.75);
+
+  --text: #ededf1;
+  --text-2: #a6a7b1;
+  --text-3: #6f707b;
+
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+
+  --danger: #d83c42;
+  --danger-hover: #e5484d;
+  --danger-text: #ff7a7f;
+  --danger-edge: rgba(229, 72, 77, 0.6);
+  --on-danger: #ffffff;
+  --success: #2fbf8a;
+  --warning: #f0a23c;
+
+  --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 14px 38px rgba(0, 0, 0, 0.42);
+  --shadow-modal: 0 0 0 1px var(--line-strong), 0 24px 70px rgba(0, 0, 0, 0.55);
+  --shadow-toast: 0 0 0 1px var(--line-strong), 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-thumb: 0 0 0 1px var(--line-strong), 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-preview: 0 0 0 1px var(--line-strong), 0 6px 22px rgba(0, 0, 0, 0.35);
+  --shadow-glyph: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.22));
+
+  --r-xs: 5px;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --page-a: #eceef5;
+  --page-b: #c9ccda;
+  --fold-back-a: #6e7cdc;
+  --fold-back-b: #5360c2;
+  --fold-front-a: #b4bfff;
+  --fold-front-b: #8493f5;
+  --mark-a: #c7d0ff;
+  --mark-b: #8a9aff;
+  --glyph-label: #ffffff;
+
+  --cat-folder: #8e9dff;
+  --cat-image: #2fbf8a;
+  --cat-video: #a46bff;
+  --cat-audio: #ff6b9d;
+  --cat-archive: #f0a23c;
+  --cat-code: #33bfe0;
+  --cat-doc: #5b8cff;
+  --cat-sheet: #2fb36b;
+  --cat-slides: #ff8a4c;
+  --cat-pdf: #ef5350;
+  --cat-design: #e8913a;
+  --cat-exec: #8b90a0;
+  --cat-other: #7d8291;
+}
+
+/* ── Light · refinado ── */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-chrome: #e8e9ee;
+  --bg-content: #fbfbfd;
+  --bg-raised: #ffffff;
+  --bg-field: rgba(20, 22, 40, 0.055);
+  --bg-hover: rgba(20, 22, 40, 0.055);
+  --bg-press: rgba(20, 22, 40, 0.1);
+  --scrim: rgba(20, 22, 40, 0.32);
+
+  --accent: #8e9dff;
+  --accent-rgb: 142, 157, 255;
+  --accent-2: #5e6ee6;
+  --on-accent: #11131f;
+  --sel: rgba(var(--accent-rgb), 0.2);
+  --sel-edge: rgba(94, 110, 230, 0.45);
+  --focus-ring: rgba(94, 110, 230, 0.75);
+
+  --text: #1b1c24;
+  --text-2: #5b5d6b;
+  --text-3: #8d8f9c;
+
+  --line: rgba(20, 22, 40, 0.08);
+  --line-strong: rgba(20, 22, 40, 0.15);
+
+  --danger: #d83c42;
+  --danger-hover: #e5484d;
+  --danger-text: #c62a30;
+  --danger-edge: rgba(216, 60, 66, 0.6);
+  --on-danger: #ffffff;
+  --success: #1f8f66;
+  --warning: #b86e00;
+
+  --shadow-s: 0 1px 2px rgba(20, 22, 40, 0.12), 0 0 0 1px rgba(20, 22, 40, 0.05);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 14px 38px rgba(20, 22, 40, 0.2);
+  --shadow-modal: 0 0 0 1px var(--line-strong), 0 24px 70px rgba(20, 22, 40, 0.28);
+  --shadow-toast: 0 0 0 1px var(--line-strong), 0 10px 30px rgba(20, 22, 40, 0.18);
+  --shadow-thumb: 0 0 0 1px var(--line-strong), 0 2px 8px rgba(20, 22, 40, 0.16);
+  --shadow-preview: 0 0 0 1px var(--line-strong), 0 6px 22px rgba(20, 22, 40, 0.2);
+  --shadow-glyph: drop-shadow(0 3px 5px rgba(20, 22, 40, 0.18));
+
+  --r-xs: 5px;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --page-a: #ffffff;
+  --page-b: #e3e5ee;
+  --fold-back-a: #7d8bea;
+  --fold-back-b: #6471d3;
+  --fold-front-a: #c3ccff;
+  --fold-front-b: #97a5fa;
+  --mark-a: #9aa8ff;
+  --mark-b: #6471d3;
+  --glyph-label: #ffffff;
+
+  --cat-folder: #6471d3;
+  --cat-image: #1f9d70;
+  --cat-video: #8a4fe0;
+  --cat-audio: #e0487f;
+  --cat-archive: #d98a1f;
+  --cat-code: #1e9fc2;
+  --cat-doc: #3f73e6;
+  --cat-sheet: #209a58;
+  --cat-slides: #e8702c;
+  --cat-pdf: #d83c42;
+  --cat-design: #d2761a;
+  --cat-exec: #6f7486;
+  --cat-other: #8d8f9c;
+}
+
+/* ── Cyberpunk · negro profundo, cian y magenta neón ── */
+:root[data-theme="cyberpunk"] {
+  color-scheme: dark;
+  --bg-chrome: #07060d;
+  --bg-content: #0c0a16;
+  --bg-raised: #17122b;
+  --bg-field: rgba(0, 229, 255, 0.06);
+  --bg-hover: rgba(0, 229, 255, 0.08);
+  --bg-press: rgba(255, 43, 214, 0.16);
+  --scrim: rgba(3, 2, 10, 0.68);
+
+  --accent: #00e5ff;
+  --accent-rgb: 0, 229, 255;
+  --accent-2: #ff2bd6;
+  --on-accent: #04050c;
+  --sel: rgba(var(--accent-rgb), 0.15);
+  --sel-edge: rgba(var(--accent-rgb), 0.55);
+  --focus-ring: rgba(255, 43, 214, 0.85);
+
+  --text: #e8fbff;
+  --text-2: #9db6d4;
+  --text-3: #62728f;
+
+  --line: rgba(0, 229, 255, 0.12);
+  --line-strong: rgba(255, 43, 214, 0.32);
+
+  --danger: #e0245e;
+  --danger-hover: #ff3d7f;
+  --danger-text: #ff5c8a;
+  --danger-edge: rgba(255, 61, 127, 0.7);
+  --on-danger: #ffffff;
+  --success: #39ffb0;
+  --warning: #ffd23f;
+
+  --shadow-s: 0 0 0 1px rgba(0, 229, 255, 0.22), 0 0 10px rgba(0, 229, 255, 0.12);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 0 22px rgba(255, 43, 214, 0.2), 0 14px 38px rgba(0, 0, 0, 0.6);
+  --shadow-modal: 0 0 0 1px var(--line-strong), 0 0 34px rgba(0, 229, 255, 0.18), 0 24px 70px rgba(0, 0, 0, 0.7);
+  --shadow-toast: 0 0 0 1px var(--line-strong), 0 0 18px rgba(0, 229, 255, 0.16), 0 10px 30px rgba(0, 0, 0, 0.55);
+  --shadow-thumb: 0 0 0 1px var(--line-strong), 0 2px 10px rgba(0, 0, 0, 0.5);
+  --shadow-preview: 0 0 0 1px var(--line-strong), 0 0 20px rgba(0, 229, 255, 0.14), 0 6px 22px rgba(0, 0, 0, 0.55);
+  --shadow-glyph: drop-shadow(0 0 6px rgba(0, 229, 255, 0.3));
+
+  --r-xs: 3px;
+  --r-s: 4px;
+  --r-m: 6px;
+  --r-l: 8px;
+
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --page-a: #e6f8ff;
+  --page-b: #8fb8d6;
+  --fold-back-a: #c21fa6;
+  --fold-back-b: #7a0f6e;
+  --fold-front-a: #6cf3ff;
+  --fold-front-b: #00b8d4;
+  --mark-a: #6cf3ff;
+  --mark-b: #ff2bd6;
+  --glyph-label: #04050c;
+
+  --cat-folder: #00e5ff;
+  --cat-image: #39ffb0;
+  --cat-video: #b066ff;
+  --cat-audio: #ff2bd6;
+  --cat-archive: #ffd23f;
+  --cat-code: #3dd5ff;
+  --cat-doc: #5c8dff;
+  --cat-sheet: #2fe08a;
+  --cat-slides: #ff7a3d;
+  --cat-pdf: #ff3d71;
+  --cat-design: #ff9f2e;
+  --cat-exec: #8a93b8;
+  --cat-other: #6b7596;
+}
+
+/* ── Hacker / Terminal · negro y verde fósforo ── */
+:root[data-theme="hacker"] {
+  color-scheme: dark;
+  --bg-chrome: #000000;
+  --bg-content: #030703;
+  --bg-raised: #0b150c;
+  --bg-field: rgba(51, 255, 102, 0.05);
+  --bg-hover: rgba(51, 255, 102, 0.07);
+  --bg-press: rgba(51, 255, 102, 0.13);
+  --scrim: rgba(0, 0, 0, 0.7);
+
+  --accent: #33ff66;
+  --accent-rgb: 51, 255, 102;
+  --accent-2: #1fcc4d;
+  --on-accent: #000000;
+  --sel: rgba(var(--accent-rgb), 0.16);
+  --sel-edge: rgba(var(--accent-rgb), 0.5);
+  --focus-ring: rgba(var(--accent-rgb), 0.9);
+
+  --text: #c8ffd4;
+  --text-2: #6fd68a;
+  --text-3: #3f8f55;
+
+  --line: rgba(51, 255, 102, 0.14);
+  --line-strong: rgba(51, 255, 102, 0.3);
+
+  --danger: #c93434;
+  --danger-hover: #e04444;
+  --danger-text: #ff6b6b;
+  --danger-edge: rgba(255, 85, 85, 0.7);
+  --on-danger: #000000;
+  --success: #33ff66;
+  --warning: #ffb000;
+
+  --shadow-s: 0 0 0 1px rgba(51, 255, 102, 0.2);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 0 16px rgba(51, 255, 102, 0.14), 0 10px 28px rgba(0, 0, 0, 0.7);
+  --shadow-modal: 0 0 0 1px var(--line-strong), 0 0 28px rgba(51, 255, 102, 0.16), 0 24px 60px rgba(0, 0, 0, 0.8);
+  --shadow-toast: 0 0 0 1px var(--line-strong), 0 0 14px rgba(51, 255, 102, 0.14), 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-thumb: 0 0 0 1px var(--line-strong);
+  --shadow-preview: 0 0 0 1px var(--line-strong), 0 0 16px rgba(51, 255, 102, 0.12);
+  --shadow-glyph: drop-shadow(0 0 4px rgba(51, 255, 102, 0.25));
+
+  --r-xs: 0px;
+  --r-s: 2px;
+  --r-m: 3px;
+  --r-l: 4px;
+
+  --font: "Cascadia Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --font-display: "Cascadia Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --font-mono: "Cascadia Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+
+  --page-a: #c8ffd4;
+  --page-b: #55a46a;
+  --fold-back-a: #0f7a2e;
+  --fold-back-b: #0a5a22;
+  --fold-front-a: #5dff8a;
+  --fold-front-b: #1fcc4d;
+  --mark-a: #8bffab;
+  --mark-b: #1fcc4d;
+  --glyph-label: #000000;
+
+  --cat-folder: #33ff66;
+  --cat-image: #5de0a0;
+  --cat-video: #9be86a;
+  --cat-audio: #6af0d0;
+  --cat-archive: #ffb000;
+  --cat-code: #00e0a8;
+  --cat-doc: #7bd88f;
+  --cat-sheet: #42d66a;
+  --cat-slides: #d6e04a;
+  --cat-pdf: #ff6b6b;
+  --cat-design: #e0a030;
+  --cat-exec: #7fa88a;
+  --cat-other: #4f7a5c;
+}
+
+/* ── Minimal · monocromo, sobrio ── */
+:root[data-theme="minimal"] {
+  color-scheme: light;
+  --bg-chrome: #f1f1f1;
+  --bg-content: #ffffff;
+  --bg-raised: #ffffff;
+  --bg-field: rgba(0, 0, 0, 0.045);
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-press: rgba(0, 0, 0, 0.09);
+  --scrim: rgba(0, 0, 0, 0.28);
+
+  --accent: #1a1a1a;
+  --accent-rgb: 26, 26, 26;
+  --accent-2: #555555;
+  --on-accent: #ffffff;
+  --sel: rgba(var(--accent-rgb), 0.08);
+  --sel-edge: rgba(var(--accent-rgb), 0.3);
+  --focus-ring: rgba(var(--accent-rgb), 0.7);
+
+  --text: #111111;
+  --text-2: #555555;
+  --text-3: #8a8a8a;
+
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.18);
+
+  --danger: #b3261e;
+  --danger-hover: #c8342b;
+  --danger-text: #b3261e;
+  --danger-edge: rgba(179, 38, 30, 0.6);
+  --on-danger: #ffffff;
+  --success: #333333;
+  --warning: #666666;
+
+  --shadow-s: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-modal: 0 0 0 1px var(--line-strong), 0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-toast: 0 0 0 1px var(--line-strong), 0 6px 20px rgba(0, 0, 0, 0.1);
+  --shadow-thumb: 0 0 0 1px var(--line-strong);
+  --shadow-preview: 0 0 0 1px var(--line-strong);
+  --shadow-glyph: none;
+
+  --r-xs: 2px;
+  --r-s: 4px;
+  --r-m: 6px;
+  --r-l: 8px;
+
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --page-a: #ffffff;
+  --page-b: #e4e4e4;
+  --fold-back-a: #7a7a7a;
+  --fold-back-b: #5c5c5c;
+  --fold-front-a: #b9b9b9;
+  --fold-front-b: #8f8f8f;
+  --mark-a: #6b6b6b;
+  --mark-b: #1a1a1a;
+  --glyph-label: #ffffff;
+
+  --cat-folder: #5c5c5c;
+  --cat-image: #7a7a7a;
+  --cat-video: #4a4a4a;
+  --cat-audio: #8c8c8c;
+  --cat-archive: #666666;
+  --cat-code: #3a3a3a;
+  --cat-doc: #5a5a5a;
+  --cat-sheet: #707070;
+  --cat-slides: #858585;
+  --cat-pdf: #404040;
+  --cat-design: #6a6a6a;
+  --cat-exec: #2e2e2e;
+  --cat-other: #9a9a9a;
+}
+
+/* ── Mica (Windows 11): el marco deja ver el fondo del sistema.
+   Solo en los temas de superficies del sistema; Cyberpunk, Hacker y Minimal conservan su fondo propio. ── */
+:root[data-vibrancy="on"][data-theme="dark"],
+:root[data-vibrancy="on"][data-theme="light"] { --bg-chrome: transparent; }

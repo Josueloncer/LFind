@@ -11,7 +11,7 @@ import type { Column, Entry, SortKey } from "../lib/fs";
 import { columnsMenu } from "../lib/menus";
 import { join } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
-import { effectiveView } from "../lib/viewState";
+import { effectiveView, isPinned } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
 import { useClipboard } from "../stores/clipboard";
@@ -32,7 +32,7 @@ export function Pane() {
     viewMode: s.viewMode, iconSize: s.iconSize, sortKey: s.sortKey, sortDir: s.sortDir, groupBy: s.groupBy, folderViews: s.folderViews,
     showHidden: s.showHidden, columns: s.columns, loaded: s.loaded, thumbnails: s.thumbnails, previewPane: s.previewPane,
   })));
-  const { setFolderView, applyViewToAll, pushRecent, update } = usePrefs.getState();
+  const { setView: setPrefsView, setPinned, applyViewToAll, pushRecent, update } = usePrefs.getState();
   const appReady = useApp((s) => s.ready);
   const hasStart = useApp((s) => s.places.length > 0 || s.drives.length > 0);
   const openMenu = useUi((s) => s.openMenu);
@@ -122,7 +122,11 @@ export function Pane() {
   }, [dir.status, path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ───────── vista ─────────
-  const setView = useCallback((patch: Partial<EffectiveView>) => path && setFolderView(path, patch), [path, setFolderView]);
+  // Modo y tamaño de icono → vista global (se conserva al navegar, al cambiar de unidad y al reiniciar);
+  // orden y agrupación → carpeta. Si la carpeta está «fijada», todo se guarda para ella.
+  const setView = useCallback((patch: Partial<EffectiveView>) => path && setPrefsView(path, patch), [path, setPrefsView]);
+  const pinned = useMemo(() => !!path && isPinned(p, path), [p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
   const onSort = (k: SortKey) => setView(k === view.sortKey ? { sortDir: view.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: "asc" });
   const onZoom = useCallback((d: 1 | -1) => setView(zoomStep(view, d)), [setView, view]);
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
@@ -247,7 +251,7 @@ export function Pane() {
     <main className="main">
       <Toolbar
         filter={filter} onFilter={setFilter} onReload={dir.reload}
-        view={view} columns={p.columns} setView={setView} setColumns={setColumns} applyAll={() => path && applyViewToAll(path)}
+        view={view} columns={p.columns} setView={setView} setColumns={setColumns} applyAll={() => path && applyViewToAll(path)} pinned={pinned} togglePin={togglePin}
         newFolder={() => void A.newFolder()} newFile={() => void A.newFile()}
       />
       <div className="content">

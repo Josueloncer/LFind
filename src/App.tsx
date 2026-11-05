@@ -8,6 +8,7 @@ import { TitleBar } from "./components/TitleBar";
 import { Overlays } from "./components/Transfers";
 import { fs } from "./lib/fs";
 import { mark } from "./lib/perf";
+import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
@@ -60,7 +61,7 @@ export default function App() {
     if (!loaded) return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      document.documentElement.dataset.theme = theme === "system" ? (mq.matches ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolveTheme(theme, mq.matches);
     };
     apply();
     cache("nova.theme", theme);
@@ -83,6 +84,17 @@ export default function App() {
   useEffect(() => {
     const t = setTimeout(() => void fs.showWindow().catch(() => {}), 1200);
     return () => clearTimeout(t);
+  }, []);
+
+  // Guardado inmediato de las preferencias pendientes si la ventana se cierra por otra vía (Alt+F4, etc.).
+  useEffect(() => {
+    const flush = () => void usePrefs.getState().flush();
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
   }, []);
 
   // Atajos globales.

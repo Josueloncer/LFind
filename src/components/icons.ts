@@ -21,6 +21,7 @@ export { default as MonitorCog } from "lucide-react/dist/esm/icons/monitor-cog.j
 export { default as Moon } from "lucide-react/dist/esm/icons/moon.js";
 export { default as Music } from "lucide-react/dist/esm/icons/music.js";
 export { default as PanelLeft } from "lucide-react/dist/esm/icons/panel-left.js";
+export { default as Palette } from "lucide-react/dist/esm/icons/palette.js";
 export { default as Plus } from "lucide-react/dist/esm/icons/plus.js";
 export { default as RotateCw } from "lucide-react/dist/esm/icons/rotate-cw.js";
 export { default as Search } from "lucide-react/dist/esm/icons/search.js";

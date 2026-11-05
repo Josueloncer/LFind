@@ -6,10 +6,16 @@ use std::{fs, io, path::Path};
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
-    #[default]
-    System,
     Dark,
     Light,
+    Cyberpunk,
+    Hacker,
+    Minimal,
+    /// Sigue al sistema. También recoge cualquier valor desconocido (p. ej. un tema de una versión
+    /// futura): así un `prefs.json` más nuevo no hace fallar la carga ni pierde el resto de ajustes.
+    #[default]
+    #[serde(other)]
+    System,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -80,6 +86,11 @@ pub struct FolderView {
     pub sort_key: SortKey,
     pub sort_dir: SortDir,
     pub group_by: GroupBy,
+    /// `true` cuando el usuario pidió explícitamente recordar la vista (modo e icono) de esta carpeta.
+    /// Las entradas anteriores a la actualización 03 no lo tienen (`false`): solo conservan el orden/agrupación
+    /// y el modo/tamaño se hereda de la vista global.
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -105,6 +116,8 @@ pub struct Prefs {
     pub folder_views: Vec<FolderView>,
     /// Mostrar miniaturas reales de imágenes, PDF, etc. (se pueden desactivar en discos lentos).
     pub thumbnails: bool,
+    /// Mostrar los iconos del sistema (los del Explorador de Windows) en lugar de los glifos propios de LFind.
+    pub system_icons: bool,
     /// Panel de vista previa a la derecha de la lista.
     pub preview_pane: bool,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
@@ -158,6 +171,7 @@ impl Default for Prefs {
             recents: vec![],
             folder_views: vec![],
             thumbnails: true,
+            system_icons: true,
             preview_pane: false,
             version: CURRENT_VERSION,
         }
@@ -275,6 +289,7 @@ mod tests {
         fs::write(&f, r#"{"theme":"dark","viewMode":"icons","version":2}"#).unwrap();
         let p = load(&f);
         assert!(p.thumbnails, "las miniaturas están activadas por defecto");
+        assert!(p.system_icons, "los iconos del sistema están activados por defecto");
         assert!(!p.preview_pane);
         assert_eq!(p.view_mode, ViewMode::Icons);
         fs::write(&f, r#"{"thumbnails":false,"previewPane":true}"#).unwrap();
@@ -288,7 +303,7 @@ mod tests {
         let mut p = Prefs { icon_size: 60000, ..Prefs::default() };
         p.recents = (0..100).map(|i| format!("C:\\{i}")).collect();
         p.folder_views = (0..500)
-            .map(|i| FolderView { path: format!("C:\\{i}"), view_mode: ViewMode::Icons, icon_size: 1, sort_key: SortKey::Name, sort_dir: SortDir::Asc, group_by: GroupBy::None })
+            .map(|i| FolderView { path: format!("C:\\{i}"), view_mode: ViewMode::Icons, icon_size: 1, sort_key: SortKey::Name, sort_dir: SortDir::Asc, group_by: GroupBy::None, pinned: false })
             .collect();
         p.columns = vec![Column::Size, Column::Size, Column::Type];
         p.sanitize();
@@ -298,5 +313,36 @@ mod tests {
         assert_eq!(p.folder_views[0].path, "C:\\200", "se conservan las más recientes");
         assert_eq!(p.folder_views[0].icon_size, 16);
         assert_eq!(p.columns, vec![Column::Size, Column::Type]);
+    }
+
+    #[test]
+    fn all_themes_round_trip_and_unknown_falls_back_to_system() {
+        for (name, t) in [("dark", Theme::Dark), ("light", Theme::Light), ("cyberpunk", Theme::Cyberpunk), ("hacker", Theme::Hacker), ("minimal", Theme::Minimal), ("system", Theme::System)] {
+            assert_eq!(serde_json::to_string(&t).unwrap(), format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<Theme>(&format!("\"{name}\"")).unwrap(), t);
+        }
+        assert_eq!(serde_json::from_str::<Theme>("\"tema-del-futuro\"").unwrap(), Theme::System);
+        let d = std::env::temp_dir().join(format!("nova-theme-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        let f = d.join("prefs.json");
+        fs::write(&f, r#"{"theme":"tema-del-futuro","viewMode":"icons","version":2}"#).unwrap();
+        let p = load(&f);
+        assert_eq!((p.theme, p.view_mode), (Theme::System, ViewMode::Icons), "un tema desconocido no descarta el resto de preferencias");
+        let _ = fs::remove_dir_all(d);
+    }
+}
+
+#[cfg(test)]
+mod folder_view_tests {
+    use super::*;
+
+    #[test]
+    fn folder_view_without_pinned_field_loads_as_not_pinned() {
+        let j = r#"{"path":"C:\\A","viewMode":"icons","iconSize":96,"sortKey":"name","sortDir":"asc","groupBy":"none"}"#;
+        let f: FolderView = serde_json::from_str(j).unwrap();
+        assert!(!f.pinned);
+        let back = serde_json::to_string(&FolderView { pinned: true, ..f }).unwrap();
+        assert!(back.contains("\"pinned\":true"));
     }
 }

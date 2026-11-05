@@ -1,78 +1,97 @@
-/* ───────── NOVA · tokens de diseño ─────────
-   Todo el color vive aquí. Los componentes solo usan variables, así un tema nuevo
-   (o el modo claro) es únicamente un bloque más en este archivo. */
+/* ───────── LFind · tokens de diseño (estructura) ─────────
+   Dos capas:
+   1. Este archivo: escalas que NO dependen del tema (tipografía, espaciado, tamaños de componentes,
+      movimiento, capas). Un tema nunca las toca.
+   2. `themes.css`: los valores que SÍ cambian con el tema (colores semánticos, sombras, radios,
+      fuentes, efectos). Los seis temas definen exactamente la misma lista de variables.
+   Los componentes (`app.css`, TSX) solo consumen variables: ningún color, sombra, radio, tamaño de
+   fuente ni espaciado se escribe a mano fuera de estos dos archivos.
+
+   Personalización futura: un tema de usuario será un bloque `:root[data-theme="…"]` (o un objeto
+   JSON con las mismas claves, ver `src/lib/themes.ts`) con la lista de «tokens de tema» de
+   `themes.css`; no hace falta tocar ningún componente. */
 
 :root {
-  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  /* Tipografía · escala y pesos */
+  --fs-xs: 11px;
+  --fs-s: 12px;
+  --fs-m: 13px;
+  --fs-l: 15px;
+  --fs-xl: 16px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --lh-tight: 1.3;
+  --lh-base: 1.35;
+  --lh-loose: 1.5;
+  --ls-caps: 0.06em;
 
-  --r-xs: 5px;
-  --r-s: 8px;
-  --r-m: 12px;
-  --r-l: 16px;
+  /* Espaciado · escala (px) */
+  --sp-0: 2px;
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 10px;
+  --sp-5: 12px;
+  --sp-6: 14px;
+  --sp-7: 16px;
+  --sp-8: 20px;
+  --sp-9: 24px;
+  /* Pasos finos: acoplados a la geometría de las listas virtualizadas (`lib/layout.ts`, `FileView`),
+     no cambiar sin actualizar esos cálculos. */
+  --sp-f1: 1px;
+  --sp-f3: 3px;
+  --sp-f5: 5px;
+  --sp-f7: 7px;
+  --sp-f9: 9px;
+  --sp-f11: 11px;
+  --sp-f18: 18px;
+  --sp-f22: 22px;
 
+  /* Tamaños de componentes */
   --titlebar-h: 46px;
   --toolbar-h: 52px;
+  --statusbar-h: 30px;
+  --header-h: 30px;
   --row-h: 34px;
+  --ctl-h: 32px;
+  --ctl-h-s: 30px;
+  --ctl-h-xs: 26px;
+  --ibtn: 30px;
+  --winctl-w: 46px;
+  --sidebar-w-open: 240px;
+  --sidebar-w-rail: 62px;
+  --preview-w: 300px;
+  --preview-w-narrow: 220px;
+  --menu-w-min: 232px;
+  --menu-w-max: 340px;
+  --menu-item-h: 30px;
+  --modal-w: 440px;
+  --modal-w-wide: 560px;
+  --toast-w: 340px;
+  --icon-s: 15px;
+  --icon-m: 17px;
+  --icon-l: 18px;
+  --scrollbar: 12px;
+  --focus-w: 2px;
 
+  /* Movimiento */
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
   --t-fast: 110ms;
   --t-med: 200ms;
 
-  --accent: #8e9dff;
-  --accent-rgb: 142, 157, 255;
-}
+  /* Capas */
+  --z-marquee: 4;
+  --z-overlay: 40;
+  --z-menu: 50;
+  --z-modal: 60;
 
-/* ── Oscuro · grafito ── */
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg-chrome: #18191c;
-  --bg-content: #1e1f23;
-  --bg-raised: #2b2c32;
-  --bg-field: rgba(255, 255, 255, 0.055);
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-press: rgba(255, 255, 255, 0.1);
-  --sel: rgba(var(--accent-rgb), 0.2);
-  --sel-edge: rgba(var(--accent-rgb), 0.38);
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --text: #ededf1;
-  --text-2: #a6a7b1;
-  --text-3: #6f707b;
-  --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --page-a: #eceef5;
-  --page-b: #c9ccda;
-  --fold-back-a: #6e7cdc;
-  --fold-back-b: #5360c2;
-  --fold-front-a: #b4bfff;
-  --fold-front-b: #8493f5;
-}
+  /* Detalles neutros de los glifos (iguales en todos los temas; la etiqueta de extensión sí depende del tema: `--glyph-label`) */
+  --glyph-shine: rgba(255, 255, 255, 0.38);
+  --glyph-shade: rgba(0, 0, 0, 0.14);
 
-/* ── Claro · refinado ── */
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg-chrome: #e8e9ee;
-  --bg-content: #fbfbfd;
-  --bg-raised: #ffffff;
-  --bg-field: rgba(20, 22, 40, 0.055);
-  --bg-hover: rgba(20, 22, 40, 0.055);
-  --bg-press: rgba(20, 22, 40, 0.1);
-  --sel: rgba(var(--accent-rgb), 0.2);
-  --sel-edge: rgba(94, 110, 230, 0.45);
-  --line: rgba(20, 22, 40, 0.08);
-  --line-strong: rgba(20, 22, 40, 0.15);
-  --text: #1b1c24;
-  --text-2: #5b5d6b;
-  --text-3: #8d8f9c;
-  --shadow-s: 0 1px 2px rgba(20, 22, 40, 0.12), 0 0 0 1px rgba(20, 22, 40, 0.05);
-  --page-a: #ffffff;
-  --page-b: #e3e5ee;
-  --fold-back-a: #7d8bea;
-  --fold-back-b: #6471d3;
-  --fold-front-a: #c3ccff;
-  --fold-front-b: #97a5fa;
+  /* Derivados del acento del tema (se recalculan solos al cambiar `--accent-rgb`) */
+  --accent-soft: rgba(var(--accent-rgb), 0.14);
+  --drop-bg: rgba(var(--accent-rgb), 0.28);
 }
-
-/* ── Con Mica activo (Windows 11): el marco deja ver el fondo del sistema ── */
-:root[data-vibrancy="on"][data-theme="dark"] { --bg-chrome: transparent; }
-:root[data-vibrancy="on"][data-theme="light"] { --bg-chrome: transparent; }

@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { DEFAULT_PREFS, fs } from "../lib/fs";
 import type { Prefs } from "../lib/fs";
 import { samePath } from "../lib/path";
-import { effectiveView, withFolderView, withRecent } from "../lib/viewState";
+import { normalizeTheme } from "../lib/themes";
+import { applyViewChange, effectiveView, withPinned, withRecent } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 
 interface PrefsState extends Prefs {
@@ -10,8 +11,12 @@ interface PrefsState extends Prefs {
   load(): Promise<void>;
   update(patch: Partial<Prefs>): void;
   toggleFavorite(path: string, label: string): void;
-  /** Cambia la vista solo para esa carpeta. */
-  setFolderView(path: string, patch: Partial<EffectiveView>): void;
+  /** Cambia la vista: modo y tamaño → vista global (o la de la carpeta si está fijada); orden y agrupación → carpeta. */
+  setView(path: string, patch: Partial<EffectiveView>): void;
+  /** Recuerda (o deja de recordar) el modo y el tamaño de icono de esa carpeta. */
+  setPinned(path: string, pinned: boolean): void;
+  /** Guarda ya las preferencias pendientes (al cerrar la ventana). */
+  flush(): Promise<void>;
   /** Convierte la vista de esa carpeta en la predeterminada y olvida las vistas por carpeta. */
   applyViewToAll(path: string): void;
   pushRecent(path: string): void;
@@ -25,7 +30,10 @@ let loading: Promise<void> | null = null;
 // Escritura diferida: varios cambios seguidos producen un solo guardado.
 const scheduleSave = (get: () => Prefs) => {
   clearTimeout(timer);
-  timer = setTimeout(() => void fs.savePrefs(pick(get())).catch(() => {}), 400);
+  timer = setTimeout(() => {
+    timer = undefined;
+    void fs.savePrefs(pick(get())).catch(() => {});
+  }, 400);
 };
 
 export const usePrefs = create<PrefsState>((set, get) => ({
@@ -36,7 +44,8 @@ export const usePrefs = create<PrefsState>((set, get) => ({
   load() {
     return (loading ??= (async () => {
       try {
-        set({ ...(await fs.loadPrefs()), loaded: true });
+        const p = await fs.loadPrefs();
+        set({ ...p, theme: normalizeTheme(p.theme), loaded: true });
       } catch {
         set({ loaded: true });
       }
@@ -56,8 +65,19 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     });
   },
 
-  setFolderView(path, patch) {
-    get().update({ folderViews: withFolderView(get(), path, patch) });
+  setView(path, patch) {
+    get().update(applyViewChange(get(), path, patch));
+  },
+
+  setPinned(path, pinned) {
+    get().update({ folderViews: withPinned(get(), path, pinned) });
+  },
+
+  async flush() {
+    if (timer === undefined || !get().loaded) return;
+    clearTimeout(timer);
+    timer = undefined;
+    await fs.savePrefs(pick(get())).catch(() => {});
   },
 
   applyViewToAll(path) {

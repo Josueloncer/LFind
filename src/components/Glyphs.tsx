@@ -21,8 +21,8 @@ export function GlyphDefs() {
           <stop offset="1" stopColor="var(--page-b)" />
         </linearGradient>
         <linearGradient id="nv-mark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#c7d0ff" />
-          <stop offset="1" stopColor="#8a9aff" />
+          <stop offset="0" stopColor="var(--mark-a)" />
+          <stop offset="1" stopColor="var(--mark-b)" />
         </linearGradient>
       </defs>
     </svg>
@@ -34,14 +34,16 @@ export function FolderGlyph({ className = "glyph", style }: { className?: string
     <svg className={className} style={style} viewBox="0 0 64 64" aria-hidden>
       <path d="M5 15a5 5 0 0 1 5-5h13a5 5 0 0 1 3.6 1.5l2.9 3a3 3 0 0 0 2.2.9H54a5 5 0 0 1 5 5v7H5z" fill="url(#nv-fb)" />
       <path d="M5 25.5a4.5 4.5 0 0 1 4.5-4.5h45a4.5 4.5 0 0 1 4.5 4.5V49a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5z" fill="url(#nv-ff)" />
-      <path d="M9.5 21.6h45" stroke="#fff" strokeOpacity=".38" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M9.5 21.6h45" stroke="var(--glyph-shine)" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
 
+/** Colores por categoría: salen de los tokens del tema (`--cat-*` en themes.css). */
 const CAT_COLOR: Record<Category, string> = {
-  folder: "#8e9dff", image: "#2fbf8a", video: "#a46bff", audio: "#ff6b9d", archive: "#f0a23c",
-  code: "#33bfe0", doc: "#5b8cff", sheet: "#2fb36b", slides: "#ff8a4c", pdf: "#ef5350", design: "#e8913a", exec: "#8b90a0", other: "#7d8291",
+  folder: "var(--cat-folder)", image: "var(--cat-image)", video: "var(--cat-video)", audio: "var(--cat-audio)", archive: "var(--cat-archive)",
+  code: "var(--cat-code)", doc: "var(--cat-doc)", sheet: "var(--cat-sheet)", slides: "var(--cat-slides)", pdf: "var(--cat-pdf)",
+  design: "var(--cat-design)", exec: "var(--cat-exec)", other: "var(--cat-other)",
 };
 
 export function FileGlyph({ entry, className = "glyph", showExt = false, style }: { entry: Pick<Entry, "kind" | "ext">; className?: string; showExt?: boolean; style?: CSSProperties }) {
@@ -50,10 +52,10 @@ export function FileGlyph({ entry, className = "glyph", showExt = false, style }
   return (
     <svg className={className} style={style} viewBox="0 0 56 64" aria-hidden>
       <path d="M11 4h23l13 13v39a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5V9a5 5 0 0 1 5-5z" fill="url(#nv-page)" />
-      <path d="M34 4v9a4 4 0 0 0 4 4h9z" fill="#000" fillOpacity=".14" />
+      <path d="M34 4v9a4 4 0 0 0 4 4h9z" fill="var(--glyph-shade)" />
       <rect x="6" y={showExt ? 38 : 44} width="41" height={showExt ? 15 : 8} rx="3.5" fill={color} transform="translate(0 0)" />
       {showExt && label && (
-        <text x="26.5" y="49.4" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="var(--font)">{label}</text>
+        <text x="26.5" y="49.4" textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--glyph-label)" fontFamily="var(--font)">{label}</text>
       )}
     </svg>
   );
@@ -65,9 +67,9 @@ export function EntryGlyph({ entry, size = 22 }: { entry: Entry; size?: number }
   return entry.kind === "dir" ? <FolderGlyph style={st} /> : <FileGlyph entry={entry} showExt={size >= 56} style={st} />;
 }
 
-export function NovaMark() {
+export function BrandMark() {
   return (
-    <svg viewBox="0 0 24 24" aria-label="NOVA">
+    <svg viewBox="0 0 24 24" aria-label="LFind">
       <path d="M12 1.5l2.1 8.4 8.4 2.1-8.4 2.1L12 22.5l-2.1-8.4L1.5 12l8.4-2.1z" fill="url(#nv-mark)" />
     </svg>
   );

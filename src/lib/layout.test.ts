@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Entry } from "./fs";
 import { groupOf } from "./group";
 import { buildLayout } from "./layout";
-import { MAX_FOLDER_VIEWS, effectiveView, folderKey, withFolderView, withRecent } from "./viewState";
+import { MAX_FOLDER_VIEWS, applyViewChange, effectiveView, folderKey, isPinned, withFolderView, withPinned, withRecent } from "./viewState";
 import { canDropInto, dropOperation } from "./dnd";
 import { isInside, rootOf } from "./path";
 
@@ -55,8 +55,8 @@ describe("agrupación", () => {
 describe("vista por carpeta", () => {
   const base = { viewMode: "details" as const, iconSize: 64, sortKey: "name" as const, sortDir: "asc" as const, groupBy: "none" as const, folderViews: [] };
 
-  it("usa lo predeterminado y solo recuerda lo que se cambia en esa carpeta", () => {
-    const fv = withFolderView(base, "C:\\Fotos", { viewMode: "icons", iconSize: 128 });
+  it("una vista fijada solo afecta a esa carpeta; el resto hereda la global", () => {
+    const fv = withFolderView(base, "C:\\Fotos", { viewMode: "icons", iconSize: 128 }, true);
     const p = { ...base, folderViews: fv };
     expect(effectiveView(p, "c:\\fotos\\")).toMatchObject({ viewMode: "icons", iconSize: 128, sortKey: "name" });
     expect(effectiveView(p, "C:\\Otra").viewMode).toBe("details");
@@ -108,5 +108,67 @@ describe("arrastrar y soltar", () => {
     expect(rootOf("/home/a")).toBe("/");
     expect(isInside("C:\\a", "c:\\A\\b")).toBe(true);
     expect(isInside("C:\\a", "C:\\ab")).toBe(false);
+  });
+});
+
+describe("persistencia de vistas (actualización 03, opción A)", () => {
+  type P = Parameters<typeof effectiveView>[0];
+  const base: P = { viewMode: "details", iconSize: 64, sortKey: "name", sortDir: "asc", groupBy: "none", folderViews: [] };
+  /** Simula `usePrefs.setView`: aplica el resultado de `applyViewChange` sobre las preferencias. */
+  const change = (p: P, path: string, patch: Parameters<typeof applyViewChange>[2]): P => ({ ...p, ...applyViewChange(p, path, patch) });
+
+  it("cambiar modo o tamaño actualiza la vista global y no crea vistas por carpeta", () => {
+    const p = change(change(base, "C:\\A", { viewMode: "icons" }), "C:\\A", { iconSize: 128 });
+    expect(p).toMatchObject({ viewMode: "icons", iconSize: 128, folderViews: [] });
+  });
+
+  it("se conserva al navegar a otra carpeta o unidad, atrás y adelante", () => {
+    const p = change(base, "C:\\A", { viewMode: "icons", iconSize: 96 });
+    for (const path of ["C:\\B", "D:\\", "C:\\A", "\\\\srv\\share"]) {
+      expect(effectiveView(p, path)).toMatchObject({ viewMode: "icons", iconSize: 96 });
+    }
+  });
+
+  it("al reiniciar (serializar y cargar) la vista global sigue ahí", () => {
+    const p = change(base, "C:\\A", { viewMode: "tiles", iconSize: 80 });
+    const back = JSON.parse(JSON.stringify(p)) as P;
+    expect(effectiveView(back, "D:\\Otra")).toMatchObject({ viewMode: "tiles", iconSize: 80 });
+  });
+
+  it("el orden y la agrupación siguen siendo por carpeta", () => {
+    const p = change(base, "C:\\A", { sortKey: "size", groupBy: "type" });
+    expect(effectiveView(p, "C:\\A")).toMatchObject({ sortKey: "size", groupBy: "type" });
+    expect(effectiveView(p, "C:\\B")).toMatchObject({ sortKey: "name", groupBy: "none" });
+    expect(p.viewMode).toBe("details");
+  });
+
+  it("fijar congela la vista actual de esa carpeta y los cambios globales ya no la alcanzan", () => {
+    let p = change(base, "C:\\A", { viewMode: "icons", iconSize: 96 });
+    p = { ...p, folderViews: withPinned(p, "C:\\Fotos", true) };
+    expect(isPinned(p, "c:\\fotos")).toBe(true);
+    p = change(p, "C:\\Otra", { viewMode: "list" });
+    expect(effectiveView(p, "C:\\Otra").viewMode).toBe("list");
+    expect(effectiveView(p, "C:\\Fotos")).toMatchObject({ viewMode: "icons", iconSize: 96 });
+  });
+
+  it("en una carpeta fijada, los cambios de vista se guardan para ella y no tocan la global", () => {
+    let p: P = { ...base, folderViews: withPinned(base, "C:\\Fotos", true) };
+    p = change(p, "C:\\Fotos", { viewMode: "tiles", iconSize: 160 });
+    expect(effectiveView(p, "C:\\Fotos")).toMatchObject({ viewMode: "tiles", iconSize: 160 });
+    expect(p).toMatchObject({ viewMode: "details", iconSize: 64 });
+  });
+
+  it("dejar de recordar devuelve la carpeta a la vista global", () => {
+    let p: P = { ...base, folderViews: withPinned(base, "C:\\Fotos", true) };
+    p = change(p, "C:\\Fotos", { viewMode: "icons", iconSize: 200 });
+    p = { ...p, folderViews: withPinned(p, "C:\\Fotos", false) };
+    expect(isPinned(p, "C:\\Fotos")).toBe(false);
+    expect(effectiveView(p, "C:\\Fotos")).toMatchObject({ viewMode: "details", iconSize: 64 });
+  });
+
+  it("las entradas guardadas por versiones anteriores (sin `pinned`) heredan modo y tamaño globales pero conservan su orden", () => {
+    const legacy = { path: "C:\\Vieja", viewMode: "icons" as const, iconSize: 32, sortKey: "size" as const, sortDir: "desc" as const, groupBy: "none" as const };
+    const p: P = { ...base, viewMode: "list", folderViews: [legacy] };
+    expect(effectiveView(p, "C:\\Vieja")).toEqual({ viewMode: "list", iconSize: 64, sortKey: "size", sortDir: "desc", groupBy: "none" });
   });
 });

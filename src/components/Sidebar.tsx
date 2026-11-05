@@ -1,7 +1,9 @@
-import { useMemo } from "react";
-import { Clock, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, MonitorCog, Moon, Music, Star, Sun, X } from "./icons";
-import type { ComponentType } from "react";
-import type { DriveUsage, Place, Theme } from "../lib/fs";
+import { Clock, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Star, X } from "./icons";
+import type { ComponentType, MouseEvent } from "react";
+import type { DriveUsage, Place } from "../lib/fs";
+import { THEMES } from "../lib/themes";
+import { useUi } from "../stores/ui";
+import type { MenuItem } from "../stores/ui";
 import { formatBytes } from "../lib/format";
 import { useDropTarget } from "../hooks/useDropTarget";
 import { basename, samePath } from "../lib/path";
@@ -14,11 +16,6 @@ const ICONS: Record<Place["kind"], ComponentType<{ className?: string }>> = {
   pictures: ImageIcon, music: Music, videos: Film, drive: HardDrive,
 };
 
-const THEMES: { id: Theme; label: string; Icon: ComponentType }[] = [
-  { id: "system", label: "Tema: sistema", Icon: MonitorCog },
-  { id: "dark", label: "Tema: oscuro", Icon: Moon },
-  { id: "light", label: "Tema: claro", Icon: Sun },
-];
 
 function Item({ label, path, Icon, active, onOpen, onRemove, usage }: {
   label: string; path: string; Icon: ComponentType<{ className?: string }>; active: boolean;
@@ -55,8 +52,16 @@ export function Sidebar() {
   const navigate = useNav((s) => s.navigate);
   const { favorites, theme, update, toggleFavorite } = usePrefs();
   const cur = tab?.path ?? "";
-  const th = useMemo(() => THEMES.find((t) => t.id === theme) ?? THEMES[0], [theme]);
-  const next = () => update({ theme: THEMES[(THEMES.findIndex((t) => t.id === theme) + 1) % THEMES.length].id });
+  const th = THEMES.find((t) => t.id === theme) ?? THEMES[0];
+  const openMenu = useUi((s) => s.openMenu);
+  // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
+  const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    openMenu(r.left, r.top - (THEMES.length + 1) * 32, [
+      { kind: "header", label: "Tema" },
+      ...THEMES.map((t): MenuItem => ({ kind: "item", label: t.label, checked: t.id === theme, run: () => update({ theme: t.id }) })),
+    ]);
+  };
 
   return (
     <nav className="sidebar" aria-label="Ubicaciones">
@@ -83,9 +88,9 @@ export function Sidebar() {
         ))}
       </div>
       <div className="side-foot">
-        <button className="side-theme" title={`${th.label} (clic para cambiar)`} onClick={next}>
-          <th.Icon />
-          <span className="side-label">{th.label.replace("Tema: ", "Tema ")}</span>
+        <button className="side-theme" title={`Tema: ${th.label} (clic para cambiar)`} onClick={pickTheme}>
+          <Palette />
+          <span className="side-label">Tema: {th.label}</span>
         </button>
       </div>
     </nav>

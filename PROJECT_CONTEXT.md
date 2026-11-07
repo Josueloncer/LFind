@@ -99,6 +99,11 @@ Estado: ✅ Fase 0–1 completa (solo análisis; sin cambios de código).
 ## 04.3.1 · Corrección de compilación TS — ✅ configuración; sin ejecutar con dependencias reales
 Ver `UPDATE04_PROGRESS.md`: `tsconfig` dividido (producción / pruebas), `@types/node`, `vitest/config`, `scripts/clean-obsolete.ps1` para los archivos obsoletos del menú nativo, 39/39 `invoke` ↔ comandos Rust coherentes. Pendiente: `npm install` (regenera el lock) y `npm run typecheck && npm test && npm run build`.
 
+## 04.3.3 · Pruebas de temas — causa raíz (sin Vitest disponible al corregir)
+- `import x from "….css?raw"` en Vitest devuelve "" (plugin CSS de Vitest con `test.css` por defecto), no el CSS. `themes.test.ts` ahora usa `readFileSync(new URL("../styles/…", import.meta.url))`. **Regla del proyecto:** en pruebas, leer CSS del disco; no usar `?raw` con `.css`.
+- Las pruebas de `app.css` (variables definidas, sin colores a mano) antes pasaban en vacío; ahora comprueban de verdad.
+- Detalle y comandos: `UPDATE04_PROGRESS.md`. Discrepancia doc/código: ninguna encontrada; el ZIP trae `package.json` con nombre interno `nova-explorer` (sin cambios).
+
 ## Fase en curso
 Ninguna. Queda la verificación en Windows (lista en `WINDOWS_VERIFICATION.md`).
 

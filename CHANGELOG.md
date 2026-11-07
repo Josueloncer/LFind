@@ -1,5 +1,11 @@
 # LFind — Registro de cambios
 
+## 04.3.3: causa raíz de las 3 pruebas de `themes.test.ts`
+- **Causa raíz (diagnóstico por evidencia; Vitest no pudo ejecutarse en el entorno de esta corrección, ver `UPDATE04_PROGRESS.md`):** `import … from "….css?raw"` no devuelve el CSS en Vitest. El plugin CSS de Vitest intercepta cualquier id con extensión CSS (también con `?raw`) y, con `test.css` por defecto (CSS sin procesar), lo sustituye por una cadena vacía. El parser recibía `""` → 0 bloques. No era CRLF ni la expresión regular (por eso 04.3.2 no lo arregló).
+- **Solución:** `themes.test.ts` lee `app.css`, `themes.css` y `tokens.css` con `readFileSync(new URL(…, import.meta.url))` (como ya hace `thumbLayout.test.ts`, que sí pasaba). Parser y aserciones intactos. Añadida una guarda en la primera prueba que falla si algún CSS llega vacío.
+- **Efecto colateral importante:** las pruebas «toda variable de app.css está definida» y «app.css sin colores a mano» pasaban **sin comprobar nada** (leían ""). Ahora comprueban el contenido real; verificado con Node sobre los archivos reales: 0 variables sin definir, 0 colores a mano.
+- Solo se modificó `src/lib/themes.test.ts`. `themes.css`, `app.css`, `vite.config.ts` y dependencias sin cambios.
+
 ## 04.3.2: pruebas de temas
 - `themes.test.ts`: el analizador de `themes.css` ahora no depende del tipo de salto de línea (LF/CRLF/CR) ni de la posición de la llave de cierre; nueva prueba que lo comprueba. Temas, variables y valores sin cambios.
 - **Hallazgo real:** en 04.3 puse `#e5484d` como valor de respaldo en `app.css` (barra de dirección) y eso rompe la prueba «app.css no contiene colores… escritos a mano». Corregido: `var(--danger)`.

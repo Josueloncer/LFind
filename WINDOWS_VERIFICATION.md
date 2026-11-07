@@ -1,3 +1,13 @@
+# LFind · 04.3.3 · verificación pendiente en Windows
+Esta corrección toca solo `src/lib/themes.test.ts` y no se pudo ejecutar con Vitest (sin dependencias/red). Ejecuta, en este orden:
+1. `npm test` → esperado **148/148**. Si falla alguna prueba de `themes.test.ts`, el mensaje de la guarda indica si algún CSS llegó vacío.
+2. `npm run typecheck` → sin errores (el test usa `node:fs`; `tsconfig.test.json` ya incluye tipos de Node).
+3. `npm run build` → correcto.
+4. `npm run tauri build` → **sin verificar** (no hay Windows); pega el error exacto si falla.
+Atención: las pruebas «variables de `app.css` definidas» y «sin colores a mano» antes pasaban en vacío; ahora comprueban el contenido real (en Node pasan con los archivos actuales).
+
+---
+
 # LFind · actualización 04.3 · verificación
 
 ## Verificado aquí (Linux; sin Windows, Tauri ni crates.io)

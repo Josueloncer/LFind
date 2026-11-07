@@ -1,8 +1,17 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import appCss from "../styles/app.css?raw";
-import themesCss from "../styles/themes.css?raw";
-import tokensCss from "../styles/tokens.css?raw";
 import { THEMES, THEME_IDS, normalizeTheme, resolveTheme, schemeOf } from "./themes";
+
+/**
+ * Las hojas de estilo se leen del disco, NO con `import x from "….css?raw"`. Vitest intercepta TODO id con extensión CSS
+ * (incluido el que lleva `?raw`) y, con `test.css` en su valor por defecto (CSS no procesado), lo sustituye por una cadena VACÍA.
+ * Resultado: el analizador veía "" → 0 bloques, y las pruebas sobre `app.css`/`tokens.css` pasaban sin comprobar nada.
+ * `readFileSync` devuelve los bytes reales (igual que `thumbLayout.test.ts`) y no depende de cómo trate Vite/Vitest el CSS.
+ */
+const readStyle = (name: string): string => readFileSync(new URL(`../styles/${name}`, import.meta.url), "utf8");
+const appCss = readStyle("app.css");
+const themesCss = readStyle("themes.css");
+const tokensCss = readStyle("tokens.css");
 
 interface ThemeBlock {
   id: string;
@@ -27,6 +36,10 @@ const blocks = parseThemeBlocks(themesCss);
 
 describe("temas", () => {
   it("hay un bloque CSS por cada tema salvo «system»", () => {
+    // Guarda contra la lectura vacía de CSS: sin ella, las pruebas sobre CSS podrían pasar sin comprobar nada.
+    expect(themesCss.length, "themes.css llegó vacío").toBeGreaterThan(5000);
+    expect(appCss.length, "app.css llegó vacío").toBeGreaterThan(5000);
+    expect(tokensCss.length, "tokens.css llegó vacío").toBeGreaterThan(100);
     expect(blocks.map((b) => b.id).sort()).toEqual(THEME_IDS.filter((t) => t !== "system").sort());
   });
 

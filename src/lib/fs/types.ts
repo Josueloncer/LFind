@@ -165,6 +165,7 @@ export interface Stats {
   errors: number;
 }
 export type StatsEvent = ({ type: "progress" } & Stats) | { type: "done"; stats: Stats; cancelled: boolean };
+export type ResolvedPath = { type: "dir"; path: string } | { type: "file"; dir: string; file: string };
 export interface DriveUsage {
   root: string;
   total: number;
@@ -200,6 +201,29 @@ export interface UndoResult {
   errors: OpError[];
 }
 
+// ───────── portapapeles de archivos del sistema (espejo de src-tauri/clipboard_cmd.rs) ─────────
+
+/** Destino de «Enviar a» (carpeta SendTo del usuario). `zip` = «Carpeta comprimida»: la resuelve LFind. */
+export interface SendToItem {
+  id: string;
+  label: string;
+  kind: "app" | "folder" | "zip";
+}
+/** Plantilla del submenú «Nuevo» (registrada en Windows con `ShellNew`). `id` es la extensión con punto. */
+/** Qué debe hacer la interfaz tras «Enviar a». */
+export type SendResult = { kind: "launched" } | { kind: "copyTo"; dest: string } | { kind: "zip" };
+
+export interface NewTemplate {
+  id: string;
+  label: string;
+}
+
+export interface SystemClipboardFiles {
+  paths: string[];
+  cut: boolean;
+  sequence: number;
+}
+
 /**
  * Contrato entre la interfaz y el sistema. Las pantallas nunca llaman a Tauri
  * directamente: todo pasa por aquí, de modo que las operaciones futuras
@@ -230,6 +254,8 @@ export interface FsProvider {
   getProperties(path: string): Promise<FileProps>;
   startStats(paths: string[], onEvent: (e: StatsEvent) => void): { cancel(): void };
   getDriveUsage(root: string): Promise<DriveUsage>;
+  /** Valida lo escrito en la barra de dirección (existe, es accesible). Rechaza con el mensaje para el usuario. */
+  resolvePath(input: string): Promise<ResolvedPath>;
 
   // Miniaturas y vista previa. `epoch`: las solicitudes con una época anterior a la vigente se descartan
   // sin trabajo en el backend; `null` = no caduca (panel de vista previa).
@@ -241,6 +267,25 @@ export interface FsProvider {
   /** Iconos del sistema (los del Explorador de Windows) de un lote de elementos. `have`: claves que ya se tienen. */
   getIcons(items: IconItem[], px: number, have: string[]): Promise<IconsReply>;
   clearIconCache(): Promise<number>;
+
+  /** Portapapeles de archivos del sistema (copiar/cortar del Explorador). */
+  clipboardSetFiles(paths: string[], cut: boolean): Promise<number>;
+  clipboardReadFiles(): Promise<SystemClipboardFiles | null>;
+  clipboardSequence(): Promise<number>;
+  /** «Abrir con…»: el diálogo de Windows para elegir aplicación. */
+  openWith(path: string): Promise<void>;
+  /** Terminal (Windows Terminal si existe; si no, PowerShell) en una carpeta. */
+  openTerminal(dir: string): Promise<void>;
+  /** Comprime en un `.zip` dentro de `dir`; devuelve la ruta del archivo creado. */
+  compressPaths(paths: string[], dir: string): Promise<string>;
+  /** Extrae un archivo comprimido en una carpeta nueva junto a él; devuelve la carpeta. */
+  extractArchive(path: string): Promise<string>;
+  getSendTo(): Promise<SendToItem[]>;
+  sendTo(paths: string[], id: string): Promise<SendResult>;
+  getNewTemplates(): Promise<NewTemplate[]>;
+  createFromTemplate(dir: string, id: string): Promise<string>;
+  /** ¿Hay archivos en el portapapeles del sistema? (consulta barata, sin leer su contenido) */
+  clipboardHasFiles(): Promise<boolean>;
 }
 
 /** Extrae un mensaje legible de lo que rechaza una llamada IPC (texto u objeto OpError). */

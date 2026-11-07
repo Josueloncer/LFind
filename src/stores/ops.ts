@@ -50,8 +50,28 @@ export function signature(req: OpRequest): string {
   return [req.kind, (req.dest ?? "").toLowerCase(), ...[...req.sources].map((s) => s.toLowerCase()).sort()].join("|");
 }
 
+/** Clave de comparación de una ruta (sin distinguir mayúsculas ni el tipo de barra, sin barra final). */
+export const pathKey = (p: string): string => p.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+
+/** Un elemento es de este trabajo si el error apunta a él o a algo que contiene. Sin ruta (error global) → todos. */
+export function failedSources(sources: string[], errors: { path: string }[]): string[] {
+  if (errors.some((e) => !e.path)) return sources;
+  const ep = errors.map((e) => pathKey(e.path));
+  return sources.filter((s) => {
+    const k = pathKey(s);
+    return ep.some((e) => e === k || e.startsWith(k + "\\"));
+  });
+}
+
 interface OpsState {
   jobs: Job[];
+  /**
+   * Eliminación optimista: rutas (por `pathKey`) que la vista oculta desde que se confirma la eliminación, sin esperar al
+   * sistema. Se restauran si falla, se cancela o se deshace; si va bien se retiran cuando la recarga confirma que ya no están.
+   */
+  hidden: ReadonlySet<string>;
+  /** La recarga de la carpeta terminó: deja de ocultar lo que ya no está en disco. `present` = claves de lo que sí está. */
+  settle(present: ReadonlySet<string>): void;
   /** Sube al terminar cualquier operación: las carpetas abiertas se recargan. */
   version: number;
   /** `false` si se rechazó por ser idéntica a otra en cola o en curso. */
@@ -73,12 +93,25 @@ const plural = (n: number) => `${n} elemento${n === 1 ? "" : "s"}`;
 let seq = 0;
 
 export const useOps = create<OpsState>((set, get) => {
+  const hide = (paths: string[]) => set((s) => ({ hidden: new Set([...s.hidden, ...paths.map(pathKey)]) }));
+  const unhide = (paths: string[]) =>
+    set((s) => {
+      if (!paths.length) return s;
+      const h = new Set(s.hidden);
+      for (const p of paths) h.delete(pathKey(p));
+      return { hidden: h };
+    });
   const patch = (key: number, f: (j: Job) => Job) => set((s) => ({ jobs: s.jobs.map((j) => (j.key === key ? f(j) : j)) }));
 
   const finish = (key: number, r: DoneInfo) => {
     const job = get().jobs.find((j) => j.key === key);
     if (!job) return;
     patch(key, (j) => ({ ...j, status: "done", conflict: null, result: r }));
+    if (job.kind === "trash" || job.kind === "delete") {
+      // Lo que falló (o se canceló) vuelve a verse YA; lo que salió bien sigue oculto hasta que la recarga lo confirme.
+      unhide(r.cancelled ? job.req.sources : failedSources(job.req.sources, r.errors));
+      setTimeout(() => unhide(job.req.sources), 8000); // cinturón: nada se queda oculto para siempre
+    }
     set((s) => ({ version: s.version + 1 }));
     const did = VERB[job.kind][1];
     const ui = useUi.getState();
@@ -116,6 +149,16 @@ export const useOps = create<OpsState>((set, get) => {
   return {
     jobs: [],
     version: 0,
+    hidden: new Set<string>(),
+
+    settle(present) {
+      const { hidden } = get();
+      if (!hidden.size) return;
+      const running = new Set(get().jobs.filter((j) => j.status !== "done").flatMap((j) => j.req.sources.map(pathKey)));
+      // Se retira lo que ya no está en disco y cuyo trabajo ya terminó; lo que sigue en curso o aún aparece se mantiene oculto.
+      const next = new Set([...hidden].filter((k) => running.has(k) || present.has(k)));
+      if (next.size !== hidden.size) set({ hidden: next });
+    },
 
     start(req) {
       const sig = signature(req);
@@ -126,6 +169,7 @@ export const useOps = create<OpsState>((set, get) => {
       const key = ++seq;
       const title = `${VERB[req.kind][0]} ${plural(req.sources.length)}`;
       set((s) => ({ jobs: [...s.jobs, { key, kind: req.kind, title, req, sig, status: "queued", progress: null, conflict: null, result: null, handle: null }] }));
+      if (req.kind === "trash" || req.kind === "delete") hide(req.sources); // desaparece de la vista al instante
       pump();
       return true;
     },
@@ -143,6 +187,7 @@ export const useOps = create<OpsState>((set, get) => {
       if (j.status === "queued") {
         // Aún no ha salido hacia el backend: se cancela sin más y la cola avanza.
         patch(key, (x) => ({ ...x, status: "done", result: { completed: 0, skipped: 0, errors: [], cancelled: true, undoable: false } }));
+        if (j.kind === "trash" || j.kind === "delete") unhide(j.req.sources);
         setTimeout(() => get().dismiss(key), 2500);
         pump();
       } else if (j.status === "running") {
@@ -156,7 +201,7 @@ export const useOps = create<OpsState>((set, get) => {
       const ui = useUi.getState();
       try {
         const r = await fs.undoLast();
-        set((s) => ({ version: s.version + 1 }));
+        set((s) => ({ version: s.version + 1, hidden: new Set<string>() })); // lo restaurado debe verse
         if (r.errors.length) ui.toast(`Deshacer ${r.description}: ${r.restored} restaurado(s); ${r.errors[0].message}`, "error");
         else ui.toast(`Deshecho: ${r.description}.`, "success");
       } catch (e) {

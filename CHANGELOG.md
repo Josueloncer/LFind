@@ -1,5 +1,102 @@
 # LFind — Registro de cambios
 
+## 04.3.2: pruebas de temas
+- `themes.test.ts`: el analizador de `themes.css` ahora no depende del tipo de salto de línea (LF/CRLF/CR) ni de la posición de la llave de cierre; nueva prueba que lo comprueba. Temas, variables y valores sin cambios.
+- **Hallazgo real:** en 04.3 puse `#e5484d` como valor de respaldo en `app.css` (barra de dirección) y eso rompe la prueba «app.css no contiene colores… escritos a mano». Corregido: `var(--danger)`.
+- No pude reproducir un fallo de la expresión regular anterior con CRLF (daba 5 bloques × 62 variables con LF y con CRLF); si tras este cambio siguen fallando, envía el mensaje exacto. `npm test`/`typecheck`/`build` NO se ejecutaron aquí.
+
+## 04.3.1: corrección de compilación TypeScript
+- `tsconfig.json` solo para producción (excluye pruebas); nuevo `tsconfig.test.json` con tipos de Node para pruebas y `vite.config.ts`; `@types/node` añadido; `defineConfig` desde `vitest/config`. `strict` sin tocar.
+- Los errores del menú nativo (`nativeMenu.ts`, `shellMenu.ts`…) vienen de archivos obsoletos que quedaron en la carpeta: `scripts/clean-obsolete.ps1` los borra. El menú nativo NO se reintroduce (decisión de 04.2).
+- Recreado `UPDATE04_PROGRESS.md` (estado real). `package-lock.json` pendiente de regenerar con `npm install`. Nada de esto se compiló en Windows.
+
+## Actualización 04.3: eliminación rápida, iconos de carpeta propios y barra de dirección
+
+El menú contextual propio de 04.2 no se ha tocado. Detalle: `docs/UPDATE_04.3_REPORT.md` · registro técnico: `PROJECT_CONTEXT.md` · **verificación pendiente en Windows: `WINDOWS_VERIFICATION.md`** (`src-tauri` y la interfaz en ejecución no se pudieron compilar/probar aquí).
+
+### Eliminación
+- El elemento **desaparece de la vista al confirmar**, sin esperar al sistema; si falla (o se cancela/deshace) **vuelve a verse al instante** y se muestra el error. El aviso de éxito solo sale cuando Rust confirma el final.
+- Papelera por **lotes de 64** (una operación del sistema por lote, con reintento individual para atribuir bien los errores) en vez de una por elemento. Sigue usando la Papelera.
+- Eliminar permanentemente ya no recorre el árbol entero antes de empezar (en Linux ese recorrido añadía ~21–24 %); el progreso muestra «N eliminados».
+
+### Iconos
+- Las carpetas usan siempre el icono propio de LFind (`FolderGlyph`, vectorial, por tokens de tema); ya no se pide ni se pinta el icono de carpeta de Windows. Archivos (EXE, PDF, PSD…) y miniaturas, sin cambios. Revisado en Chromium: 5 temas × 9 tamaños (System usa dark/light).
+- Pendiente de diseño: variantes de carpetas especiales, vacía/llena e insignia de enlace.
+
+### Barra de dirección
+- Migas «Este equipo › Disco local (C:) › Users › …» (rutas de red: `\\srv\share › …`); «Este equipo» abre la lista de unidades.
+- Clic en el espacio vacío o `Ctrl+L`: campo editable con el texto seleccionado; Enter **valida en Rust** (existe, es accesible, tiempo límite 6 s para red) sin bloquear; si falla, mensaje claro, campo en rojo y se conserva la ubicación anterior; Escape cancela. Acepta comillas, `%VARIABLES%`, `/`, `C:` y rutas UNC. Un archivo abre su carpeta. Misma carpeta → recarga sin ensuciar el historial.
+- Navegación: sigue siendo `navigate` + `open_dir` (no hay segunda implementación).
+
+### Pruebas
+Rust 37/37 (`ops`, `names`, `safety`, `undo`, `pathbar`) + 21 de 04.2; TypeScript 38/38 en el arnés propio; SVG/CSS de carpetas en Chromium. Nada probado en Windows.
+
+---
+## Actualización 04.2: menú contextual PROPIO (sustituye al nativo de 04/04.1)
+
+Decisión de producto: LFind dibuja su menú; **no** usa `IContextMenu`/`QueryContextMenu` ni extensiones COM. Un único camino de código (ya no hay «a veces nativo, a veces propio»).
+Detalle: `docs/CONTEXT_MENU.md`. Registro de desarrollo: `PROJECT_CONTEXT.md`. **Verificación: `WINDOWS_VERIFICATION.md` (`src-tauri` y las llamadas de Windows no se pudieron compilar ni ejecutar aquí).**
+
+### Nuevo
+- Menú propio en React/TypeScript (`contextMenu.ts` puro + `ContextMenu.tsx` con submenús y teclado completo) y operaciones de sistema en Rust (`system_cmd.rs`, `archive`, `sendto`, `newmenu`).
+- Archivo / carpeta / selección múltiple / espacio vacío con acciones reales: **Abrir con…, Abrir terminal aquí, Comprimir en .zip, Extraer aquí, Enviar a ▸, Nuevo ▸ (plantillas del sistema)**, además de lo que ya había (cortar, copiar, pegar, renombrar, eliminar, propiedades, favoritos, ordenar, ver…).
+- **Apertura instantánea**: el menú se construye de forma síncrona con datos ya en memoria (sin IPC ni consultas). «Enviar a», plantillas y estado del portapapeles se precargan en reposo.
+
+### Conservado de 04/04.1
+- Arreglo de miniaturas verticales · portapapeles de archivos compatible con el Explorador · Mayús+F10/tecla Menú con antirrebote · refresco tras acciones externas (0,4/1,5/4 s).
+
+### Eliminado
+- Todo el código del menú nativo: `shell_menu*.rs`, `shell_menu_cmd.rs`, `nativeMenu.ts`, `menuPerf.ts`, `shellMenu.ts` (+ pruebas), precalentamiento, medición y banco de pruebas, preferencia `nativeContextMenu` y su conmutador en Ver (las preferencias antiguas con esa clave se ignoran sin error).
+- Docs obsoletos: `docs/NATIVE_CONTEXT_MENU.md`, `docs/MENU_PERFORMANCE.md`, `UPDATE04_PROGRESS.md`, `UPDATE041_PROGRESS.md` (lista en `scripts/obsolete-04.2.txt`).
+
+### Consecuencia a tener en cuenta
+- Las entradas de WinRAR, Git, Defender, «Compartir», etc. (extensiones COM de terceros) ya no aparecen en el menú. Sin «Compartir».
+
+### Pruebas
+- Rust (`rustc --test`): 21 OK (`archive` 4 —incluye extracción tar.gz real—, `newmenu` 3, `sendto` 4, `clipboard` 7, `names` 3); tipos FFI con `nova_winck`.
+- TypeScript (arnés propio): `contextMenu.test.ts` 10/10 · `menus.test.ts` 2/3 (la tercera falla por una carencia del arnés —`toBeUndefined`—, no del código).
+
+---
+(Historial: las entradas 04.1 y 04 describen el menú nativo, **ya retirado**; se conservan solo como historia, salvo las miniaturas verticales y el portapapeles, que siguen vigentes.)
+
+## Actualización 04.1: rendimiento del menú contextual nativo
+
+Sobre la 04. Sin cambios en las entradas del menú, la compatibilidad con extensiones, el portapapeles ni el refresco. Detalle y metodología: `docs/MENU_PERFORMANCE.md`.
+**Las mejoras de latencia del Shell NO se han podido medir (sin Windows en el entorno de desarrollo); el informe incluye el procedimiento y la tabla a rellenar.**
+
+- **Medición por etapas siempre activa** (IPC, cola, PIDL, enlace, objeto, `QueryContextMenu`, `QueryInterface`, total hasta mostrar). Consola: `localStorage.setItem("lfind.menuTiming","1")`; resumen: `lfindMenuTimings()`.
+- **Banco de pruebas** `lfindMenuBench()` (DevTools): construye menús sin mostrarlos para 1 archivo, 1 carpeta, 50 archivos, mixtos y espacio vacío, con PIDL clásico y rápido.
+- **Precalentamiento** de las extensiones del Shell: al arrancar (1,5 s después, en un hilo) y por tipo de archivo al abrir carpetas (inactividad; una muestra por tipo, máx. 3 por carpeta y 40 por sesión). Un clic real adelanta a lo que no haya empezado. Desactivable: variable de entorno `LFIND_NO_PREWARM=1`.
+- **PIDL rápido** (sin consultar el disco por elemento) con vuelta automática al método clásico; la interfaz envía qué elementos son carpetas. Desactivable: `localStorage.setItem("lfind.menuSlowPidl","1")`.
+- **Posición** del menú: cursor real y origen/ppp de la ventana por Win32 directo; ya no se pregunta al hilo principal de Tauri.
+- **Mensaje IPC** con carpeta + nombres (−60 % de bytes con ≥100 elementos, medido); `join_names` valida los nombres.
+- Pruebas nuevas: Rust (`join_names`; 20 pruebas en total: 14 de `shell_menu` + 6 de `clipboard`), TypeScript (`menuPerf.test.ts`: medición y planificador de precalentamiento; `shellMenu.test.ts` actualizado).
+- Corrige un desajuste de la 04: el código Rust de medición/precalentamiento existía pero no estaba registrado ni usado por la interfaz.
+
+## Actualización 04: menú contextual nativo de Windows y miniaturas verticales
+
+Incremental sobre la 03; no sustituye nada ni actualiza dependencias. Detalles técnicos: `docs/NATIVE_CONTEXT_MENU.md`.
+**Estado de verificación: ver `WINDOWS_VERIFICATION.md`** (el menú nativo no se pudo ejecutar en Windows en el entorno de desarrollo).
+
+### 1. Miniaturas verticales (verificado en Chromium)
+- Causa: `.thumb` era `display:grid` y su imagen usaba `max-height:100%` (porcentaje cíclico); la imagen vertical se salía de su caja y tapaba el nombre.
+- Arreglo general (no específico de imágenes verticales): `.thumb` flex con `overflow:hidden`, imagen con `max-width/max-height:100%` + `object-fit:contain`;
+  `.gname` con `min-width:0` y `overflow-wrap:anywhere` (los nombres largos no ensanchan la celda). Comprobado con 4 proporciones × 8 tamaños: antes 16/32 solapes, ahora 0/32.
+- Prueba de regresión: `src/styles/thumbLayout.test.ts`.
+
+### 2. Menú contextual nativo (implementado; pendiente de verificar en Windows)
+- Clic derecho en archivos, carpetas, selección múltiple y espacio vacío → menú REAL del Shell (`IContextMenu`/`2`/`3`) con las extensiones instaladas;
+  nada de WinRAR/Git/Defender/Terminal está escrito a mano. Mayús+F10 y tecla Menú. Submenús nativos (`HandleMenuMsg2`), posición del cursor, modo oscuro/claro (mejor esfuerzo).
+- Hilo del Shell propio con COM STA, ventana propietaria oculta y bucle de mensajes: la interfaz nunca espera al Shell; todo COM se libera (RAII).
+- LFind añade arriba sus entradas propias y ejecuta él mismo solo `delete`, `rename`, `cut`, `copy`, `paste` y `open` en carpetas (colas, deshacer, renombrado en línea, pestañas).
+- Portapapeles de archivos sincronizado con el de Windows (`CF_HDROP` + *Preferred DropEffect*).
+- Refresco tras acciones externas (0,4 s / 1,5 s / 4 s). Si el menú nativo no se puede mostrar → menú propio anterior, intacto.
+- Preferencia `nativeContextMenu` (activada por defecto): Ver › «Usar el menú contextual de Windows».
+- Limitaciones documentadas: menú clásico en Windows 11, extensiones solo `IExplorerCommand`, sin «site» de vista, extensiones dentro del proceso.
+
+### Pruebas añadidas
+- Rust (`rustc --test`): `shell_menu` (10) y `clipboard` (6). TypeScript: `shellMenu.test.ts` (16), menú Ver (1), `thumbLayout.test.ts` (3).
+
 ## Actualización 03: iconos del sistema, vistas globales, seis temas y sistema de diseño
 
 Actualización incremental sobre la 02 (no sustituye la arquitectura). No actualiza dependencias ni añade ninguna.

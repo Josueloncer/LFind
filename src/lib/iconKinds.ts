@@ -43,3 +43,12 @@ export function sharedKey(e: Pick<Entry, "kind" | "name">, px: number): string |
   const ext = extOf(e.name);
   return PER_FILE_EXTS.includes(ext) ? null : typeKey(ext, false, px);
 }
+
+/**
+ * ¿Se pide al sistema el icono de este elemento? Las CARPETAS nunca: siempre llevan el icono propio de LFind (`FolderGlyph`,
+ * vectorial y coloreado por los tokens del tema), no el de carpeta de Windows. Los archivos (EXE, PDF, PSD, accesos
+ * directos…) siguen usando el icono del sistema, y las miniaturas de imagen no cambian.
+ */
+export function usesSystemIcon(e: Pick<Entry, "kind">): boolean {
+  return e.kind !== "dir";
+}

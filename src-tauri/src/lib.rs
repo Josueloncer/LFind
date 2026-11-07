@@ -1,6 +1,8 @@
+mod clipboard_cmd;
 mod commands;
 mod icons_cmd;
 mod state;
+mod system_cmd;
 mod thumbs_cmd;
 
 use std::sync::atomic::Ordering;
@@ -56,12 +58,25 @@ pub fn run() {
             commands::get_properties,
             commands::start_stats,
             commands::get_drive_usage,
+            commands::resolve_path,
             thumbs_cmd::get_thumbnail,
             thumbs_cmd::set_thumb_epoch,
             thumbs_cmd::clear_thumb_cache,
             thumbs_cmd::get_text_preview,
             icons_cmd::get_icons,
             icons_cmd::clear_icon_cache,
+            clipboard_cmd::clipboard_set_files,
+            clipboard_cmd::clipboard_read_files,
+            clipboard_cmd::clipboard_sequence,
+            clipboard_cmd::clipboard_has_files,
+            system_cmd::open_with,
+            system_cmd::open_terminal,
+            system_cmd::compress_paths,
+            system_cmd::extract_archive,
+            system_cmd::list_send_to,
+            system_cmd::send_to,
+            system_cmd::list_new_templates,
+            system_cmd::create_from_template,
             commands::get_places,
             commands::get_platform_info,
             commands::get_prefs,

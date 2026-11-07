@@ -34,7 +34,8 @@ export interface ThumbActions {
   clearThumbCache(): void;
 }
 
-export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t: ThumbActions): MenuItem[] {
+/** Tamaños de icono y modos de visualización (lo comparten «Vista» de la barra y «Ver» del menú contextual). */
+export function viewModeItems(v: EffectiveView, a: Pick<ViewActions, "setView">): MenuItem[] {
   const nearest = ICON_PRESETS.reduce((b, p) => (Math.abs(p.size - v.iconSize) < Math.abs(b.size - v.iconSize) ? p : b));
   const mode = (m: ViewMode): MenuItem => ({ kind: "item", label: VIEW_LABEL[m], checked: v.viewMode === m, run: () => a.setView({ viewMode: m }) });
   return [
@@ -45,6 +46,12 @@ export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t:
     })),
     { kind: "sep" },
     mode("list"), mode("details"), mode("tiles"), mode("content"),
+  ];
+}
+
+export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t: ThumbActions): MenuItem[] {
+  return [
+    ...viewModeItems(v, a),
     { kind: "sep" },
     ...columnsMenu(columns, a),
     { kind: "sep" },

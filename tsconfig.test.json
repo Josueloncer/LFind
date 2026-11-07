@@ -1,0 +1,8 @@
+{
+  // Pruebas + configuración de herramientas (Node). Misma rigurosidad (`strict`) que la aplicación; solo añade los tipos de Node
+  // (`node:fs`, etc.), que el código de producción NO debe poder usar. Se ejecuta con `npm run typecheck`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["vite/client", "node"] },
+  "include": ["src", "vite.config.ts"],
+  "exclude": []
+}

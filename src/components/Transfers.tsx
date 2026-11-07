@@ -46,7 +46,7 @@ function JobCard({ j }: { j: Job }) {
       <div className="bar" data-indeterminate={(state === "running" && pct === null) || undefined}><i style={{ width: pct === null ? undefined : `${pct}%` }} /></div>
       {p && j.status === "running" && (
         <div className="job-meta">
-          {p.bytesTotal > 0 ? `${formatBytes(p.bytesDone)} de ${formatBytes(p.bytesTotal)}` : `${p.filesDone} de ${p.filesTotal}`}
+          {p.bytesTotal > 0 ? `${formatBytes(p.bytesDone)} de ${formatBytes(p.bytesTotal)}` : (p.filesTotal > 0 ? `${p.filesDone} de ${p.filesTotal}` : `${p.filesDone} eliminados`)}
           {p.bytesTotal > 0 && p.filesTotal > 0 ? ` · ${p.filesDone} de ${p.filesTotal} archivos` : ""}
         </div>
       )}

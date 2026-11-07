@@ -16,7 +16,7 @@ vi.mock("../lib/fs", () => ({
   },
 }));
 
-import { MAX_PARALLEL, jobState, signature, useOps } from "./ops";
+import { MAX_PARALLEL, failedSources, jobState, pathKey, signature, useOps } from "./ops";
 import { useUi } from "./ui";
 
 const req = (name: string, o: Partial<OpRequest> = {}): OpRequest => ({ kind: "copy", sources: [`C:\\a\\${name}`], dest: "C:\\b", ...o });
@@ -28,7 +28,7 @@ const st = (i: number) => jobState(jobs()[i]);
 beforeEach(() => {
   started.length = 0;
   undoLast.mockReset();
-  useOps.setState({ jobs: [], version: 0 });
+  useOps.setState({ jobs: [], version: 0, hidden: new Set<string>() });
   useUi.setState({ toasts: [] });
 });
 
@@ -137,5 +137,74 @@ describe("estados finales", () => {
     undoLast.mockRejectedValueOnce("No hay nada que deshacer.");
     await useOps.getState().undo();
     expect(lastToast()).toMatchObject({ tone: "error", text: "No hay nada que deshacer." });
+  });
+});
+
+describe("eliminación optimista", () => {
+  const del = (...names: string[]) => useOps.getState().start({ kind: "trash", sources: names.map((n) => `C:\\a\\${n}`) });
+  const hid = (n: string) => useOps.getState().hidden.has(pathKey(`C:\\a\\${n}`));
+
+  it("el elemento se oculta en cuanto se confirma, antes de que Rust responda; copiar no oculta nada", () => {
+    del("x", "y");
+    expect(started).toHaveLength(1);
+    expect(hid("x") && hid("y")).toBe(true);
+    expect(useUi.getState().toasts).toHaveLength(0); // y ningún mensaje de éxito antes de tiempo
+    useOps.getState().start(req("z"));
+    expect(hid("z")).toBe(false);
+  });
+  it("una operación duplicada rechazada no oculta nada nuevo", () => {
+    del("x");
+    useOps.setState({ hidden: new Set<string>() });
+    expect(del("x")).toBe(false);
+    expect(hid("x")).toBe(false);
+  });
+  it("éxito: sigue oculto hasta que la recarga confirma que ya no está; el aviso sale al terminar", () => {
+    del("x");
+    started[0].emit(done());
+    expect(lastToast().tone).toBe("success");
+    expect(hid("x")).toBe(true);
+    useOps.getState().settle(new Set([pathKey("C:\\a\\x")])); // la recarga aún lo ve (lectura anterior): sigue oculto
+    expect(hid("x")).toBe(true);
+    useOps.getState().settle(new Set()); // la recarga ya no lo ve
+    expect(hid("x")).toBe(false);
+  });
+  it("mientras el trabajo sigue en curso, la recarga no lo deja reaparecer", () => {
+    del("x");
+    useOps.getState().settle(new Set());
+    expect(hid("x")).toBe(true);
+  });
+  it("error: el elemento fallido vuelve a verse al instante y los demás siguen ocultos", () => {
+    del("x", "y");
+    started[0].emit(done({ completed: 1, errors: [{ path: "C:\\a\\y", message: "Acceso denegado", kind: "permission" } as never] }));
+    expect(hid("y")).toBe(false);
+    expect(hid("x")).toBe(true);
+    expect(lastToast().tone).toBe("error");
+  });
+  it("error dentro de una carpeta: se restaura la carpeta entera", () => {
+    expect(failedSources(["C:\\a\\d", "C:\\a\\dd"], [{ path: "C:\\a\\d\\sub\\f.txt" }])).toEqual(["C:\\a\\d"]);
+    expect(failedSources(["C:\\a\\d", "C:\\a\\e"], [{ path: "" }])).toEqual(["C:\\a\\d", "C:\\a\\e"]);
+  });
+  it("cancelar en cola restaura al instante; cancelar en curso restaura cuando el backend responde", () => {
+    for (const n of ["1", "2"]) useOps.getState().start(req(n));
+    del("x"); // en cola (ya hay 2 en curso)
+    expect(jobs()[2].status).toBe("queued");
+    useOps.getState().cancel(jobs()[2].key);
+    expect(hid("x")).toBe(false);
+    del("w", "v"); // 3.er trabajo: sigue en cola hasta que haya hueco
+    started[0].emit(done()); // termina la 1.ª → arranca «w, v»
+    expect(jobs().find((j) => j.kind === "trash" && j.status === "running")).toBeTruthy();
+    const key = jobs().find((j) => j.kind === "trash" && j.status === "running")!.key;
+    useOps.getState().cancel(key);
+    expect(hid("w") && hid("v")).toBe(true); // aún no hay respuesta del backend
+    started[started.length - 1].emit(done({ completed: 0, cancelled: true }));
+    expect(hid("w") || hid("v")).toBe(false);
+  });
+  it("deshacer restaura todo lo oculto", () => {
+    useOps.setState({ hidden: new Set([pathKey("C:\\a\\q")]) });
+    undoLast.mockResolvedValue({ restored: 1, errors: [], description: "x" });
+    return useOps.getState().undo().then(() => expect(useOps.getState().hidden.size).toBe(0));
+  });
+  it("pathKey ignora mayúsculas, barras y barra final", () => {
+    expect(pathKey("c:/A/B/")).toBe(pathKey("C:\\a\\b"));
   });
 });

@@ -1,21 +1,27 @@
 import { create } from "zustand";
 
 /**
- * Portapapeles interno de LFind (copiar/cortar entre carpetas, pestañas y paneles).
- * No se sincroniza con el portapapeles de Windows: pegar en el Explorador de Windows no está soportado todavía.
+ * Portapapeles de archivos de LFind (copiar/cortar entre carpetas, pestañas y paneles).
+ * Se sincroniza con el portapapeles de Windows (`lib/systemClipboard.ts`): copiar/cortar aquí publica los archivos
+ * como el Explorador, y lo copiado fuera de LFind se pega aquí. `seq` es el número de secuencia del portapapeles del
+ * sistema que corresponde a lo que contiene este almacén (0 = no sincronizado).
  */
 interface ClipState {
   paths: string[];
   mode: "copy" | "cut" | null;
-  set(paths: string[], mode: "copy" | "cut"): void;
+  seq: number;
+  set(paths: string[], mode: "copy" | "cut", seq?: number): void;
+  setSeq(seq: number): void;
   clear(): void;
 }
 
 export const useClipboard = create<ClipState>((set) => ({
   paths: [],
   mode: null,
-  set: (paths, mode) => set({ paths, mode }),
-  clear: () => set({ paths: [], mode: null }),
+  seq: 0,
+  set: (paths, mode, seq = 0) => set({ paths, mode, seq }),
+  setSeq: (seq) => set({ seq }),
+  clear: () => set({ paths: [], mode: null }), // `seq` se conserva: lo que sigue en el sistema no se vuelve a importar
 }));
 
 /** Copia texto al portapapeles del sistema (rutas, nombres). */

@@ -4,11 +4,39 @@ import themesCss from "../styles/themes.css?raw";
 import tokensCss from "../styles/tokens.css?raw";
 import { THEMES, THEME_IDS, normalizeTheme, resolveTheme, schemeOf } from "./themes";
 
-const blocks = [...themesCss.matchAll(/:root\[data-theme="(\w+)"\] \{([\s\S]*?)\n\}/g)].map((m) => ({ id: m[1], vars: new Set([...m[2].matchAll(/^\s*(--[\w-]+):/gm)].map((v) => v[1])) }));
+interface ThemeBlock {
+  id: string;
+  vars: Set<string>;
+}
+
+/**
+ * Bloques `:root[data-theme="x"] { … }` de themes.css y las variables que declara cada uno. No depende del tipo de salto de línea
+ * (LF, CRLF o CR), de la sangría ni de dónde se escriba la llave de cierre: los bloques no contienen `}` en su interior.
+ */
+function parseThemeBlocks(css: string): ThemeBlock[] {
+  const blocks: ThemeBlock[] = [];
+  for (const m of css.matchAll(/:root\[data-theme\s*=\s*["']?(\w+)["']?\]\s*\{([^}]*)\}/g)) {
+    const vars = new Set<string>();
+    for (const v of m[2].matchAll(/(?:^|[\s;{])(--[\w-]+)\s*:/g)) vars.add(v[1]);
+    blocks.push({ id: m[1], vars });
+  }
+  return blocks;
+}
+
+const blocks = parseThemeBlocks(themesCss);
 
 describe("temas", () => {
   it("hay un bloque CSS por cada tema salvo «system»", () => {
     expect(blocks.map((b) => b.id).sort()).toEqual(THEME_IDS.filter((t) => t !== "system").sort());
+  });
+
+  it("el analizador de themes.css admite LF, CRLF y CR con el mismo resultado", () => {
+    const summary = (css: string) => parseThemeBlocks(css).map((b) => `${b.id}:${[...b.vars].sort().join(",")}`);
+    const lf = themesCss.replace(/\r\n?/g, "\n");
+    expect(summary(lf)).toHaveLength(5);
+    expect(summary(lf.replace(/\n/g, "\r\n"))).toEqual(summary(lf));
+    expect(summary(lf.replace(/\n/g, "\r"))).toEqual(summary(lf));
+    expect(summary(":root[data-theme=\"dark\"] {\r\n  color-scheme: dark;\r\n  --a: 1;\r\n  --b-c: var(--a);\r\n}\r\n")).toEqual(["dark:--a,--b-c"]);
   });
 
   it("todos los temas definen exactamente las mismas variables", () => {

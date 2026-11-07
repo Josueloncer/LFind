@@ -1,0 +1,11 @@
+crates/nova-core/src/shell_menu.rs
+crates/nova-core/src/shell_menu_win.rs
+src-tauri/src/shell_menu_cmd.rs
+src/lib/nativeMenu.ts
+src/lib/menuPerf.ts
+src/lib/menuPerf.test.ts
+src/lib/shellMenu.ts
+src/lib/shellMenu.test.ts
+docs/NATIVE_CONTEXT_MENU.md
+docs/MENU_PERFORMANCE.md
+UPDATE041_PROGRESS.md

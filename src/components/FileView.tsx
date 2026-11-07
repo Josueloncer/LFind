@@ -7,6 +7,7 @@ import type { Column, Entry, GroupBy, SortDir, SortKey, ViewMode } from "../lib/
 import { buildLayout } from "../lib/layout";
 import { MarqueeSession, combineSelection, edgeScroll, hitTest, makeGeometry, namesOf, rectFrom, sameSet } from "../lib/marquee";
 import type { Rect } from "../lib/marquee";
+import type { ContextPoint } from "../lib/contextMenu";
 import { isThumbEligible } from "../lib/thumbKinds";
 import { iconService } from "../lib/iconService";
 import { thumbService } from "../lib/thumbService";
@@ -44,7 +45,8 @@ export interface FileViewProps {
   onRename(oldName: string, newName: string): void;
   onCancelRename(): void;
   onOpen(e: Entry): void;
-  onContext(ev: MouseEvent, e: Entry | null): void;
+  /** `ev`: clic derecho real o, desde el teclado, una posición sintética. `shiftKey` pide los verbos extendidos. */
+  onContext(ev: ContextPoint, e: Entry | null): void;
   onHeaderContext(ev: MouseEvent): void;
   onZoom(dir: 1 | -1): void;
   onDragStart(ev: DragEvent, e: Entry): void;
@@ -319,7 +321,7 @@ export function FileView(props: FileViewProps) {
     context(ev, e) {
       ev.preventDefault();
       ev.stopPropagation();
-      P.current.onContext(ev, e);
+      if (performance.now() - kbMenuAt.current > 500) P.current.onContext(ev, e); // el menú por teclado ya se abrió
     },
     dragStart(ev, e) {
       collapse.current = null;
@@ -387,7 +389,28 @@ export function FileView(props: FileViewProps) {
     scrollTo(i);
   };
 
+  /** Menú contextual desde el teclado (tecla Menú o Mayús+F10): sale junto al elemento con el foco. */
+  const kbMenuAt = useRef(0);
+  const openKeyboardMenu = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const e = focusIdx !== null ? layout.flat[focusIdx] : null;
+    const box = el.getBoundingClientRect();
+    const node = e ? el.querySelector<HTMLElement>("[data-focus]") : null;
+    const r = node?.getBoundingClientRect();
+    // Sin elemento con el foco (o fuera de la vista): menú del espacio vacío, junto a la esquina del área.
+    const inView = r && r.bottom > box.top && r.top < box.bottom;
+    const x = inView ? Math.round(r.left + Math.min(24, r.width / 2)) : Math.round(box.left + 24);
+    const y = inView ? Math.round(r.top + Math.min(r.height / 2, 24)) : Math.round(box.top + 24);
+    kbMenuAt.current = performance.now();
+    P.current.onContext({ clientX: x, clientY: y, shiftKey: false, keyboard: true }, inView ? e : null);
+  };
+
   const onKeyDown = (ev: React.KeyboardEvent) => {
+    if (ev.key === "ContextMenu" || (ev.key === "F10" && ev.shiftKey && !ev.ctrlKey && !ev.altKey)) {
+      ev.preventDefault();
+      return openKeyboardMenu();
+    }
     const n = layout.flat.length;
     if (!n || ev.altKey) return;
     const cur = focusIdx ?? -1;
@@ -527,7 +550,7 @@ export function FileView(props: FileViewProps) {
         className="scroller"
         ref={scroller}
         onMouseDown={startMarquee}
-        onContextMenu={(ev) => (ev.preventDefault(), props.onContext(ev, null))}
+        onContextMenu={(ev) => (ev.preventDefault(), performance.now() - kbMenuAt.current > 500 && props.onContext(ev, null))}
         onDragOver={(ev) => {
           setDropName(null);
           if (!props.canDrop(null)) return;

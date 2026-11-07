@@ -1,11 +1,13 @@
 import { useCallback, useMemo } from "react";
 import { errMsg, fs } from "../lib/fs";
-import type { Entry } from "../lib/fs";
+import type { Entry, NewTemplate, SendToItem } from "../lib/fs";
+import { scheduleRefresh } from "../lib/contextMenu";
 import { basename, join, parent, samePath } from "../lib/path";
 import { copyText, useClipboard } from "../stores/clipboard";
 import { useNav } from "../stores/nav";
 import { useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
+import { pullFromSystem, pushToSystem } from "../lib/systemClipboard";
 import { useUi } from "../stores/ui";
 
 interface Args {
@@ -33,12 +35,19 @@ export function useFileActions(a: Args) {
     const act = {
       sel,
       copy(l: Entry[] = sel) {
-        if (l.length) useClipboard.getState().set(paths(l), "copy");
+        if (!l.length) return;
+        const p = paths(l);
+        useClipboard.getState().set(p, "copy");
+        void pushToSystem(p, "copy");
       },
       cut(l: Entry[] = sel) {
-        if (l.length) useClipboard.getState().set(paths(l), "cut");
+        if (!l.length) return;
+        const p = paths(l);
+        useClipboard.getState().set(p, "cut");
+        void pushToSystem(p, "cut");
       },
-      paste(into: string | null = path) {
+      async paste(into: string | null = path) {
+        await pullFromSystem(); // lo copiado fuera de LFind (Explorador, otras apps) también se puede pegar aquí
         const clip = useClipboard.getState();
         if (!into || !clip.mode || !clip.paths.length) return;
         if (clip.mode === "cut") {
@@ -79,6 +88,33 @@ export function useFileActions(a: Args) {
       },
       togglePin: (e: Entry) => usePrefs.getState().toggleFavorite(pathOf(e), e.name),
       isPinned: (e: Entry) => usePrefs.getState().favorites.some((f) => samePath(f.path, pathOf(e))),
+      openWith: (e: Entry) => fs.openWith(pathOf(e)).catch(fail),
+      openTerminal: (e?: Entry) => {
+        const d = e ? pathOf(e) : path;
+        if (d) fs.openTerminal(d).catch(fail);
+      },
+      compress(l: Entry[] = sel) {
+        if (!path || !l.length) return;
+        toast("Comprimiendo…");
+        fs.compressPaths(paths(l), path).then((p) => (toast(`Creado ${basename(p)}`, "success"), a.afterCreate(basename(p)))).catch(fail);
+      },
+      extract(e: Entry) {
+        toast("Extrayendo…");
+        fs.extractArchive(pathOf(e)).then((p) => (toast(`Extraído en ${basename(p)}`, "success"), a.reload())).catch(fail);
+      },
+      sendTo(l: Entry[], t: SendToItem) {
+        if (!l.length) return;
+        fs.sendTo(paths(l), t.id)
+          .then((r) => {
+            if (r.kind === "zip") act.compress(l);
+            else if (r.kind === "copyTo") useOps.getState().start({ kind: "copy", sources: paths(l), dest: r.dest });
+            else scheduleRefresh(a.reload);
+          })
+          .catch(fail);
+      },
+      newFromTemplate(t: NewTemplate) {
+        if (path) fs.createFromTemplate(path, t.id).then((p) => a.afterCreate(basename(p))).catch(fail);
+      },
       undo: () => void useOps.getState().undo(),
       startRename: a.startRename,
     };

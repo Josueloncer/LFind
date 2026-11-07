@@ -9,6 +9,8 @@ export interface Toast {
 
 export type MenuItem =
   | { kind: "item"; label: string; run(): void; shortcut?: string; disabled?: boolean; danger?: boolean; checked?: boolean; icon?: string }
+  /** Submenú (un nivel). Se abre al pasar el ratón o con la flecha derecha. */
+  | { kind: "submenu"; label: string; items: MenuItem[]; icon?: string; disabled?: boolean }
   | { kind: "sep" }
   | { kind: "header"; label: string };
 

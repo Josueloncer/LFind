@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, DriveUsage, FileProps, IconItem, IconsReply, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, TextPreview, Theme, ThumbReply, UndoResult,
+  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -77,6 +77,7 @@ export class TauriProvider implements FsProvider {
   createShortcut = (target: string) => invoke<string>("create_shortcut", { target });
   getProperties = (path: string) => invoke<FileProps>("get_properties", { path });
   getDriveUsage = (root: string) => invoke<DriveUsage>("get_drive_usage", { root });
+  resolvePath = (input: string) => invoke<ResolvedPath>("resolve_path", { input });
 
   startStats(paths: string[], onEvent: (e: StatsEvent) => void) {
     const channel = new Channel<StatsEvent>();
@@ -92,5 +93,17 @@ export class TauriProvider implements FsProvider {
   clearThumbCache = async () => (await invoke<number>("clear_thumb_cache")) + (await invoke<number>("clear_icon_cache").catch(() => 0));
   getIcons = (items: IconItem[], px: number, have: string[]) => invoke<IconsReply>("get_icons", { items, px, have });
   clearIconCache = () => invoke<number>("clear_icon_cache");
+  clipboardSetFiles = (paths: string[], cut: boolean) => invoke<number>("clipboard_set_files", { paths, cut });
+  clipboardReadFiles = () => invoke<SystemClipboardFiles | null>("clipboard_read_files");
+  clipboardSequence = () => invoke<number>("clipboard_sequence");
+  clipboardHasFiles = () => invoke<boolean>("clipboard_has_files");
+  openWith = (path: string) => invoke<void>("open_with", { path });
+  openTerminal = (dir: string) => invoke<void>("open_terminal", { dir });
+  compressPaths = (paths: string[], dir: string) => invoke<string>("compress_paths", { paths, dir });
+  extractArchive = (path: string) => invoke<string>("extract_archive", { path });
+  getSendTo = () => invoke<SendToItem[]>("list_send_to");
+  sendTo = (paths: string[], id: string) => invoke<SendResult>("send_to", { paths, id });
+  getNewTemplates = () => invoke<NewTemplate[]>("list_new_templates");
+  createFromTemplate = (dir: string, id: string) => invoke<string>("create_from_template", { dir, id });
   getTextPreview = (path: string) => invoke<TextPreview>("get_text_preview", { path });
 }

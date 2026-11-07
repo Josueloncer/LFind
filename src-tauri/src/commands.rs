@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use nova_core::ops::{self, Decision};
 use nova_core::undo::{self, UndoEntry};
-use nova_core::{dir, names, places, prefs, props, safety, shell, volumes};
+use nova_core::{dir, names, pathbar, places, prefs, props, safety, shell, volumes};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -231,31 +231,14 @@ fn run_op(req: &OpRequest, on_event: &Channel<OpEvent>, cancel: &AtomicBool, ans
             Ok(if req.kind == OpKind::Copy { ops::copy_items(&sources, &dest, &mut ctx) } else { ops::move_items(&sources, &dest, &mut ctx) })
         }
         OpKind::Delete => Ok(ops::delete_items(&sources, &mut ctx)),
-        OpKind::Trash => {
-            let mut out = ops::OpOutcome::default();
-            let mut prog = ops::Progress { files_total: sources.len() as u64, ..Default::default() };
-            for p in &sources {
-                if cancel.load(Ordering::Relaxed) {
-                    break;
-                }
-                prog.current = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let r = safety::check_destructive(p).map_err(|m| (ops::ErrKind::Blocked, m)).and_then(|_| {
-                    if std::fs::symlink_metadata(p).is_err() {
-                        Err((ops::ErrKind::NotFound, "El elemento ya no existe.".to_string()))
-                    } else {
-                        send_to_trash(p).map_err(|m| (ops::ErrKind::Other, m))
-                    }
-                });
-                match r {
-                    Ok(()) => out.completed += 1,
-                    Err((kind, message)) => out.errors.push(ops::OpError { path: p.display().to_string(), message, kind }),
-                }
-                prog.files_done += 1;
-                (ctx.on_progress)(&prog);
-            }
-            out.cancelled = cancel.load(Ordering::Relaxed);
-            Ok(out)
-        }
+        OpKind::Trash => Ok(ops::trash_items(
+            &sources,
+            &mut ctx,
+            // Un lote = una sola operación del sistema (mucho más rápido que una por elemento); el reintento individual
+            // atribuye el error al elemento correcto.
+            &mut |chunk| trash::delete_all(chunk).map_err(|e| e.to_string()),
+            &mut |p| send_to_trash(p),
+        )),
     }
 }
 
@@ -436,4 +419,28 @@ pub fn start_stats(paths: Vec<String>, on_event: Channel<StatsEvent>, state: Sta
 #[tauri::command]
 pub async fn get_drive_usage(root: String) -> Result<volumes::DriveUsage, String> {
     tauri::async_runtime::spawn_blocking(move || volumes::drive_usage(&root)).await.map_err(|e| e.to_string())?
+}
+
+/// Resultado de comprobar lo que se escribió en la barra de dirección.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ResolvedPath {
+    Dir { path: String },
+    File { dir: String, file: String },
+}
+
+/// Valida la ruta de la barra de dirección (normaliza, comprueba que existe y se puede abrir). NO navega: la pestaña
+/// sigue usando `open_dir`. Corre fuera del hilo principal y con tiempo límite (rutas de red caídas).
+#[tauri::command]
+pub async fn resolve_path(input: String) -> Result<ResolvedPath, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        pathbar::resolve(&input, &|k| std::env::var(k).ok(), pathbar::CHECK_TIMEOUT)
+            .map(|r| match r {
+                pathbar::Resolved::Dir(path) => ResolvedPath::Dir { path },
+                pathbar::Resolved::File { dir, file } => ResolvedPath::File { dir, file },
+            })
+            .map_err(|p| p.message)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

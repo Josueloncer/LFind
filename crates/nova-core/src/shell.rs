@@ -73,6 +73,42 @@ pub fn create_shortcut(target: &Path, link_path: &Path) -> io::Result<()> {
     std::os::unix::fs::symlink(target, link_path)
 }
 
+/// «Abrir con…»: el cuadro de selección de aplicación de Windows (verbo `openas`).
+#[cfg(windows)]
+pub fn open_with(p: &Path) -> io::Result<()> {
+    use crate::sys::win;
+    let file = win::wide(p.as_os_str());
+    let verb = win::wide("openas".as_ref());
+    unsafe {
+        let com = win::CoInitializeEx(std::ptr::null_mut(), 2) >= 0;
+        let r = win::ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), std::ptr::null(), std::ptr::null(), 1);
+        if com {
+            win::CoUninitialize();
+        }
+        if r > 32 { Ok(()) } else { Err(io::Error::new(io::ErrorKind::Other, format!("Windows no pudo mostrar «Abrir con» (código {r})."))) }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn open_with(p: &Path) -> io::Result<()> {
+    open_path(p)
+}
+
+/// Terminal en `dir`: Windows Terminal (`wt.exe -d`) y, si no está instalado, una consola de PowerShell.
+#[cfg(windows)]
+pub fn open_terminal(dir: &Path) -> io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    if std::process::Command::new("wt.exe").arg("-d").arg(dir).spawn().is_ok() {
+        return Ok(());
+    }
+    std::process::Command::new("powershell.exe").arg("-NoExit").current_dir(dir).creation_flags(0x0000_0010).spawn().map(|_| ()) // CREATE_NEW_CONSOLE
+}
+
+#[cfg(not(windows))]
+pub fn open_terminal(dir: &Path) -> io::Result<()> {
+    std::process::Command::new("x-terminal-emulator").current_dir(dir).spawn().map(|_| ())
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

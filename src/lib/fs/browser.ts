@@ -62,6 +62,7 @@ export class BrowserProvider implements FsProvider {
   createShortcut = NA as FsProvider["createShortcut"];
   getProperties = NA as FsProvider["getProperties"];
   getDriveUsage = NA as FsProvider["getDriveUsage"];
+  resolvePath = NA as FsProvider["resolvePath"];
   startStats(_paths: string[], onEvent: (e: StatsEvent) => void) {
     queueMicrotask(() => onEvent({ type: "done", stats: { files: 0, dirs: 0, bytes: 0, errors: 0 }, cancelled: true }));
     return { cancel() {} };
@@ -73,4 +74,17 @@ export class BrowserProvider implements FsProvider {
   getTextPreview = NA as FsProvider["getTextPreview"];
   getIcons: FsProvider["getIcons"] = async (items) => ({ keys: items.map(() => null), icons: {} });
   clearIconCache = async () => 0;
+  // Fuera de la app de escritorio no hay Shell de Windows: la interfaz usa su menú propio.
+  clipboardSetFiles = async () => 0;
+  clipboardReadFiles = async () => null;
+  clipboardSequence = async () => 0;
+  clipboardHasFiles = async () => false;
+  openWith = NA;
+  openTerminal = NA;
+  compressPaths = NA;
+  extractArchive = NA;
+  getSendTo = async () => [];
+  sendTo = NA;
+  getNewTemplates = async () => [];
+  createFromTemplate = NA;
 }

@@ -8,7 +8,11 @@ import { useSortedEntries } from "../hooks/useSortedEntries";
 import { beginDrag, canDropInto, draggedPaths, dropOperation, endDrag } from "../lib/dnd";
 import { fs } from "../lib/fs";
 import type { Column, Entry, SortKey } from "../lib/fs";
+import { buildContextMenu } from "../lib/contextMenu";
+import type { ContextPoint } from "../lib/contextMenu";
 import { columnsMenu } from "../lib/menus";
+import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
+import { useShellData } from "../stores/shellData";
 import { join } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
 import { effectiveView, isPinned } from "../lib/viewState";
@@ -16,10 +20,9 @@ import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
 import { useClipboard } from "../stores/clipboard";
 import { selectActiveTab, useNav } from "../stores/nav";
-import { useOps } from "../stores/ops";
+import { pathKey, useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
 import { useUi } from "../stores/ui";
-import type { MenuItem } from "../stores/ui";
 import { EmptyState } from "./EmptyState";
 import { FileView } from "./FileView";
 import { PreviewPane } from "./PreviewPane";
@@ -39,6 +42,7 @@ export function Pane() {
   const clipMode = useClipboard((s) => s.mode);
   const clipPaths = useClipboard((s) => s.paths);
   const opsVersion = useOps((s) => s.version);
+  const hidden = useOps((s) => s.hidden);
 
   const path = tab?.path ?? null;
   const view = useMemo(() => effectiveView(p, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,6 +64,12 @@ export function Pane() {
     pending.current = null;
   }, [tab?.id, tab?.path]);
 
+  // Cuando una recarga confirma qué hay en disco, lo eliminado deja de ocultarse (y lo que falló ya se restauró).
+  useEffect(() => {
+    if (dir.status !== "ready" || !path || !useOps.getState().hidden.size) return;
+    useOps.getState().settle(new Set(dir.entries.map((e) => pathKey(join(path, e.name)))));
+  }, [dir.entries, dir.status, path]);
+
   // Al terminar cualquier operación (copiar, mover, eliminar, deshacer…) se actualiza la carpeta abierta.
   useEffect(() => {
     if (opsVersion > 0) dir.reload();
@@ -72,10 +82,12 @@ export function Pane() {
   const visible = useMemo(() => {
     let l: Entry[] = ordered;
     if (!p.showHidden && hasHidden) l = l.filter((e) => !e.hidden);
+    // Eliminación optimista: lo que se está eliminando desaparece al confirmar, sin esperar al sistema de archivos.
+    if (hidden.size && path) l = l.filter((e) => !hidden.has(pathKey(join(path, e.name))));
     const q = deferredFilter.trim().toLowerCase();
     if (q) l = l.filter((e) => e.name.toLowerCase().includes(q));
     return l;
-  }, [ordered, p.showHidden, hasHidden, deferredFilter]);
+  }, [ordered, p.showHidden, hasHidden, deferredFilter, hidden, path]);
 
   // Elementos cortados que están en esta carpeta (se muestran atenuados).
   const cutNames = useMemo(() => {
@@ -86,6 +98,8 @@ export function Pane() {
     }
     return s;
   }, [clipMode, clipPaths, path]);
+
+  const hiddenHere = useMemo(() => (hidden.size && path ? dir.entries.reduce((n, e) => n + (hidden.has(pathKey(join(path, e.name))) ? 1 : 0), 0) : 0), [hidden, path, dir.entries]);
 
   const { selCount, selectedBytes } = useMemo(() => {
     let n = 0;
@@ -132,47 +146,30 @@ export function Pane() {
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
 
   // ───────── menús ─────────
-  const onContext = (ev: MouseEvent, e: Entry | null) => {
-    const hasClip = clipMode !== null && clipPaths.length > 0;
-    let items: MenuItem[];
-    if (e) {
-      const list = selected.has(e.name) ? A.sel : [e];
-      const one = list.length === 1;
-      const dirOne = one && list[0].kind === "dir";
-      items = [
-        ...(one ? [{ kind: "item", label: "Abrir", icon: "open", shortcut: "Intro", run: () => A.open(list[0]) } as MenuItem] : []),
-        ...(dirOne ? [{ kind: "item", label: "Abrir en una pestaña nueva", icon: "tab", run: () => A.openInNewTab(list[0]) } as MenuItem] : []),
-        ...(one && !dirOne ? [{ kind: "item", label: "Mostrar en el Explorador de Windows", icon: "reveal", run: () => A.reveal(list[0]) } as MenuItem] : []),
-        { kind: "sep" },
-        { kind: "item", label: "Cortar", icon: "cut", shortcut: "Ctrl+X", run: () => A.cut(list) },
-        { kind: "item", label: "Copiar", icon: "copy", shortcut: "Ctrl+C", run: () => A.copy(list) },
-        ...(dirOne ? [{ kind: "item", label: "Pegar en la carpeta", icon: "paste", disabled: !hasClip, run: () => A.paste(join(path ?? "", list[0].name)) } as MenuItem] : []),
-        { kind: "sep" },
-        { kind: "item", label: list.length > 1 ? "Copiar rutas" : "Copiar ruta de acceso", icon: "path", run: () => A.copyPaths(list) },
-        ...(one ? [{ kind: "item", label: "Crear acceso directo", icon: "shortcut", run: () => A.shortcut(list[0]) } as MenuItem] : []),
-        ...(dirOne ? [{ kind: "item", label: A.isPinned(list[0]) ? "Quitar de favoritos" : "Anclar a favoritos", icon: "star", run: () => A.togglePin(list[0]) } as MenuItem] : []),
-        { kind: "sep" },
-        ...(one ? [{ kind: "item", label: "Cambiar nombre", icon: "rename", shortcut: "F2", run: () => A.startRename(list[0].name) } as MenuItem] : []),
-        { kind: "item", label: "Eliminar", icon: "trash", shortcut: "Supr", run: () => A.remove(list, false) },
-        { kind: "item", label: "Eliminar permanentemente", danger: true, shortcut: "Mayús+Supr", run: () => A.remove(list, true) },
-        { kind: "sep" },
-        { kind: "item", label: "Propiedades", icon: "props", shortcut: "Alt+Intro", run: () => A.properties(list) },
-      ];
-    } else {
-      items = [
-        { kind: "item", label: "Nueva carpeta", icon: "folder", shortcut: "Ctrl+Mayús+N", run: () => void A.newFolder() },
-        { kind: "item", label: "Nuevo documento de texto", icon: "file", run: () => void A.newFile() },
-        { kind: "sep" },
-        { kind: "item", label: "Pegar", icon: "paste", shortcut: "Ctrl+V", disabled: !hasClip, run: () => A.paste() },
-        { kind: "item", label: "Deshacer", icon: "undo", shortcut: "Ctrl+Z", run: A.undo },
-        { kind: "sep" },
-        { kind: "item", label: "Actualizar", icon: "refresh", shortcut: "F5", run: dir.reload },
-        { kind: "item", label: "Abrir esta carpeta en el Explorador de Windows", icon: "explorer", run: () => void A.openFolderInExplorer() },
-        { kind: "item", label: "Copiar ruta de la carpeta", icon: "path", run: () => A.copyPaths([]) },
-        { kind: "sep" },
-        { kind: "item", label: "Propiedades de la carpeta", icon: "props", run: () => A.properties([]) },
-      ];
-    }
+  // Un único camino: menú propio de LFind, construido de forma síncrona con datos que ya están en memoria (selección,
+  // portapapeles, «Enviar a», plantillas de «Nuevo»). Abrirlo no hace ninguna llamada al sistema.
+  useEffect(() => {
+    watchSystemClipboard();
+    const w = window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
+    if (w.requestIdleCallback) w.requestIdleCallback(() => void useShellData.getState().load(), { timeout: 2000 });
+    else window.setTimeout(() => void useShellData.getState().load(), 300);
+  }, []);
+  const onContext = (ev: ContextPoint, e: Entry | null) => {
+    if (!path) return;
+    const list = e ? (selected.has(e.name) ? A.sel : [e]) : [];
+    const sd = useShellData.getState();
+    const items = buildContextMenu(
+      { path, list, canPaste: (useClipboard.getState().paths.length > 0 && !!useClipboard.getState().mode) || systemHasFiles(), view, sendTo: sd.sendTo, templates: sd.templates, shift: ev.shiftKey },
+      {
+        ...A,
+        paste: (t) => void A.paste(t ? join(path, t.name) : undefined),
+        newFolder: () => void A.newFolder(),
+        newFile: () => void A.newFile(),
+        openFolderInExplorer: () => void A.openFolderInExplorer(),
+        reload: dir.reload,
+        setView,
+      },
+    );
     openMenu(ev.clientX, ev.clientY, items);
   };
   const onHeaderContext = (ev: MouseEvent) => openMenu(ev.clientX, ev.clientY, columnsMenu(p.columns, { setColumns }));
@@ -262,7 +259,7 @@ export function Pane() {
         </div>
       </div>
       <StatusBar
-        total={dir.entries.length} shown={visible.length} selected={selCount} selectedBytes={selectedBytes}
+        total={dir.entries.length - hiddenHere} shown={visible.length} selected={selCount} selectedBytes={selectedBytes}
         loading={loading} sorting={sorting} filtered={filter.trim() !== "" || (!p.showHidden && hasHidden)}
         view={view} onLadder={(pos) => setView(ladderAt(pos, view.iconSize))} ladder={ladderPos(view)}
       />

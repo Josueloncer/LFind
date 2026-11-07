@@ -140,6 +140,9 @@ svg { display: block; }
 .crumb-more:hover { background: var(--bg-hover); color: var(--text); }
 .crumb[data-drop="true"] { background: var(--drop-bg); color: var(--text); }
 .crumb-sep { width: 12px; height: 12px; flex: none; color: var(--text-3); stroke-width: 2; }
+.path-input[data-invalid] { color: var(--danger); }
+.crumbs:has(.path-input[data-invalid]) { box-shadow: 0 0 0 1.5px var(--danger); }
+.path-input[data-busy] { opacity: .6; cursor: progress; }
 .crumb-fill { flex: 1 1 0; min-width: 0; height: 100%; }
 .path-input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; padding: 0 var(--sp-2); user-select: text; }
 .crumbs .ibtn { width: var(--ctl-h-xs); height: var(--ctl-h-xs); }
@@ -218,7 +221,7 @@ svg { display: block; }
 
 .item-icon { flex-direction: column; justify-content: flex-start; gap: var(--sp-f7); padding: var(--sp-4) var(--sp-2) var(--sp-2); margin: 0 var(--sp-f3); text-align: center; }
 .item-icon .glyph { filter: var(--shadow-glyph); }
-.gname { width: 100%; font-size: var(--fs-s); line-height: var(--lh-tight); color: var(--text); word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gname { width: 100%; min-width: 0; font-size: var(--fs-s); line-height: var(--lh-tight); color: var(--text); overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .item-small, .item-list { height: 28px; gap: var(--sp-f9); padding: 0 var(--sp-4); margin: 0 var(--sp-0); }
 .item-small { width: 214px; }
 .item-list { width: 224px; flex: none; }
@@ -271,6 +274,8 @@ svg { display: block; }
 .menu-ico { width: 18px; height: 18px; flex: none; display: grid; place-items: center; color: var(--text-2); }
 .menu-ico svg { width: 15px; height: 15px; stroke-width: 1.8; }
 .menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-sub { width: 14px; height: 14px; flex: none; margin-left: var(--sp-4); color: var(--text-3); }
+.menu[data-depth]:not([data-depth="0"]) { animation-duration: 70ms; }
 .menu-key { color: var(--text-3); font-size: var(--fs-xs); padding-left: var(--sp-6); }
 .menu-sep { height: 1px; background: var(--line); margin: var(--sp-f5) var(--sp-2); }
 .menu-head { padding: var(--sp-f7) var(--sp-4) var(--sp-f3); font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--text-3); }
@@ -339,8 +344,12 @@ svg { display: block; }
 .marquee { position: absolute; display: none; z-index: var(--z-marquee); pointer-events: none; border-radius: var(--r-xs); background: var(--sel); border: 1px solid var(--sel-edge); }
 
 /* ───────── Miniaturas ───────── */
-.thumb { display: grid; place-items: center; flex: none; }
-.thumb img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--r-xs); background: var(--bg-field); box-shadow: var(--shadow-thumb); pointer-events: none; }
+/* La caja de la miniatura mide exactamente `size × size` y la imagen vive DENTRO de ella, conservando su proporción.
+   Es flex (no grid) a propósito: en una rejilla con fila automática el `max-height: 100%` de la imagen es un porcentaje
+   cíclico y se ignora, así que una imagen vertical crecía por encima de la caja y pisaba el nombre. Con flex y alto
+   definido el límite se respeta en horizontal, vertical y cuadrada por igual. */
+.thumb { display: flex; align-items: center; justify-content: center; flex: none; min-width: 0; min-height: 0; overflow: hidden; }
+.thumb img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: var(--r-xs); background: var(--bg-field); box-shadow: var(--shadow-thumb); pointer-events: none; }
 
 /* ───────── Vista previa ───────── */
 .preview { width: var(--preview-w); flex: none; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg-content); animation: view-in var(--t-med) var(--ease); }

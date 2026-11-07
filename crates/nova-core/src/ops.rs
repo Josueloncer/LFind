@@ -638,8 +638,9 @@ fn delete_tree(p: &Path, st: &mut St) -> R {
 }
 
 pub fn delete_items(paths: &[PathBuf], ctx: &mut Ctx<'_>) -> OpOutcome {
-    let (files, bytes) = scan(paths, ctx.cancel);
-    let mut st = St::new(ctx, files, bytes);
+    // Sin recorrido previo (`scan`): empezar a borrar ya. El total se desconoce (0 = barra indeterminada); contar antes
+    // recorría todo el árbol dos veces (medido en Linux: ~+21-24 % de tiempo antes de borrar el primer archivo).
+    let mut st = St::new(ctx, 0, 0);
     let mut completed = 0;
     for p in paths {
         if st.check().is_err() {
@@ -661,6 +662,54 @@ pub fn delete_items(paths: &[PathBuf], ctx: &mut Ctx<'_>) -> OpOutcome {
     }
     st.emit();
     st.finish(None, completed)
+}
+
+/// Tamaño de cada lote enviado a la Papelera: una sola operación del sistema por lote (en vez de una por elemento), con
+/// avance y cancelación entre lotes.
+pub const TRASH_BATCH: usize = 64;
+
+/// Envía elementos a la Papelera por lotes. `batch` recibe un lote entero; si falla, cada elemento del lote se reintenta
+/// por separado con `single` para atribuir el error al elemento correcto (un fallo no arrastra a los demás).
+/// El envío real (crate `trash`) lo inyecta el llamador: así esta lógica es pura y se prueba sin Windows.
+pub fn trash_items(
+    paths: &[PathBuf],
+    ctx: &mut Ctx<'_>,
+    batch: &mut dyn FnMut(&[PathBuf]) -> Result<(), String>,
+    single: &mut dyn FnMut(&Path) -> Result<(), String>,
+) -> OpOutcome {
+    let mut out = OpOutcome::default();
+    let mut prog = Progress { files_total: paths.len() as u64, ..Default::default() };
+    let mut ok: Vec<PathBuf> = Vec::with_capacity(paths.len());
+    for p in paths {
+        match safety::check_destructive(p) {
+            Err(m) => out.errors.push(OpError { path: p.display().to_string(), message: m, kind: ErrKind::Blocked }),
+            Ok(()) if fs::symlink_metadata(p).is_err() => {
+                out.errors.push(OpError { path: p.display().to_string(), message: "El elemento ya no existe.".into(), kind: ErrKind::NotFound })
+            }
+            Ok(()) => ok.push(p.clone()),
+        }
+    }
+    prog.files_done = (paths.len() - ok.len()) as u64;
+    for chunk in ok.chunks(TRASH_BATCH) {
+        if ctx.cancel.load(Ordering::Relaxed) {
+            out.cancelled = true;
+            break;
+        }
+        prog.current = chunk[0].file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if batch(chunk).is_ok() {
+            out.completed += chunk.len() as u64;
+        } else {
+            for p in chunk {
+                match single(p) {
+                    Ok(()) => out.completed += 1,
+                    Err(message) => out.errors.push(OpError { path: p.display().to_string(), message, kind: ErrKind::Other }),
+                }
+            }
+        }
+        prog.files_done += chunk.len() as u64;
+        (ctx.on_progress)(&prog);
+    }
+    out
 }
 
 // ───────────────────────── renombrar y crear ─────────────────────────
@@ -933,6 +982,57 @@ mod tests {
         assert!(!d.join("t").exists());
         assert_eq!(log.last().unwrap().files_done, 2);
         assert!(o.undo.is_none(), "eliminar permanentemente no es reversible");
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn trash_batches_and_attributes_errors_to_the_right_item() {
+        let d = tmp("trash");
+        let names: Vec<PathBuf> = (0..150).map(|i| d.join(format!("f{i}.txt"))).collect();
+        for p in &names {
+            w(p, "x");
+        }
+        let bad = names[70].clone();
+        let (mut batches, mut singles) = (vec![], 0);
+        let (o, log) = run(
+            |c| {
+                trash_items(
+                    &names,
+                    c,
+                    &mut |chunk| {
+                        batches.push(chunk.len());
+                        if chunk.contains(&bad) { Err("lote falló".into()) } else { chunk.iter().for_each(|p| fs::remove_file(p).unwrap()); Ok(()) }
+                    },
+                    &mut |p| {
+                        singles += 1;
+                        if p == bad { Err("Acceso denegado".into()) } else { fs::remove_file(p).map_err(|e| e.to_string()) }
+                    },
+                )
+            },
+            Decision::Skip,
+        );
+        assert_eq!(batches, vec![64, 64, 22]);
+        assert_eq!(singles, 64, "solo el lote que falló se reintenta uno a uno");
+        assert_eq!(o.completed, 149);
+        assert_eq!(o.errors.len(), 1);
+        assert_eq!(o.errors[0].path, bad.display().to_string());
+        assert_eq!(log.last().unwrap().files_done, 150);
+        assert!(bad.exists() && !names[0].exists());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn trash_reports_missing_items_without_calling_the_system_and_honours_cancel() {
+        let d = tmp("trash2");
+        let (o, _) = run(|c| trash_items(&[d.join("no-existe")], c, &mut |_| panic!("no debe llamarse"), &mut |_| panic!("no debe llamarse")), Decision::Skip);
+        assert_eq!(o.errors[0].kind, ErrKind::NotFound);
+        let cancel = AtomicBool::new(true);
+        let mut p = |_: &Progress| {};
+        let mut c = |_: &ConflictInfo| Decision::Skip;
+        let mut ctx = Ctx { cancel: &cancel, on_progress: &mut p, on_conflict: &mut c };
+        w(&d.join("a"), "1");
+        let o = trash_items(&[d.join("a")], &mut ctx, &mut |_| panic!("cancelado"), &mut |_| panic!("cancelado"));
+        assert!(o.cancelled && d.join("a").exists());
         let _ = fs::remove_dir_all(d);
     }
 

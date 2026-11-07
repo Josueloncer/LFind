@@ -5,11 +5,14 @@ import { formatBytes } from "../lib/format";
 import { iconService } from "../lib/iconService";
 import { thumbService } from "../lib/thumbService";
 import { newMenu, sortMenu, viewMenu } from "../lib/menus";
-import { basename, parent, samePath, segments } from "../lib/path";
+import { crumbsFor, outcomeFor } from "../lib/addressBar";
+import type { Crumb as CrumbModel } from "../lib/addressBar";
+import { basename, parent, samePath } from "../lib/path";
 import { VIEW_LABEL } from "../lib/view";
 import type { EffectiveView } from "../lib/viewState";
 import { useDropTarget } from "../hooks/useDropTarget";
 import type { Column } from "../lib/fs";
+import { useApp } from "../stores/app";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
 import { useUi } from "../stores/ui";
@@ -46,12 +49,15 @@ function listSubfolders(path: string): Promise<string[]> {
   });
 }
 
-function Crumb({ label, path, last, onGo, onMenu }: { label: string; path: string; last: boolean; onGo(p: string): void; onMenu(ev: MouseEvent, p: string): void }) {
-  const { over, bind } = useDropTarget(path);
+function Crumb({ label, path, last, onGo, onMenu }: { label: string; path: string | null; last: boolean; onGo(p: string): void; onMenu(ev: MouseEvent, p: string | null): void }) {
+  const { over, bind } = useDropTarget(path ?? "");
   return (
     <>
-      <button className={last ? "crumb crumb--last" : "crumb"} data-drop={over || undefined} onClick={() => onGo(path)} {...bind}>{label}</button>
-      <button className="crumb-more" aria-label={`Subcarpetas de ${label}`} title="Ver subcarpetas" onClick={(ev) => onMenu(ev, path)}><ChevronRight className="crumb-sep" /></button>
+      <button
+        className={last ? "crumb crumb--last" : "crumb"} data-drop={(path && over) || undefined}
+        onClick={(ev) => (path ? onGo(path) : onMenu(ev, null))} {...(path ? bind : {})}
+      >{label}</button>
+      <button className="crumb-more" aria-label={path ? `Subcarpetas de ${label}` : "Unidades"} title={path ? "Ver subcarpetas" : "Ver unidades"} onClick={(ev) => onMenu(ev, path)}><ChevronRight className="crumb-sep" /></button>
     </>
   );
 }
@@ -71,14 +77,26 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const openMenu = useUi((s) => s.openMenu);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const check = useRef(0); // identifica la validación en curso: Escape o una nueva anulan la anterior
+  const drives = useApp((s) => s.drives);
+  const usage = useApp((s) => s.usage);
 
   const path = tab?.path ?? "";
-  const segs = path ? segments(path) : [];
+  const crumbs: CrumbModel[] = path ? crumbsFor(path, usage) : [];
   const startEdit = () => {
     if (!path) return;
     setDraft(path);
+    setInvalid(false);
     setEditing(true);
+  };
+  const stopEdit = () => {
+    check.current++; // descarta cualquier validación pendiente
+    setBusy(false);
+    setInvalid(false);
+    setEditing(false);
   };
   useEffect(() => {
     window.addEventListener("nova:edit-path", startEdit);
@@ -89,20 +107,48 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   }, [editing]);
 
   const isFav = !!path && favorites.some((f) => samePath(f.path, path));
+  /**
+   * Enter: la ruta se valida en Rust (existe, es accesible; con tiempo límite para rutas de red) SIN bloquear la interfaz.
+   * Si no es válida se conserva la ubicación anterior y la barra sigue abierta con el mensaje. Si es válida se navega con
+   * el mismo `navigate` de siempre (historial y migas se actualizan solos) o, si es la carpeta actual, solo se recarga.
+   */
   const commit = () => {
-    const p = draft.trim();
-    setEditing(false);
-    if (p) navigate(p);
+    const text = draft.trim();
+    if (!text) return stopEdit();
+    const id = ++check.current;
+    setBusy(true);
+    setInvalid(false);
+    fs.resolvePath(text)
+      .then((r) => {
+        if (id !== check.current) return;
+        const o = outcomeFor(path, r);
+        stopEdit();
+        if (o.action === "reload") onReload();
+        else (navigate(o.path), o.note && toast(o.note, "info"));
+      })
+      .catch((e) => {
+        if (id !== check.current) return;
+        setBusy(false);
+        setInvalid(true);
+        toast(errMsg(e), "error");
+        input.current?.focus();
+      });
   };
-
   const below = (ev: MouseEvent, items: MenuItem[]) => {
     const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu(r.left, r.bottom + 4, items);
   };
 
-  const subfolderMenu = async (ev: MouseEvent, p: string) => {
+  const subfolderMenu = async (ev: MouseEvent, p: string | null) => {
     const btn = ev.currentTarget as HTMLElement;
     const r = btn.getBoundingClientRect();
+    if (p === null) {
+      // «Este equipo»: no hay una vista propia; se ofrece la lista de unidades (datos ya en memoria, sin consultar nada).
+      openMenu(r.left, r.bottom + 4, drives.length
+        ? drives.map((d): MenuItem => ({ kind: "item", label: crumbsFor(d.path, usage)[1]?.label ?? d.label, icon: "folder", run: () => navigate(d.path) }))
+        : [{ kind: "header", label: "Sin unidades" }]);
+      return;
+    }
     const names = await listSubfolders(p);
     const sep = p.includes("\\") ? "\\" : "/";
     openMenu(r.left, r.bottom + 4, names.length
@@ -133,14 +179,18 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
       <div className="crumbs">
         {editing ? (
           <input
-            ref={input} className="path-input" value={draft} spellCheck={false}
-            onChange={(e) => setDraft(e.target.value)} onBlur={() => setEditing(false)}
-            onKeyDown={(e) => (e.key === "Enter" ? commit() : e.key === "Escape" && setEditing(false))}
+            ref={input} className="path-input" value={draft} spellCheck={false} autoFocus aria-label="Ruta" aria-invalid={invalid || undefined}
+            data-invalid={invalid || undefined} data-busy={busy || undefined} title={busy ? "Comprobando la ruta…" : undefined}
+            onChange={(e) => (setDraft(e.target.value), setInvalid(false))} onBlur={() => !busy && stopEdit()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") return e.preventDefault(), busy || commit();
+              if (e.key === "Escape") return e.preventDefault(), e.stopPropagation(), stopEdit();
+            }}
           />
         ) : (
           <>
             <div className="crumb-track" onClick={(e) => e.target === e.currentTarget && startEdit()} title={path ? "Clic en el espacio vacío para escribir una ruta (Ctrl+L)" : undefined}>
-              {segs.map((s, i) => <Crumb key={s.path} label={s.label} path={s.path} last={i === segs.length - 1} onGo={navigate} onMenu={subfolderMenu} />)}
+              {crumbs.map((c, i) => <Crumb key={c.path ?? "pc"} label={c.label} path={c.path} last={i === crumbs.length - 1} onGo={navigate} onMenu={subfolderMenu} />)}
               {path && <span className="crumb-fill" onClick={startEdit} />}
             </div>
             <button className="ibtn" disabled={!path} title="Actualizar (F5)" aria-label="Actualizar" onClick={onReload}><RotateCw /></button>

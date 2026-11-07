@@ -53,3 +53,8 @@ export { default as SquareArrowOutUpRight } from "lucide-react/dist/esm/icons/sq
 export { default as Folder } from "lucide-react/dist/esm/icons/folder.js";
 export { default as PanelRight } from "lucide-react/dist/esm/icons/panel-right.js";
 export { default as ImageOff } from "lucide-react/dist/esm/icons/image-off.js";
+export { default as Archive } from "lucide-react/dist/esm/icons/archive.js";
+export { default as PackageOpen } from "lucide-react/dist/esm/icons/package-open.js";
+export { default as SquareTerminal } from "lucide-react/dist/esm/icons/square-terminal.js";
+export { default as Send } from "lucide-react/dist/esm/icons/send.js";
+export { default as AppWindow } from "lucide-react/dist/esm/icons/app-window.js";

@@ -1,9 +1,9 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult,
+  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, ViewerSource,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -56,6 +56,10 @@ export class TauriProvider implements FsProvider {
     await getCurrentWindow().show();
   }
 
+  logUiError(scope: string, message: string, stack: string | null): Promise<void> {
+    return invoke("log_ui_error", { scope, message, stack });
+  }
+
   startOp(req: OpRequest, onEvent: (e: OpEvent) => void): OpHandle {
     const channel = new Channel<OpEvent>();
     channel.onmessage = onEvent;
@@ -106,4 +110,17 @@ export class TauriProvider implements FsProvider {
   getNewTemplates = () => invoke<NewTemplate[]>("list_new_templates");
   createFromTemplate = (dir: string, id: string) => invoke<string>("create_from_template", { dir, id });
   getTextPreview = (path: string) => invoke<TextPreview>("get_text_preview", { path });
+  viewerOpen = (path: string) => invoke<ViewerSource>("viewer_open", { path });
+  viewerClose = () => invoke<void>("viewer_close");
+  viewerUrl = (token: string) => convertFileSrc(token, "lfview");
+
+  indexSearch = (query: SearchQuery) => invoke<SearchPage>("index_search", { query });
+  indexStatus = () => invoke<IndexStatus>("index_status");
+  indexGetSettings = () => invoke<IndexSettings>("index_get_settings");
+  indexSetSettings = (settings: IndexSettings) => invoke<void>("index_set_settings", { settings });
+  indexAvailableDrives = () => invoke<string[]>("index_available_drives");
+  indexStart = () => invoke<boolean>("index_start");
+  indexPause = () => invoke<void>("index_pause");
+  indexResume = () => invoke<void>("index_resume");
+  indexRebuild = () => invoke<boolean>("index_rebuild");
 }

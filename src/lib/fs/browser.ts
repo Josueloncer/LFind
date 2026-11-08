@@ -48,6 +48,9 @@ export class BrowserProvider implements FsProvider {
 
   async showWindow() {}
 
+  // En el navegador basta la consola, donde React ya informa del error.
+  async logUiError() {}
+
   startOp(_req: OpRequest, onEvent: (e: OpEvent) => void): OpHandle {
     queueMicrotask(() => onEvent({ type: "done", completed: 0, skipped: 0, cancelled: false, undoable: false, errors: [{ path: "", message: "Las operaciones de archivo solo están disponibles en la aplicación de escritorio.", kind: "other" }] }));
     return { cancel() {}, resolve() {} };
@@ -72,6 +75,9 @@ export class BrowserProvider implements FsProvider {
   setThumbEpoch = async () => {};
   clearThumbCache = async () => 0;
   getTextPreview = NA as FsProvider["getTextPreview"];
+  viewerOpen = NA as FsProvider["viewerOpen"];
+  viewerClose = async () => {};
+  viewerUrl = () => "";
   getIcons: FsProvider["getIcons"] = async (items) => ({ keys: items.map(() => null), icons: {} });
   clearIconCache = async () => 0;
   // Fuera de la app de escritorio no hay Shell de Windows: la interfaz usa su menú propio.
@@ -87,4 +93,15 @@ export class BrowserProvider implements FsProvider {
   sendTo = NA;
   getNewTemplates = async () => [];
   createFromTemplate = NA;
+
+  // Sin el motor de Rust no hay índice: nada se simula, la interfaz explica que hace falta la aplicación de escritorio.
+  indexSearch = NA as FsProvider["indexSearch"];
+  indexStatus = NA as FsProvider["indexStatus"];
+  indexGetSettings = NA as FsProvider["indexGetSettings"];
+  indexSetSettings = NA as FsProvider["indexSetSettings"];
+  indexAvailableDrives = async () => [];
+  indexStart = NA as FsProvider["indexStart"];
+  indexPause = NA as FsProvider["indexPause"];
+  indexResume = NA as FsProvider["indexResume"];
+  indexRebuild = NA as FsProvider["indexRebuild"];
 }

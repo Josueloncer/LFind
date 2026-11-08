@@ -346,6 +346,11 @@ impl ThumbCache {
         }
     }
 
+    /// Archivo guardado para `key` y su tipo (para entregarlo sin volver a leerlo en memoria).
+    pub fn stored_file(&self, key: &str) -> Option<(PathBuf, &'static str)> {
+        ["jpg", "png", "svg"].into_iter().map(|e| (self.path_of(key, e), ext_mime(e))).find(|(p, _)| p.is_file())
+    }
+
     pub fn put(&self, key: &str, t: &Thumb) {
         self.write(key, mime_ext(t.mime), &t.bytes);
     }
@@ -560,7 +565,10 @@ impl ThumbService {
             if cancelled() {
                 return Err(ThumbError::Cancelled);
             }
-            match p.render(path, px, cancelled) {
+            // Frontera de pánicos: aquí se interpreta el contenido de archivos ajenos. Un decodificador que entre en pánico
+            // cuenta como fallo de ESE archivo (se prueba el siguiente proveedor y se recuerda el fallo); el detalle va al registro.
+            let rendered = crate::diagnostics::isolate(|| p.render(path, px, cancelled)).unwrap_or_else(|_| Err(ThumbError::Failed("No se pudo procesar el archivo (¿está dañado?).".into())));
+            match rendered {
                 Ok(t) => {
                     self.cache.put(key, &t);
                     return Ok(t);
@@ -816,6 +824,46 @@ mod tests {
             assert_eq!(h.join().unwrap().unwrap().bytes, vec![9; 10]);
         }
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    /// Decodificador que entra en pánico, como lo haría uno real con un archivo malformado.
+    struct Explodes(Arc<AtomicUsize>);
+    impl ThumbProvider for Explodes {
+        fn name(&self) -> &'static str {
+            "explodes"
+        }
+        fn supports(&self, _: &str) -> bool {
+            true
+        }
+        fn render(&self, _: &Path, _: u32, _: &dyn Fn() -> bool) -> Result<Thumb, ThumbError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            panic!("decodificador roto");
+        }
+    }
+
+    #[test]
+    fn a_panicking_decoder_fails_only_that_file() {
+        let d = tmp("panic");
+        fs::write(d.join("a.png"), b"x").unwrap();
+        fs::write(d.join("b.png"), b"yy").unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let s = svc(&d, 1, vec![Box::new(Explodes(calls.clone()))]);
+        assert!(matches!(s.get(&d.join("a.png"), 64, None), Err(ThumbError::Failed(_))), "es un fallo visible, no un resultado vacío");
+        assert!(matches!(s.get(&d.join("a.png"), 64, None), Err(ThumbError::Failed(_))));
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "el fallo se recuerda: no se vuelve a provocar el pánico");
+        // El permiso de concurrencia (solo hay uno) se liberó: otro archivo no se queda esperando.
+        assert!(matches!(s.get(&d.join("b.png"), 64, None), Err(ThumbError::Failed(_))));
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn after_a_panicking_decoder_the_next_provider_is_tried() {
+        let d = tmp("panic-next");
+        fs::write(d.join("a.png"), b"x").unwrap();
+        let s = svc(&d, 1, vec![Box::new(Explodes(Arc::new(AtomicUsize::new(0)))), Box::new(Fake::new(ok_thumb(), 0))]);
+        assert_eq!(s.get(&d.join("a.png"), 64, None).unwrap().bytes, vec![9; 10]);
         let _ = fs::remove_dir_all(d);
     }
 

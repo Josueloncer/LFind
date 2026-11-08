@@ -17,6 +17,7 @@ export type MenuItem =
 export type Dialog =
   | { type: "delete"; paths: string[]; permanent: boolean }
   | { type: "properties"; paths: string[] }
+  | { type: "index" }
   | null;
 
 interface UiState {

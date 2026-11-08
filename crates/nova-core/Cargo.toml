@@ -13,6 +13,14 @@ dirs = "5"
 # (sin `rayon` ni formatos exóticos) para limitar tamaño del binario y superficie de ataque.
 image = { version = "=0.25.6", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp", "ico"] }
 
+# Índice de búsqueda (Update 05). `bundled` compila SQLite dentro del binario (hace falta un compilador de C: ya lo exige Tauri en Windows con MSVC).
+# `hooks` habilita `progress_handler`, con el que se cancelan las consultas en curso. Opcional: `nova-core` se prueba sin ella (`cargo test`).
+rusqlite = { version = "0.32", features = ["bundled", "hooks"], optional = true }
+
+[features]
+default = []
+sqlite = ["dep:rusqlite"]
+
 [lints.rust]
 # `nova_winck` solo se usa para comprobar los tipos del código de Windows desde otros sistemas.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nova_winck)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nova_winck)', 'cfg(nova_noserde)'] }

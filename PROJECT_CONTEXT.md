@@ -1,145 +1,228 @@
 # LFind · PROJECT_CONTEXT
 
-Registro vivo del desarrollo (se actualiza al terminar **cada fase**). `PROJECT_STATUS.md` es el estado histórico de las fases 1–2;
-este archivo recoge desde la actualización 04.2 (menú propio) y la 04.3 (eliminación rápida, iconos de carpeta propios, barra de dirección) y manda cuando haya diferencias. Debe bastar para mover el proyecto a otra carpeta/equipo y seguir sin conversaciones anteriores.
+> **Fuente principal de contexto técnico.** Última auditoría: **Fase 0 — 2026-11-08**, sobre el código de la rama `main` con cambios sin commitear (Update 05 + 05.1). Actualizado con **Update 06.0** (estabilidad; [UPDATE06_PROGRESS.md](UPDATE06_PROGRESS.md)) y **Update 07** (visor inteligente; [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md)).
+> Documentos hermanos: [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md) (módulos y flujos) · [PROJECT_STATUS.md](PROJECT_STATUS.md) (inventario, problemas y riesgos) · [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) (instalar, probar, compilar).
+> El historial anterior, intacto: [docs/history/PROJECT_CONTEXT_hasta-05.1.md](docs/history/PROJECT_CONTEXT_hasta-05.1.md) y [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
-## Cómo retomar
-1. Leer este archivo: secciones «04.3-*», «Comandos exactos», «Estado real de compilación en Windows», «Errores conocidos» y «Pendiente».
-2. Entorno: contenedor Linux, **sin Windows, sin Tauri compilable, sin crates.io/npm**. Se verifica con `rustc --test`, `rustc --cfg nova_winck`
-   (tipos del FFI de Windows), `tsc` con ruido de dependencias ausentes, arnés propio de pruebas TS y Chromium/Playwright para CSS.
-3. Nunca declarar terminado lo que no se haya podido ejecutar; separar «verificado» de «escrito».
-4. Nada de commits ni pushes.
+## REGLAS OBLIGATORIAS PARA FUTUROS DESARROLLOS
 
-## Decisión de producto (04.2) — DEFINITIVA
-LFind usa **un menú contextual propio** (React/TypeScript + Rust). **No** usa `IContextMenu`, `QueryContextMenu` ni extensiones COM del Shell
-para mostrarlo. Los menús nativo y propio ya no conviven: hay **un único camino**. Consecuencia aceptada por el usuario: las entradas que
-terceros registran como extensiones COM (WinRAR, Git, Defender, Terminal…) ya no aparecen; las funciones equivalentes se ofrecen con
-operaciones propias de Rust (comprimir/extraer, abrir terminal, abrir con, enviar a, nuevo…).
+1. Leer primero `PROJECT_CONTEXT.md`.
+2. Consultar `PROJECT_STATUS.md`.
+3. Revisar los módulos relacionados con la tarea.
+4. No asumir que la arquitectura sigue igual sin comprobarlo.
+5. No modificar código ajeno a la funcionalidad solicitada.
+6. No eliminar características existentes.
+7. Priorizar rendimiento y estabilidad.
+8. Reutilizar componentes y sistemas existentes.
+9. Documentar cambios y dependencias.
+10. Ejecutar pruebas y distinguir resultados reales de pruebas pendientes.
+11. No realizar commits ni pushes sin autorización.
+12. No sobrescribir cambios del usuario.
 
-## Fase 0–1 · Auditoría de 04.1: qué se conserva y qué queda obsoleto
+**Cómo aplicarlas en la práctica**
+- El árbol suele tener trabajo sin commitear: mirar `git status` antes de editar y no descartar nada.
+- Etiquetar siempre lo afirmado: *ejecutado*, *evidencia indirecta* o *solo leído en código*. Nunca dar por hecho que algo funciona porque el código existe.
+- Antes de instalar dependencias, explicar por qué y pedir confirmación.
+- Al cerrar cada actualización, actualizar `PROJECT_STATUS.md`, y también este archivo y `PROJECT_ARCHITECTURE.md` si cambió la arquitectura.
 
-| Pieza (04 / 04.1) | Decisión | Motivo |
+## 1. Qué es LFind
+
+Explorador de archivos para Windows 10/11 x64, de escritorio, con identidad visual propia. Antes se llamaba *NOVA Explorer*: el nombre visible cambió, pero **se conservan a propósito** el identificador `app.nova.explorer`, las claves `nova.*` de `localStorage` y los nombres `nova-core` / `nova-explorer`, para no perder datos del usuario. No renombrarlos.
+
+**Objetivos del producto:** rápido, ligero y estable · estética premium, minimalista y consistente · nunca bloquear la interfaz · nunca perder datos sin confirmación · no pedir privilegios de administrador.
+
+## 2. Tecnologías (versiones instaladas, comprobadas en la auditoría)
+
+| Capa | Tecnología |
+|---|---|
+| Escritorio | Tauri 2.12.5 (wry 0.57.1), WebView2, instalador NSIS |
+| Backend | Rust stable (toolchain local 1.99.1; `rust-version` declarada 1.77.2 en `src-tauri`, 1.75 en `nova-core`) |
+| Frontend | React 18.3.1, TypeScript 5.6.3 (estricto), Vite 5.4.21, zustand 5.0.16, @tanstack/react-virtual 3.14.23, lucide-react 0.460.0 |
+| Persistencia | `prefs.json`; SQLite 3 incluido en el binario (rusqlite 0.32.1, FTS5 trigram); caché de miniaturas e iconos en disco |
+| Imágenes | crate `image` =0.25.6 (versión fijada), proveedor de miniaturas de Windows por FFI |
+| Papelera | crate `trash` 5.2.9 |
+| Pruebas | Vitest 2.1.9, `cargo test` |
+
+Tamaño del código: TypeScript 6 716 líneas + 1 999 de pruebas · CSS 954 · Rust 8 238 (`nova-core`, con pruebas) + 1 023 (`src-tauri`).
+
+## 3. Estructura de carpetas
+
+```
+crates/nova-core/        Lógica pura en Rust, sin Tauri (se prueba con cargo test)
+  src/dir.rs             Lectura por lotes y cancelable de carpetas
+  src/ops.rs undo.rs     Copiar/mover/borrar/renombrar/crear y deshacer
+  src/safety.rs names.rs Validación de rutas, carpetas protegidas, nombres
+  src/thumbs.rs *_win    Miniaturas: proveedores, caché en disco, concurrencia
+  src/icons.rs *_win     Iconos del sistema: lotes, caché
+  src/preview.rs         Vista previa de texto (8 KiB)
+  src/diagnostics.rs     Registro local de errores y frontera de pánicos (`isolate`)
+  src/viewer/            Visor: mod.rs (decide y convierte), serve.rs (permisos y protocolo), psd.rs, embedded.rs (EPS y RAW)
+  src/index/             Motor de búsqueda global (ver §7.3)
+  src/clipboard*.rs archive.rs sendto.rs newmenu.rs shell.rs props.rs pathbar.rs places.rs volumes.rs prefs.rs sys.rs b64.rs
+  src/search.rs          Marcador antiguo sin código (el motor real está en index/)
+  examples/              bench_dir, bench_thumb, index_xcheck
+src-tauri/               Capa fina: comandos, estado, permisos, ventana
+  src/lib.rs             Arranque, protocolo `lfview` y registro de los 51 comandos
+  src/commands.rs *_cmd.rs state.rs
+  tauri.conf.json capabilities/default.json .cargo/config.toml
+src/                     Interfaz
+  main.tsx App.tsx       Arranque, atajos globales, tema
+  components/            TitleBar Sidebar Toolbar Pane FileView SearchView PreviewPane ContextMenu Dialogs IndexDialog Modal Transfers StatusBar …
+  hooks/                 useDirectory useSortedEntries useFileActions useThumb useSystemIcon useDropTarget
+  stores/                zustand: nav prefs app ui ops clipboard shellData search indexStatus
+  lib/                   Lógica pura y servicios: fs/ thumbService iconService searchController searchQuery contextMenu menus layout marquee sort* view* themes path …
+  styles/                tokens.css themes.css app.css
+public/boot.js           Aplica tema/Mica antes del primer pintado
+scripts/                 Banco y validación SQL, iconos, limpieza de obsoletos
+docs/                    CONTEXT_MENU.md, UPDATE_04.3_REPORT.md, history/
+```
+
+## 4. Dependencias
+
+### npm
+| Paquete | Uso | Valoración |
 |---|---|---|
-| Arreglo de miniaturas verticales (`app.css`, `thumbLayout.test.ts`) | **Conservar** | No tiene relación con el menú |
-| Portapapeles del sistema: `clipboard.rs` (formato `DROPFILES`, probado), `clipboard_win.rs`, `systemClipboard.ts`, `seq` en el almacén, comandos `clipboard_*` | **Conservar** (adaptar) | Es una función real (copiar en LFind / pegar en el Explorador y al revés). El propietario del portapapeles pasa a ser una ventana temporal de solo mensajes creada por el propio módulo |
-| `main_hwnd` en `AppState` y su carga en `setup` | **Eliminar** (decisión posterior) | `clipboard_win.rs` ya crea su propia ventana temporal de solo mensajes: no hace falta |
-| Mayús+F10 / tecla Menú en `FileView.openKeyboardMenu` + antirrebote de 500 ms del evento `contextmenu` | **Conservar** | Es la entrada de teclado del menú propio |
-| `scheduleRefresh` (recarga a 0,4/1,5/4 s) | **Conservar** | Sigue haciendo falta tras acciones que terminan fuera de LFind (comprimir, enviar a, abrir con) |
-| Entradas propias que ya añadía LFind (Actualizar, Ordenar por, Deshacer, Abrir en pestaña nueva, Anclar, Copiar ruta) y el menú propio de `Pane.legacyContext` | **Conservar** y pasar a ser el menú | Ya eran el «plan B»; se reconstruyen como modelo puro y testeable |
-| `ContextMenu.tsx`, `stores/ui.ts` (`openMenu`) | **Conservar y ampliar** | Faltan submenús (Nuevo, Ordenar, Enviar a), navegación por teclado completa |
-| Pruebas de verbos/entradas de `shellMenu.test.ts` | **Reutilizar la idea** | Se reescriben sobre el nuevo modelo |
-| `shell_menu.rs`, `shell_menu_win.rs`, `shell_menu_cmd.rs` (show/bench/prewarm), registro en `lib.rs`, `PrewarmItem`… | **Eliminar** | Todo gira alrededor de `IContextMenu` |
-| `nativeMenu.ts`, `menuPerf.ts` (medición, banco, `planWarmup`), `shellMenu.ts` nativo (`planNativeMenu`, `applyOutcome`, `nativeDark`) | **Eliminar** | Obsoletos: no hay Shell que medir ni precalentar |
-| PIDL rápido, cursor/ppp por Win32, `names`+`dirs` en el IPC, `join_names`, tabla de etapas | **Obsoleto** | Abrir el menú ya no cruza IPC ni toca el Shell. La lección útil —*no consultar nada al abrir*— se aplica de otra forma (ver Fase 3) |
-| Preferencia `nativeContextMenu` + conmutador «Usar el menú contextual de Windows» en Ver | **Eliminar** | Es lo que hacía que a veces saliera uno y a veces otro. Los `prefs.json` antiguos que la contengan se ignoran sin error |
-| `docs/NATIVE_CONTEXT_MENU.md`, `docs/MENU_PERFORMANCE.md`, `UPDATE04_PROGRESS.md`, `UPDATE041_PROGRESS.md` | **Retirar** (sustituidos por este archivo y `docs/CONTEXT_MENU.md`) | Describen una arquitectura que ya no existe |
+| `react`, `react-dom` | Interfaz | Esencial |
+| `@tauri-apps/api` | IPC y ventana (solo en `lib/fs/tauri.ts` y `TitleBar`) | Esencial |
+| `zustand` | Estado global | Esencial |
+| `@tanstack/react-virtual` | Listas de archivos y de resultados | Esencial para el rendimiento |
+| `lucide-react` | Iconos de interfaz, por importación directa en `components/icons.ts` | Esencial; no importar el paquete completo |
+| `pdfjs-dist` 4.10.38 (versión fijada) | Visor de PDF y AI compatible. Se carga solo al abrir un PDF y corre en un Worker | Esencial para el visor: sin código nativo en el proceso principal |
+| `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`, `@types/*`, `@tauri-apps/cli` | Desarrollo | Esenciales |
 
-Estado: ✅ Fase 0–1 completa (solo análisis; sin cambios de código).
+### Rust
+| Crate | Uso | Valoración |
+|---|---|---|
+| `tauri`, `tauri-build` | Aplicación | Esencial |
+| `serde`, `serde_json` | IPC y `prefs.json` | Esencial |
+| `dirs` | Carpetas conocidas (`places.rs`) | Esencial, pequeña |
+| `image` (solo codecs jpeg/png/gif/bmp/tiff/webp/ico, sin rayon) | Miniaturas | Esencial; versión fijada a propósito |
+| `rusqlite` (`bundled`, `hooks`, opcional tras `sqlite`) | Índice | Esencial; requiere compilador de C |
+| `trash` | Papelera; solo en `src-tauri` | Esencial |
 
-## Fase 2 · Retirar el menú nativo — ✅ (escrita y comprobada por tipos/pruebas; no compilada en Windows)
-- Rust: eliminados `shell_menu*.rs` (nova-core y src-tauri), sus comandos/registro/precalentamiento y `main_hwnd`; `prefs.rs` sin `native_context_menu`.
-- Nuevo `src-tauri/src/clipboard_cmd.rs` (`clipboard_set_files`, `clipboard_read_files`, `clipboard_sequence`, `clipboard_has_files`).
-- TS: eliminados `nativeMenu.ts`, `menuPerf.ts(+test)`, `shellMenu.ts(+test)`; `Pane.tsx` sin ningún rastro del camino nativo (un único `onContext`).
-- Decisión: la antigua clave `nativeContextMenu` de `prefs.json` se ignora (serde descarta campos desconocidos).
+**Sin duplicidades entre dependencias.** Las duplicidades son de datos: listas repetidas en Rust y TS (ver `PROJECT_STATUS.md`, D-02). La API de Windows se declara a mano por FFI en lugar de usar la crate `windows`: mantener esa decisión salvo necesidad clara.
 
-## Fase 3 · Menú propio (interfaz) — ✅ (probada con el arnés TS; el aspecto visual falta de revisar en Windows)
-- `src/lib/contextMenu.ts`: constructor PURO y síncrono (`buildContextMenu`) para archivo, carpeta, selección múltiple y espacio vacío; `isArchive`, `tidy`
-  (sin separadores sobrantes), `scheduleRefresh`/`REFRESH_DELAYS_MS`, `ContextPoint`.
-- `src/stores/shellData.ts`: «Enviar a» y plantillas de «Nuevo» se cargan UNA vez en reposo tras el arranque (`requestIdleCallback`).
-- `src/lib/systemClipboard.ts`: `systemHasFiles()` en memoria (arranque, foco de ventana, tras copiar) → «Pegar» se activa sin consultar al abrir.
-- `src/components/ContextMenu.tsx`: submenús (Nuevo, Ordenar y agrupar, Ver, Enviar a), teclado completo (↑↓ ←→ Intro Esc Inicio Fin), colocación medida y recortada.
-- `src/lib/menus.ts`: `viewModeItems` extraído (compartido por «Vista» y el menú del fondo). `useFileActions`: `openWith, openTerminal, compress, extract, sendTo, newFromTemplate`.
-- **Apertura instantánea**: abrir el menú = construir un array en memoria. Medido en Node (no en Windows): `buildContextMenu` con 5000 elementos seleccionados ≈ 0,009 ms de media (200 repeticiones). Sin IPC, sin Rust, sin Shell al abrir.
-- Pruebas: `contextMenu.test.ts` (10) + `menus.test.ts`. Resultado con el arnés: 13/14; el fallo es una carencia del arnés (`toBeUndefined`), no del código.
+**Relevantes para el futuro (NO instaladas):** el protocolo de assets de Tauri no requiere crate pero sí cambiar configuración y CSP; `tauri-plugin-single-instance` resolvería el riesgo R-04. Cualquier adición requiere confirmación (regla 9).
 
-## Fase 4 · Operaciones del sistema en Rust — ✅ (lógica pura probada; ramas de Windows y `src-tauri` SIN compilar)
-- `nova-core::archive` (comprimir/extraer con `%SystemRoot%\System32\tar.exe` por ruta absoluta; `-a -cf x.zip`; nombres únicos; rechaza elementos de otra carpeta), `sendto` (lista `SendTo`, `.lnk` resueltos una vez con PowerShell, invocación por id, límite de línea de comandos), `newmenu` (`HKCR\.ext\ShellNew`: NullFile/FileName/Data; etiquetas con `SHLoadIndirectString`-equivalente por `reg.exe`), `shell::{open_with, open_terminal}`.
-- `src-tauri/src/system_cmd.rs`: `open_with`, `open_terminal`, `compress_paths`, `extract_archive`, `list_send_to`, `send_to` (devuelve `launched | copyTo{dest} | zip`; la interfaz copia/comprime con SUS colas), `list_new_templates`, `create_from_template`. Registrados en `lib.rs`. Todo en `spawn_blocking`; rutas validadas con `safety::parse_path`.
-- Decisión de seguridad: «Enviar a» y «Nuevo» se invocan por IDENTIFICADOR; nunca se ejecuta una ruta que llegue de la interfaz.
-- Pruebas: 21/21 `rustc --test` (archive 4, newmenu 3, sendto 4, clipboard 7, names 3); `clipboard_win.rs` pasa `nova_winck`. Búsqueda de restos (`shell_menu`, `nativeContextMenu`, `native_context`) → 0.
-- Pendiente de verificar en Windows: compilación de `src-tauri`, `creation_flags/raw_arg`, `reg.exe`, PowerShell, `tar.exe`, `wt.exe`.
+## 5. Decisiones arquitectónicas que hay que conservar
 
-## Fase 5–6 · Documentación y entrega — ✅
-- `CHANGELOG.md` (entrada 04.2), `WINDOWS_VERIFICATION.md` (lista de comprobación del menú propio), nuevo `docs/CONTEXT_MENU.md`, este archivo.
-- Retirados `docs/NATIVE_CONTEXT_MENU.md`, `docs/MENU_PERFORMANCE.md`, `UPDATE04_PROGRESS.md`, `UPDATE041_PROGRESS.md`; la lista completa de obsoletos está en `scripts/obsolete-04.2.txt` (el usuario debe borrarlos de su árbol, el ZIP solo trae archivos nuevos/modificados).
-- Entrega: `LFind-update-04.2.zip` (solo nuevos/modificados; sin node_modules/target/dist). Sin commits ni pushes.
+1. **`nova-core` no depende de Tauri.** La lógica de disco va ahí; `src-tauri` solo valida, saca el trabajo del hilo principal y adapta tipos.
+2. **La interfaz nunca llama a Tauri directamente:** todo pasa por `FsProvider` (`src/lib/fs/`). `BrowserProvider` no inventa archivos.
+3. **Rust valida todo lo que llega por IPC** (`safety::parse_path`, `check_destructive`, `validate_name`). Nunca se ejecuta una ruta recibida de la interfaz en «Enviar a» y «Nuevo»: se usa un identificador.
+4. **Comandos con E/S: `async` + `spawn_blocking`.** Los comandos síncronos de Tauri corren en el hilo de la ventana.
+5. **Trabajos largos: `Channel` + id + bandera de cancelación** (`Jobs`). Lectura de carpetas en lotes (primero 64, después 1 500); solo viaja el nombre.
+6. **Listas siempre virtualizadas.** Orden en Worker a partir de 3 000 entradas. Durante la carga, orden de llegada; se ordena una vez al terminar.
+7. **La ventana nace oculta** (`visible: false`) y se muestra con la interfaz lista; respaldos a 1,2 s (JS) y 6 s (Rust). `boot.js` evita el parpadeo de tema.
+8. **Menú contextual propio y único** (decisión definitiva 04.2): ni `IContextMenu` ni extensiones COM. Abrirlo no hace IPC.
+9. **Índice:** el almacén siempre tras el trait `IndexStore`; el SQL solo se genera en `sqlgen`; `rusqlite` opcional; `MemStore` es la referencia semántica. Modelo de generaciones para detectar bajas.
+10. **Una sola vía para abrir la búsqueda global:** `useSearch.openGlobal()`.
+11. **Sistema de temas por contrato** (§8). Ningún componente define colores propios.
+12. **Eliminación optimista:** se oculta al confirmar y se restaura si falla. El aviso de éxito solo llega con el resultado real.
+13. **Escritura segura:** copias a temporal + renombrado; `prefs.json` atómico con `.bak` si está corrupto.
+14. **Miniaturas y vista previa no ejecutan contenido:** SVG solo en `<img>`, texto como texto, nunca HTML.
+15. **Nunca pedir administrador.** Por eso no se usa MFT/USN.
+16. **Pánicos: fallar rápido salvo en fronteras explícitas** (Update 06.0). Release compila con `panic = "unwind"`, pero el gancho de `nova_core::diagnostics` registra y aborta cualquier pánico fuera de `diagnostics::isolate`. Solo el código que interpreta contenido de archivos ajenos va dentro de una frontera. Restaurar `panic = "abort"` rompe la compilación a propósito.
+17. **Errores de render: `ErrorBoundary` a cuatro niveles** (`app` en `main.tsx`, `view` y `panel` en `Pane`, `viewer` en `PreviewPane`). Registran el detalle en el log local y no muestran trazas al usuario.
+18. **El contenido de archivos solo llega a la interfaz por el protocolo `lfview`, con un permiso por archivo** (Update 07). Nada de `assetProtocol` con scope amplio ni CSP relajada. El tipo lo fija el backend inspeccionando el archivo.
+19. **Sin decodificadores nativos en el proceso principal para el visor** (Update 07). PDF.js corre en un Worker; PSD, EPS y RAW son Rust seguro bajo `isolate`. PostScript jamás se ejecuta.
+20. **El panel y la vista ampliada son el mismo elemento DOM**: ampliar no recarga el documento.
 
----
-# Update 04.3 — Eliminación rápida · iconos propios de carpeta · barra de ruta editable
-(El menú contextual propio de 04.2 NO se toca.)
+## 6. Convenciones de código
 
-## 04.3-A · Eliminación — ✅ (Rust y TS probados; compilación de `src-tauri` y papelera real SIN probar en Windows)
-**Auditoría (por lectura de código; no hay Windows para cronometrar):** Eliminar → `DeleteDialog.confirm` (cierra el diálogo y llama a `ops.start`) → cola (`MAX_PARALLEL`=2) → `fs.startOp` (Tauri `Channel`) → `start_op` (`spawn_blocking`) → `run_op`.
-1. **Papelera (por defecto):** un `trash::delete` POR elemento, en serie. Cada llamada es una operación del sistema completa. Con una selección grande es lo que más tarda.
-2. **Eliminar permanente:** `delete_items` recorría TODO el árbol antes de borrar (`scan`) para calcular totales y luego lo recorría otra vez para borrar. Medido en Linux con un programa que replica ambos recorridos (ext4, caché caliente, mediana de 3): `scan` = 24 % (1 000 archivos) y 21 % (30 000) del tiempo de borrado, ANTES de borrar el primero. En NTFS sin medir.
-3. **Interfaz:** el elemento seguía visible hasta que llegaba el evento `Done`, y solo entonces se recargaba la carpeta (lectura + orden): aviso y desaparición ocurrían tras el trabajo completo más una recarga. No había demora apreciable en React/IPC propiamente dicha.
-**Cambios:**
-- `nova-core::ops::trash_items` (nuevo, puro): lotes de `TRASH_BATCH`=64 con una sola llamada del sistema por lote; si un lote falla, se reintenta elemento a elemento para atribuir el error al correcto; comprueba `check_destructive`/existencia antes; cancelación y avance entre lotes. `commands.rs` lo conecta con `trash::delete_all` (batch) y `send_to_trash` (individual). Sigue yendo a la Papelera (no se elimina permanentemente nada que antes fuera a la Papelera).
-- `delete_items`: sin `scan` previo (total desconocido → barra indeterminada; `Transfers.tsx` muestra «N eliminados»).
-- Optimista: `stores/ops.ts` (`hidden`, `settle`, `pathKey`, `failedSources`). Al confirmar (`start`) los elementos se ocultan de inmediato en `Pane` (y el contador de la barra de estado); si falla un elemento (o algo dentro de la carpeta), si se cancela o se deshace, vuelven a verse al instante; si sale bien siguen ocultos hasta que la recarga confirma que ya no están (`settle`), con un cinturón de 8 s. El aviso de éxito solo sale con `Done` real (nunca antes); los errores siguen mostrando el mensaje de Rust.
-- Pruebas: Rust 29/29 (`ops`+`names`+`safety`+`undo`, con serde desactivado por el arnés; incluye 2 nuevas de `trash_items`); TS 28/28 en el arnés (7 nuevas de eliminación optimista + las 10 de `contextMenu` + las 11 previas de `ops`). Los fallos antiguos del arnés (`toMatch`, `mockResolvedValueOnce`…) eran carencias del arnés y se corrigieron en él.
-- NO probado: `trash::delete_all` real en Windows (suposición: una sola `IFileOperation` por lote; verificar tiempo con 1 000 archivos), error de permisos real, carpeta con 50 000 archivos real.
+**General:** código, comentarios y mensajes de usuario en español. Comentarios que explican el porqué; sin relleno.
 
-## 04.3-B · Iconos propios de carpeta — ✅ (verificado en Chromium con los tokens reales; falta mirarlo en la app en Windows)
-**Auditoría:** el recurso propio ya existía: `FolderGlyph` (SVG vectorial en `Glyphs.tsx`, colores por tokens `--fold-back-a/b`, `--fold-front-a/b`, `--glyph-shine`, `--shadow-glyph` definidos en los cinco temas de `themes.css`; «System» resuelve a dark/light). El icono de carpeta de Windows aparecía porque `EntryIcon` (usado por `FileView` en lista/detalles/mosaicos/iconos, y por `Thumb` como respaldo) pedía a `iconService` el icono del sistema también para carpetas y lo pintaba encima del glifo en cuanto llegaba. `PreviewPane`, `EmptyState` y `TitleBar` ya usaban `FolderGlyph`/`EntryGlyph`; la barra lateral usa iconos lucide.
-**Cambio:** `EntryIcon` no solicita ni pinta nunca icono del sistema para `kind === "dir"` (`usesSystemIcon`, `iconKinds.ts`): se ahorra además la consulta por carpeta. Archivos (EXE, PDF, PSD, `.lnk`…) y miniaturas no se tocan.
-**Verificación (Chromium/Playwright, scripts en el entorno de desarrollo, no incluidos):** el SVG real de `FolderGlyph` con `tokens.css`+`themes.css` reales, 5 temas × tamaños 16/20/22/32/48/64/96/128/256 → todos los glifos son cuadrados y del tamaño pedido, los 4 tokens de degradado resuelven en cada tema y la inspección visual de las capturas es correcta y nítida (vectorial). Prueba TS: `folderIcons.test.ts`.
-**Falta/documentado:** no existen variantes de carpetas especiales (Documentos, Descargas, Imágenes…), de carpeta vacía/llena ni insignia de enlace/unión: todas las carpetas usan el mismo glifo (las de `desktop.ini` con icono personalizado ya NO lo muestran, por decisión del usuario). El código Rust que extrae iconos de carpeta (`icons.rs`) queda sin uso desde la interfaz; se deja por ahora (limpieza opcional posterior).
+**TypeScript:** `strict`, `noUnusedLocals` activo. Lógica pura en `lib/` con su `*.test.ts`, sin React ni IPC. Stores con `create`; fuera de render usar `useX.getState()`. Datos serializados espejo de Rust en `lib/fs/types.ts` (`camelCase`).
 
-## 04.3-C · Barra de dirección editable — ✅ lógica probada; interfaz React y `src-tauri` SIN ejecutar
-**Auditoría:** ya existían migas con menú de subcarpetas, edición por clic en el espacio vacío y `Ctrl+L` (`App.tsx` → evento `nova:edit-path`), pero Enter llamaba a `navigate(texto)` SIN validar: una ruta inexistente cambiaba la ubicación y la vista mostraba el error (se perdía la carpeta anterior); no había normalización (comillas, `%VARIABLES%`, `/`, `C:`), ni migas «Este equipo › Disco local (C:)», ni manejo de rutas UNC como `\\srv\share`, ni tiempo límite para rutas de red.
-**Diseño (sin segunda implementación de navegación):** la navegación sigue siendo `useNav.navigate` + `open_dir`; solo se añade VALIDACIÓN previa.
-- Rust `nova-core::pathbar` (nuevo): `normalize` (pura: comillas, espacios, `%VAR%`, `/`→`\`, `C:`→`C:\`, barra final, `\\?\`, `\\?\UNC\`, UNC con servidor+recurso, solo absolutas) y `resolve` (normaliza + `safety::parse_path` + `metadata` + `read_dir` para comprobar permiso; en un hilo con `CHECK_TIMEOUT`=6 s, de modo que una unidad de red caída no bloquea). Devuelve `Dir`, `File{dir,file}` o un problema con mensaje en español (`notFound`, `denied`, `unreachable`, `timeout`, `invalid`, `empty`). Comando `resolve_path` (async + `spawn_blocking`), registrado en `lib.rs`; `fs.resolvePath` en `types.ts`/`tauri.ts` (en `browser.ts`, `NA`).
-- TS `lib/addressBar.ts` (puro): `crumbsFor` (`Este equipo › Disco local (C:) › Users › …`; etiqueta del volumen desde `useApp.usage`, con nombres por defecto por tipo; en red el primer segmento es `\\srv\share`), `driveLabel`, `outcomeFor` (misma carpeta → recargar sin ensuciar el historial; archivo → abre su carpeta y avisa).
-- `Toolbar.tsx`: migas desde `crumbsFor`; «Este equipo» no navega: abre el menú propio con las unidades (datos en memoria). Enter valida con `fs.resolvePath` (asíncrono, con `busy`; campo en rojo y aviso si falla, se conserva la ubicación anterior y la barra sigue abierta para corregir); Escape cancela y descarta validaciones pendientes (`check` token); blur cancela salvo mientras valida; el texto se selecciona al entrar; Ctrl+L sin cambios.
-- Historial: `navigate` ya ignora la misma ruta y limpia «adelante»; Atrás/Adelante/`jump` sin cambios.
-- Pruebas: Rust `pathbar` 8/8 (normalización Windows/UNC/variables/POSIX, carpeta anidada, archivo, inexistente, permiso —se omite si se ejecuta como root—, tiempo límite); TS `addressBar.test.ts` 8/8.
-- NO probado: la interfaz en ejecución (foco, selección de texto, Enter/Escape/Ctrl+L, aspecto con los 6 temas), ni rutas de red/unidades reales en Windows.
+**Añadir un comando (cinco lugares):** lógica en `nova-core` → `#[tauri::command]` en `src-tauri` → registrarlo en `generate_handler!` → método en `FsProvider` (`types.ts`) → implementarlo en `tauri.ts` y `browser.ts`. Si usa una API de ventana nueva, también `capabilities/default.json`.
 
-## 04.3.1 · Corrección de compilación TS — ✅ configuración; sin ejecutar con dependencias reales
-Ver `UPDATE04_PROGRESS.md`: `tsconfig` dividido (producción / pruebas), `@types/node`, `vitest/config`, `scripts/clean-obsolete.ps1` para los archivos obsoletos del menú nativo, 39/39 `invoke` ↔ comandos Rust coherentes. Pendiente: `npm install` (regenera el lock) y `npm run typecheck && npm test && npm run build`.
+**Rust:** errores legibles para el usuario (`ops::classify`), nunca `panic!` en rutas normales. FFI de Windows en archivos `*_win.rs` con `#[cfg(any(windows, nova_winck))]`. Hilos que puedan colgarse: con tiempo límite. Un decodificador nuevo se ejecuta dentro de `diagnostics::isolate`, sin tocar estado compartido, y un pánico se traduce en un error visible de ese archivo. Código nativo de terceros: `isolate` no lo protege (ver §10).
 
-## 04.3.3 · Pruebas de temas — causa raíz (sin Vitest disponible al corregir)
-- `import x from "….css?raw"` en Vitest devuelve "" (plugin CSS de Vitest con `test.css` por defecto), no el CSS. `themes.test.ts` ahora usa `readFileSync(new URL("../styles/…", import.meta.url))`. **Regla del proyecto:** en pruebas, leer CSS del disco; no usar `?raw` con `.css`.
-- Las pruebas de `app.css` (variables definidas, sin colores a mano) antes pasaban en vacío; ahora comprueban de verdad.
-- Detalle y comandos: `UPDATE04_PROGRESS.md`. Discrepancia doc/código: ninguna encontrada; el ZIP trae `package.json` con nombre interno `nova-explorer` (sin cambios).
+**Pruebas:** en Vitest, leer el CSS con `readFileSync`; `?raw` con `.css` devuelve una cadena vacía.
 
-## Fase en curso
-Ninguna. Queda la verificación en Windows (lista en `WINDOWS_VERIFICATION.md`).
+## 7. Sistemas principales (resumen)
 
-## Dependencias y versiones (sin cambios en 04.3; no se añadió ninguna)
-Front: react ^18.3.1, zustand ^5.0.1, lucide-react ^0.460.0, vite ^5.4.11, typescript ~5.6.3, vitest ^2.1.5. Rust: tauri 2, trash 5 (`delete_all`), serde 1, image =0.25.6; `rust-version` 1.77.2 (src-tauri) / 1.75 (nova-core).
+Flujos completos y diagramas en `PROJECT_ARCHITECTURE.md`.
 
-## Comandos exactos
-```
-npm install
-npm test                         # vitest
-npx tsc --noEmit                 # tipos
-cargo test -p nova-core          # lógica Rust (requiere crates.io)
-npm run tauri dev                # desarrollo
-npm run tauri build              # instalador de Windows
-```
-En este entorno de desarrollo (Linux, sin crates.io ni npm) NO se pueden ejecutar; las pruebas se corrieron con `rustc --test` sobre los módulos y un arnés propio de TypeScript.
+### 7.1 Navegación y carpetas
+`useNav` guarda pestañas e historial. `Pane` usa `useDirectory(path)` **solo para la pestaña activa**, que recibe lotes por `Channel` y cancela la lectura anterior. `useSortedEntries` ordena; `FileView` virtualiza (5 modos, agrupación, selección por rectángulo, teclado, arrastre). No hay caché de listados ni observador de cambios: lo externo aparece con F5 o tras una operación.
 
-## Estado real de compilación en Windows
-**Nunca compilado ni ejecutado en Windows** desde la 04.2 (ni `src-tauri`, ni la interfaz con `npm run tauri dev`). Comprobado solo: lógica Rust pura con `rustc --test`, FFI del portapapeles con `nova_winck`, TypeScript con `tsc` (solo ruido por dependencias ausentes), pruebas TS con arnés, CSS/SVG en Chromium.
+### 7.2 Operaciones de archivo
+`useOps` es una cola (2 en paralelo, deduplicada) → `start_op` → `nova-core::ops`. Conflictos resueltos por canal hacia la interfaz. Deshacer: pila en memoria de Rust (30 entradas, se pierde al cerrar).
 
-## Errores conocidos / limitaciones
-- `menus.test.ts` falla 1 de 3 en el arnés propio (`toBeUndefined` no estaba implementado; ya añadido al arnés en 04.3). Con vitest real debe pasar.
-- WinRAR/Git/Defender/«Compartir» no aparecen en el menú (decisión 04.2).
-- Carpetas con icono personalizado (`desktop.ini`) ya no lo muestran (decisión 04.3); no hay variantes de carpetas especiales.
-- «Eliminar» envía a la Papelera; en unidades sin Papelera Windows puede eliminar de forma permanente: es el comportamiento del crate `trash`, no se cambió ni se verificó.
-- Eliminar permanentemente ya no muestra «N de M» sino «N eliminados» (total desconocido al no hacer el recorrido previo).
-- `icons.rs` conserva la extracción de iconos de carpeta que la interfaz ya no pide (limpieza opcional).
+### 7.3 Búsqueda global e índice
+SQLite en `%LOCALAPPDATA%\app.nova.explorer\index\lfind-index.db`, WAL, conexión escritora y lectora.
+- **Indexado:** hilo `lfind-index` de baja prioridad; empieza a los 3 s y comprueba cada 10 min. Lotes de 2 000. Cada pasada estrena una generación y al terminar barre lo no visto.
+- **Reconciliación:** por defecto cada 360 min. **Es una pasada completa**, no incremental. No hay observador en tiempo real.
+- **Búsqueda:** `sqlgen` genera SQL; FTS5 trigram con ≥ 3 caracteres, `instr()` con menos. Debounce de 120 ms, páginas de 200, tope de 5 000 en memoria. Una búsqueda nueva cancela la anterior en SQLite (`progress_handler`).
+- **Exclusiones por defecto:** `$recycle.bin`, `system volume information`, `$winreagent`, `node_modules` a cualquier nivel; `windows`, `programdata`, `recovery`, `$windows.~bt`, `$windows.~ws`, `windows.old`, `config.msi`, `msocache` en la raíz. Ajustes en la tabla `meta`, clave `settings`.
 
-## Archivos de 04.3
-**Nuevos**: `crates/nova-core/src/pathbar.rs`, `src/lib/addressBar.ts(+test)`, `src/lib/folderIcons.test.ts`, `docs/UPDATE_04.3_REPORT.md`.
-**Modificados**: `crates/nova-core/src/{lib,ops}.rs`, `src-tauri/src/{commands,lib}.rs`, `src/components/{EntryIcon,Pane,Toolbar,Transfers}.tsx`, `src/lib/iconKinds.ts`, `src/lib/fs/{browser,tauri,types}.ts` (incluye `SendToItem.kind` con `"folder"`, que 04.2 ya devolvía), `src/stores/ops.ts(+test)`, `src/styles/app.css`, `CHANGELOG.md`, `WINDOWS_VERIFICATION.md`, `PROJECT_CONTEXT.md`.
-**Pruebas 04.3**: Rust `ops/names/safety/undo/pathbar` 37/37 (arnés con serde desactivado; `ops` +2, `pathbar` 8) y los 21 de 04.2 siguen; TS 38/38 en el arnés (`ops` 18 con 7 nuevas, `contextMenu` 10, `addressBar` 8, `folderIcons` 2).
-**Pendiente**: todo lo de Windows; revisar el aspecto de la barra con los 6 temas; decidir si se quiere autocompletado de rutas.
+### 7.4 Miniaturas, iconos y vista previa
+Dos servicios y dos cachés. Frontend: colas con concurrencia limitada, época por carpeta, LRU. Backend: `RasterProvider` → `SvgProvider` → `ShellProvider`, caché con clave ruta+tamaño+fecha+px (300 MB). Iconos por lotes y clave compartida por tipo.
 
----
-# Historial 04.2 (referencia)
+### 7.4 bis Visor inteligente (Update 07)
+`viewer_open` inspecciona el archivo y devuelve una `Source`. `useViewerSource` la pide con 90 ms de espera y una petición nueva cancela la anterior. `PreviewPane` es el contenedor del panel y de la vista ampliada; `stores/viewer.ts` guarda el modo y la navegación.
 
+| Ruta | Formatos | Cómo |
+|---|---|---|
+| Nativa | JPG, PNG, WebP, GIF, BMP, ICO, AVIF, SVG | WebView2 decodifica el original. Más de 48 MP o 128 MiB: se reduce en Rust |
+| Convertida | TIFF, PSD/PSB, EPS (vista incluida), RAW (JPEG incrustado) | Rust seguro, 1 a la vez, lado máx. 3072 px, caché `viewer-v1` de 768 MB |
+| PDF | PDF, AI con contenido PDF | PDF.js en Worker, lectura por rangos, solo páginas visibles |
+| Multimedia | MP4, WebM, MOV; MP3, M4A, WAV, FLAC, OGG | Reproductor de WebView2 por rangos |
+| Sistema | HEIC y lo que tenga proveedor de Windows | Miniatura real reutilizando `ThumbService`, 1024 px, con aviso |
 
+Texto: los primeros 8 KiB, como antes.
 
+### 7.5 Persistencia
+| Dato | Dónde |
+|---|---|
+| Preferencias | `%APPDATA%\app.nova.explorer\prefs.json` (versión 2, migración y saneado) |
+| Índice y ajustes del índice | `%LOCALAPPDATA%\app.nova.explorer\index\` |
+| Caché de miniaturas / iconos / visor | `%LOCALAPPDATA%\app.nova.explorer\thumbs`, `icons` y `viewer-v1` |
+| Registro de errores (pánicos y errores de render, JSON por línea, 512 KiB + 1 rotado) | `%LOCALAPPDATA%\app.nova.explorer\logs\lfind-errors.log` |
+| Tema y Mica para el primer pintado | `localStorage` (`nova.theme`, `nova.vibrancy`) |
+| Pestañas, selección, deshacer | Solo en memoria |
+
+## 8. Reglas de diseño
+
+LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.
+
+**Tokens**
+- `styles/tokens.css`: lo que no cambia con el tema (escalas tipográficas `--fs-*`, espaciado `--sp-*`, tamaños de controles, movimiento, capas).
+- `styles/themes.css`: 5 bloques (`dark`, `light`, `cyberpunk`, `hacker`, `minimal`) con **exactamente las mismas 62 variables**. `system` se resuelve a dark o light. `themes.test.ts` lo vigila.
+- **Prohibido escribir colores a mano** en `app.css`; una prueba lo comprueba. La regla «tampoco tamaños a mano» es una aspiración: `app.css` tiene unos 140 valores `px` literales frente a 639 `var(--…)`. En código nuevo, usar tokens.
+- Si un tema nuevo cambia la lista: añadirlo también en `lib/themes.ts`, en `public/boot.js`, en `index.html` (fondo inmediato) y en `prefs.rs`.
+
+**Lenguaje visual**
+| Elemento | Regla |
+|---|---|
+| Tipografía | Segoe UI Variable (`--font`, `--font-display`); Hacker es monoespaciada. Base 13 px; escala 11–16 px. Números con `tabular-nums` |
+| Superficies | `--bg-chrome` (marco) → `--bg-content` (contenido) → `--bg-raised` (menús, modales, toasts). Campos con `--bg-field`. Mica opcional |
+| Jerarquía de texto | `--text` / `--text-2` / `--text-3`. Títulos de sección en mayúsculas pequeñas con `--ls-caps` |
+| Radios y sombras | Siempre `--r-*` y `--shadow-*`; cada tema tiene los suyos (Hacker casi recto) |
+| Selección y foco | `--sel` + `--sel-edge`; foco `--focus-ring` de 1,5–2 px; resalte activo con `--accent-soft` |
+| Iconografía | lucide con trazo 1,7–2 en `--icon-s/m/l`, importado en `components/icons.ts`. Carpetas: siempre `FolderGlyph`, nunca el icono de Windows |
+| Movimiento | `--t-fast` (110 ms), `--t-med` (200 ms), `--ease`. Entradas sutiles (3–8 px, escala ≥ 0,97). Se respeta `prefers-reduced-motion` |
+| Capas | `--z-marquee` < `--z-overlay` < `--z-menu` < `--z-modal` |
+
+**Componentes que hay que reutilizar antes de crear otros:** `ErrorBoundary`, `Modal`, `.btn` (`primary`, `danger`), `.ibtn`, `.tbtn`, `ContextMenu` + `MenuItem`, `useUi().toast`, `EmptyState`, `EntryIcon`, `Thumb`, `.sv-seg`, `.sv-field`, `.check`, `.progress`, `.bar`, `.hint`, `.warn`, `.mono`.
+
+**Responsive:** ventana mínima de 640×420. Se usan consultas de contenedor (`@container main` / `side`), no de ventana: barra lateral en modo raíl, textos de botón ocultos y campo de búsqueda que cede ancho.
+
+**Geometría acoplada:** la altura de filas está duplicada en CSS y en `lib/viewGeometry.ts` / `view.ts`, para la virtualización y el rectángulo de selección. Si cambia una, debe cambiar la otra.
+
+**Puntos débiles actuales (no imitar):** `<select>`, fecha y casillas nativos en filtros y `IndexDialog`; SVG ad hoc en `SearchView`.
+
+## 9. Consideraciones de rendimiento
+
+- No hacer E/S en el hilo principal ni en comandos síncronos.
+- No añadir IPC por elemento: agrupar en lotes.
+- No enviar imágenes grandes como `data:` por IPC.
+- Mantener bajo el coste por render de `Pane` y `FileView`: `Item` está memoizado y usa callbacks estables por `useRef`.
+- Cualquier trabajo en segundo plano: baja prioridad, cancelable y sin competir con la navegación.
+- Medir antes de afirmar: `lib/perf.ts` (solo en desarrollo), `[nova]` en la terminal, `bench_dir`, `bench_thumb`, `scripts/index_bench.py`.
+
+Riesgos y cifras reales: `PROJECT_STATUS.md` §5.
+
+## 10. Limitaciones conocidas
+
+PDF con páginas gigantes pueden tardar minutos y usar cientos de MB en la webview · HEIC, parte de RAW y otros dependen de proveedores de Windows · el visor no ejecuta PostScript, así que un EPS sin vista incluida no se muestra · `isolate` no contiene falta de memoria, desbordamiento de pila ni fallos de código nativo cargado en el proceso (manejadores de miniaturas de terceros): para eso haría falta un proceso aparte · los `ErrorBoundary` solo capturan errores de render, no de eventos ni promesas · Sin observador de cambios · sin caché de listados por pestaña · deshacer solo en memoria · sin una instancia única · búsqueda solo por nombre, no por contenido · resultados de búsqueda con acciones limitadas · comprimir y extraer sin progreso ni cancelación · WinRAR, Git y otras extensiones COM no aparecen en el menú (decisión 04.2) · carpetas con `desktop.ini` no muestran icono propio (decisión 04.3) · instalador sin firmar y sin actualizador · solo Windows x64.

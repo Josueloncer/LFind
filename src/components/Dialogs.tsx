@@ -8,23 +8,8 @@ import { basename } from "../lib/path";
 import { copyText } from "../stores/clipboard";
 import { useOps } from "../stores/ops";
 import { useUi } from "../stores/ui";
-
-function Modal({ title, children, actions, onClose, wide }: { title: string; children: ReactNode; actions: ReactNode; onClose(): void; wide?: boolean }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (e.preventDefault(), onClose());
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" data-wide={wide || undefined} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
-        <h2>{title}</h2>
-        <div className="modal-body">{children}</div>
-        <div className="modal-actions">{actions}</div>
-      </div>
-    </div>
-  );
-}
+import { IndexDialog } from "./IndexDialog";
+import { Modal } from "./Modal";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -165,6 +150,7 @@ export function Dialogs() {
     <>
       {d?.type === "delete" && <DeleteDialog paths={d.paths} permanent={d.permanent} />}
       {d?.type === "properties" && <PropertiesDialog paths={d.paths} />}
+      {d?.type === "index" && <IndexDialog />}
       <ConflictDialog />
     </>
   );

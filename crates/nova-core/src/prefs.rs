@@ -120,6 +120,8 @@ pub struct Prefs {
     pub system_icons: bool,
     /// Panel de vista previa a la derecha de la lista.
     pub preview_pane: bool,
+    /// Anchura del panel de vista previa, en píxeles.
+    pub preview_width: u16,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
     #[serde(default = "zero")]
     pub version: u32,
@@ -133,6 +135,7 @@ impl Prefs {
     /// Limita tamaños y valores: lo que llega de la interfaz no es de fiar.
     pub fn sanitize(&mut self) {
         self.icon_size = self.icon_size.clamp(16, 512);
+        self.preview_width = self.preview_width.clamp(220, 900);
         self.recents.truncate(MAX_RECENTS);
         self.favorites.truncate(MAX_FAVORITES);
         let excess = self.folder_views.len().saturating_sub(MAX_FOLDER_VIEWS);
@@ -173,6 +176,7 @@ impl Default for Prefs {
             thumbnails: true,
             system_icons: true,
             preview_pane: false,
+            preview_width: 320,
             version: CURRENT_VERSION,
         }
     }

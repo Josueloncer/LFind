@@ -139,6 +139,14 @@ pub async fn set_prefs(app: AppHandle, prefs: prefs::Prefs) -> Result<(), String
         .map_err(|e| e.to_string())
 }
 
+/// Guarda en el registro local un error de la interfaz capturado por un `ErrorBoundary`.
+#[tauri::command]
+pub async fn log_ui_error(scope: String, message: String, stack: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || nova_core::diagnostics::record_ui_error(&scope, &message, stack.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
 
 // ───────────────────────── operaciones de archivo ─────────────────────────
 

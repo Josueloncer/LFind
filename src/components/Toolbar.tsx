@@ -15,10 +15,11 @@ import type { Column } from "../lib/fs";
 import { useApp } from "../stores/app";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
+import { useSearch } from "../stores/search";
 import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import {
-  ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Plus, RotateCw, Rows3, Search, Star, Table2,
+  ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Plus, RotateCw, Rows3, Search, Star, Table2,
 } from "./icons";
 
 const MODE_ICON = { details: Table2, list: List, tiles: LayoutGrid, content: Rows3, icons: Grid2x2 } as const;
@@ -83,6 +84,13 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const check = useRef(0); // identifica la validación en curso: Escape o una nueva anulan la anterior
   const drives = useApp((s) => s.drives);
   const usage = useApp((s) => s.usage);
+  const scope = useSearch((s) => s.scope);
+  const searchText = useSearch((s) => s.text);
+  const setScope = useSearch((s) => s.setScope);
+  const openGlobal = useSearch((s) => s.openGlobal);
+  const focusTick = useSearch((s) => s.focusTick);
+  const setSearchText = useSearch((s) => s.setText);
+  const global = scope === "global";
 
   const path = tab?.path ?? "";
   const crumbs: CrumbModel[] = path ? crumbsFor(path, usage) : [];
@@ -166,6 +174,14 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
 
   const ModeIcon = MODE_ICON[view.viewMode];
 
+
+  // Cualquier petición de abrir la búsqueda global (botón o Ctrl+Mayús+F) lleva el cursor al campo y selecciona su texto.
+  useEffect(() => {
+    if (focusTick === 0) return;
+    const el = document.getElementById("nova-filter") as HTMLInputElement | null;
+    el?.focus();
+    el?.select();
+  }, [focusTick]);
   return (
     <div className="toolbar">
       <div className="tb-group">
@@ -215,9 +231,30 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         <button className="ibtn tb-hide-narrow" disabled={!path} aria-pressed={isFav} title={isFav ? "Quitar de favoritos" : "Añadir carpeta a favoritos"} aria-label="Favorito" onClick={() => toggleFavorite(path, basename(path))}><Star fill={isFav ? "currentColor" : "none"} /></button>
         <button className="ibtn tb-hide-narrow" aria-pressed={previewPane} title="Panel de vista previa (Alt+P)" aria-label="Panel de vista previa" onClick={() => update({ previewPane: !previewPane })}><PanelRight /></button>
         <span className="tb-sep" />
-        <label className="filter">
+        <button
+          type="button" className="tbtn tb-global" aria-pressed={global} aria-label="Buscar en todos los archivos"
+          title="Buscar en todos los archivos (todas las unidades indexadas) · Ctrl+Mayús+F" onClick={openGlobal}
+        ><Search /><span className="tb-label">Buscar en todos los archivos</span></button>
+        <label className="filter" data-global={global || undefined}>
           <Search />
-          <input id="nova-filter" value={filter} placeholder="Filtrar en esta carpeta" spellCheck={false} onChange={(e) => onFilter(e.target.value)} onKeyDown={(e) => e.key === "Escape" && (onFilter(""), e.currentTarget.blur())} />
+          <input
+            id="nova-filter" value={global ? searchText : filter} spellCheck={false}
+            placeholder={global ? "Buscar en todas las unidades" : "Filtrar en esta carpeta"}
+            aria-label={global ? "Buscar en todas las unidades" : "Filtrar en esta carpeta"}
+            onChange={(e) => (global ? setSearchText(e.target.value) : onFilter(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") return;
+              e.preventDefault();
+              if (global) return searchText ? setSearchText("") : (setScope("folder"), e.currentTarget.blur());
+              onFilter("");
+              e.currentTarget.blur();
+            }}
+          />
+          <button
+            type="button" className="filter-scope" aria-pressed={global} aria-label="Buscar en todas las unidades"
+            title={global ? "Buscando en todas las unidades (clic para volver a filtrar la carpeta) · Ctrl+Mayús+F" : "Buscar en todas las unidades con el índice · Ctrl+Mayús+F"}
+            onClick={() => (global ? (setScope("folder"), document.getElementById("nova-filter")?.focus()) : openGlobal())}
+          ><Globe /></button>
         </label>
       </div>
     </div>

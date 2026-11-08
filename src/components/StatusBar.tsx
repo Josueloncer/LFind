@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { formatBytes } from "../lib/format";
 import { LADDER_MAX } from "../lib/view";
 import type { EffectiveView } from "../lib/viewState";
@@ -15,11 +16,14 @@ interface Props {
   /** Posición actual en la escalera de zoom (0 = detalles … máximo = iconos extragrandes). */
   ladder: number;
   onLadder(pos: number): void;
+  /** Búsqueda global: sustituye al contador de la carpeta (y se oculta el zoom, que no aplica a la lista de resultados). */
+  info?: ReactNode;
 }
 
 const n = new Intl.NumberFormat();
 
-export function StatusBar({ total, shown, selected, selectedBytes, loading, sorting, filtered, view, ladder, onLadder }: Props) {
+export function StatusBar({ total, shown, selected, selectedBytes, loading, sorting, filtered, view, ladder, onLadder, info }: Props) {
+  if (info) return <footer className="status">{info}</footer>;
   const left = selected
     ? `${n.format(selected)} de ${n.format(shown)} seleccionados${selectedBytes ? ` · ${formatBytes(selectedBytes)}` : ""}`
     : `${n.format(shown)} elementos${filtered ? ` (de ${n.format(total)})` : ""}`;

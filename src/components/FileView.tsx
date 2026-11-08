@@ -57,6 +57,10 @@ export interface FileViewProps {
   /** Nombre a mostrar (desplazar hasta él y enfocarlo): p. ej. un elemento recién creado. */
   reveal: string | null;
   onRevealed(): void;
+  /** Recibe el orden real en pantalla (con agrupación), para que el visor recorra lo mismo que ve el usuario. */
+  orderRef?: { current: Entry[] };
+  /** Con el panel de vista previa abierto, ←/→ recorren los archivos también en las vistas de una columna. */
+  previewOpen?: boolean;
 }
 
 interface Handlers {
@@ -246,6 +250,7 @@ export function FileView(props: FileViewProps) {
   );
   const L = useRef(layout);
   L.current = layout;
+  if (props.orderRef) props.orderRef.current = layout.flat;
 
   const vv = useVirtualizer({
     count: mode === "list" ? 0 : layout.rows.length,
@@ -421,8 +426,8 @@ export function FileView(props: FileViewProps) {
     switch (ev.key) {
       case "ArrowDown": return nav(cur + vStep);
       case "ArrowUp": return nav(cur < 0 ? 0 : cur - vStep);
-      case "ArrowRight": return grid || mode === "list" ? nav(cur + hStep) : undefined;
-      case "ArrowLeft": return grid || mode === "list" ? nav(cur - hStep) : undefined;
+      case "ArrowRight": return grid || mode === "list" || props.previewOpen ? nav(cur + hStep) : undefined;
+      case "ArrowLeft": return grid || mode === "list" || props.previewOpen ? nav(cur - hStep) : undefined;
       case "Home": return nav(0);
       case "End": return nav(n - 1);
       case "PageDown": return nav(cur + vStep * 8);
@@ -438,6 +443,9 @@ export function FileView(props: FileViewProps) {
     if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey) {
       const t = typed.current;
       const now = performance.now();
+      // Un espacio solo pertenece a la búsqueda por escritura si ya se está escribiendo; si no, abre el visor (lo atiende `Pane`).
+      if (ev.key === " " && (now - t.t > 800 || !t.buf)) return;
+      if (ev.key === " ") ev.preventDefault();
       t.buf = now - t.t > 800 ? ev.key.toLowerCase() : t.buf + ev.key.toLowerCase();
       t.t = now;
       const i = layout.flat.findIndex((x) => x.name.toLowerCase().startsWith(t.buf));

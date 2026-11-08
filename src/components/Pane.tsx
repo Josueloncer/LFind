@@ -1,19 +1,20 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, MouseEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { hitToEntry } from "../lib/searchQuery";
 import { useDirectory } from "../hooks/useDirectory";
 import { useFileActions } from "../hooks/useFileActions";
 import { dropInto } from "../hooks/useDropTarget";
 import { useSortedEntries } from "../hooks/useSortedEntries";
 import { beginDrag, canDropInto, draggedPaths, dropOperation, endDrag } from "../lib/dnd";
 import { fs } from "../lib/fs";
-import type { Column, Entry, SortKey } from "../lib/fs";
+import type { Column, Entry, SearchHit, SortKey } from "../lib/fs";
 import { buildContextMenu } from "../lib/contextMenu";
 import type { ContextPoint } from "../lib/contextMenu";
 import { columnsMenu } from "../lib/menus";
 import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
-import { join } from "../lib/path";
+import { basename, join, parent, samePath } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
 import { effectiveView, isPinned } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
@@ -22,10 +23,15 @@ import { useClipboard } from "../stores/clipboard";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { pathKey, useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
+import { useSearch } from "../stores/search";
 import { useUi } from "../stores/ui";
+import { useViewer } from "../stores/viewer";
+import { filePosition, neighborIndex } from "../lib/viewerMath";
 import { EmptyState } from "./EmptyState";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { FileView } from "./FileView";
 import { PreviewPane } from "./PreviewPane";
+import { SearchStatusInfo, SearchView } from "./SearchView";
 import { StatusBar } from "./StatusBar";
 import { Toolbar } from "./Toolbar";
 
@@ -43,6 +49,11 @@ export function Pane() {
   const clipPaths = useClipboard((s) => s.paths);
   const opsVersion = useOps((s) => s.version);
   const hidden = useOps((s) => s.hidden);
+  const global = useSearch((s) => s.scope === "global");
+  const pickedHit = useSearch((s) => (s.scope === "global" && s.selected ? s.snap.hits.find((h) => h.path === s.selected) ?? null : null));
+  const revealReq = useSearch((s) => s.reveal);
+  const viewerExpanded = useViewer((s) => s.expanded);
+  const orderRef = useRef<Entry[]>([]); // orden real en pantalla (con agrupación): lo mantiene FileView
 
   const path = tab?.path ?? null;
   const view = useMemo(() => effectiveView(p, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,6 +141,18 @@ export function Pane() {
     if (pd.rename) setRenaming(pd.name);
   }, [visible, dir.status]);
 
+  // «Abrir ubicación» desde la búsqueda global: al leerse la carpeta contenedora se selecciona el elemento y se muestra.
+  useEffect(() => {
+    if (!revealReq || dir.status !== "ready" || !path) return;
+    if (Date.now() - revealReq.at > 15_000) return useSearch.getState().setReveal(null);
+    const par = parent(revealReq.path);
+    const name = basename(revealReq.path);
+    if (!par || !samePath(par, path) || !visible.some((e) => e.name === name)) return;
+    useSearch.getState().setReveal(null);
+    setSelected(new Set([name]));
+    setReveal(name);
+  }, [revealReq, dir.status, path, visible]);
+
   // Recientes: solo carpetas que se abrieron correctamente.
   useEffect(() => {
     if (dir.status === "ready" && path) pushRecent(path);
@@ -184,6 +207,46 @@ export function Pane() {
   const dropEffect = (ev: DragEvent, t: Entry | null) => dropOperation(draggedPaths() ?? [], destOf(t), ev);
   const onDrop = (ev: DragEvent, t: Entry | null) => void dropInto(ev, destOf(t));
 
+  // ───────── visor: anterior/siguiente en el contexto actual (carpeta o resultados) ─────────
+  const viewerCtx = useRef({ A });
+  viewerCtx.current = { A };
+  useEffect(() => {
+    const isFile = (e: Entry) => e.kind === "file";
+    const hitIsFile = (h: SearchHit) => !h.isDir;
+    const folderIndex = () => {
+      const sel = viewerCtx.current.A.sel;
+      return sel.length === 1 ? orderRef.current.findIndex((e) => e.name === sel[0].name) : -1;
+    };
+    const searchState = () => {
+      const s = useSearch.getState();
+      return { hits: s.snap.hits, at: s.selected ? s.snap.hits.findIndex((h) => h.path === s.selected) : -1 };
+    };
+    useViewer.getState().bindNav({
+      hasTarget: () => (useSearch.getState().scope === "global" ? searchState().at >= 0 : viewerCtx.current.A.sel.length === 1),
+      position() {
+        if (useSearch.getState().scope === "global") {
+          const { hits, at } = searchState();
+          return filePosition(hits, hitIsFile, at);
+        }
+        return filePosition(orderRef.current, isFile, folderIndex());
+      },
+      step(d) {
+        if (useSearch.getState().scope === "global") {
+          const { hits, at } = searchState();
+          const n = neighborIndex(hits, hitIsFile, at, d);
+          if (n !== null) useSearch.getState().select(hits[n].path);
+          return;
+        }
+        const list = orderRef.current;
+        const n = neighborIndex(list, isFile, folderIndex(), d);
+        if (n === null) return;
+        setSelected(new Set([list[n].name]));
+        setReveal(list[n].name);
+      },
+    });
+    return () => useViewer.getState().bindNav(null);
+  }, []);
+
   // ───────── atajos de archivo ─────────
   const keys = useRef({ A, selected, view, dir });
   keys.current = { A, selected, view, dir };
@@ -193,6 +256,13 @@ export function Pane() {
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
       const ui = useUi.getState();
       if (ui.dialog || ui.menu) return;
+      // Espacio abre la vista ampliada (salvo que lo consuma la búsqueda por escritura de la lista o un control con foco).
+      if (e.key === " " && !e.defaultPrevented && !e.ctrlKey && !e.altKey && !e.metaKey && !(t instanceof HTMLButtonElement || t instanceof HTMLSelectElement)) {
+        e.preventDefault();
+        return useViewer.getState().expand();
+      }
+      // Con la búsqueda global en pantalla, la selección de la carpeta de fondo no se toca (Supr, Cortar, Renombrar…).
+      if (useSearch.getState().scope === "global" && e.key !== "F5") return;
       const { A, selected } = keys.current;
       const ctrl = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
@@ -223,6 +293,8 @@ export function Pane() {
         Esta interfaz se está ejecutando en un navegador. Para ver tus archivos reales, ejecútala como aplicación de escritorio con <code>npm run tauri dev</code>.
       </EmptyState>
     );
+  } else if (global) {
+    body = <SearchView basePath={tab?.path ?? ""} />;
   } else if (dir.status === "error") {
     body = <EmptyState title="No se puede abrir la carpeta">{dir.error}</EmptyState>;
   } else if (!loading && !sorting && visible.length === 0) {
@@ -239,7 +311,7 @@ export function Pane() {
         renaming={renaming} onRename={(o, n) => (setRenaming(null), A.rename(o, n))} onCancelRename={() => setRenaming(null)}
         onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom}
         onDragStart={onDragStart} canDrop={canDrop} dropEffect={dropEffect} onDrop={onDrop} onDragEnd={endDrag}
-        reveal={reveal} onRevealed={() => setReveal(null)}
+        reveal={reveal} onRevealed={() => setReveal(null)} orderRef={orderRef} previewOpen={p.previewPane}
       />
     );
   }
@@ -254,14 +326,19 @@ export function Pane() {
       <div className="content">
         {(loading || sorting) && <div className="progress" />}
         <div className="content-row">
-          <div className="content-main">{body}</div>
-          {p.previewPane && tab && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />}
+          <div className="content-main"><ErrorBoundary scope="view" resetKey={`${tab?.id}|${tab?.path}|${global}|${view.viewMode}`}>{body}</ErrorBoundary></div>
+          <ErrorBoundary scope="panel" resetKey={global ? pickedHit?.path : `${tab?.path}|${A.sel.length === 1 ? A.sel[0].name : ""}`}>
+            {(p.previewPane || viewerExpanded) && (global
+              ? <PreviewPane entry={pickedHit ? hitToEntry(pickedHit) : null} basePath={pickedHit ? parent(pickedHit.path) ?? "" : ""} count={pickedHit ? 1 : 0} />
+              : tab && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
+          </ErrorBoundary>
         </div>
       </div>
       <StatusBar
         total={dir.entries.length - hiddenHere} shown={visible.length} selected={selCount} selectedBytes={selectedBytes}
         loading={loading} sorting={sorting} filtered={filter.trim() !== "" || (!p.showHidden && hasHidden)}
         view={view} onLadder={(pos) => setView(ladderAt(pos, view.iconSize))} ladder={ladderPos(view)}
+        info={global ? <SearchStatusInfo /> : undefined}
       />
     </main>
   );

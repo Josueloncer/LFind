@@ -83,6 +83,7 @@
 
   /* Capas */
   --z-marquee: 4;
+  --z-viewer: 30;
   --z-overlay: 40;
   --z-menu: 50;
   --z-modal: 60;

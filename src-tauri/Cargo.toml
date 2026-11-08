@@ -16,7 +16,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-nova-core = { path = "../crates/nova-core" }
+nova-core = { path = "../crates/nova-core", features = ["sqlite"] }
 # Papelera de reciclaje (IFileOperation en Windows). Solo se usa desde la capa Tauri.
 trash = "5"
 
@@ -35,5 +35,6 @@ opt-level = 3
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
+# Sin `panic = "abort"` a propósito: las miniaturas (y futuros decodificadores) necesitan `catch_unwind`. Fuera de esas fronteras
+# el gancho de `nova_core::diagnostics` registra y aborta igualmente. Si se pusiera "abort", `nova-core` no compilaría.
 strip = true

@@ -209,7 +209,8 @@ mod tests {
     #[test]
     fn iid_matches_the_documented_guid() {
         let g = IID_ISHELLITEMIMAGEFACTORY;
-        assert_eq!(format!("{:08x}-{:04x}-{:04x}", g.d1, g.d2, g.d3), "bcc18b79-ba16-442f-80c4-8a59c30c463b");
+        let tail: String = g.d4.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(format!("{:08x}-{:04x}-{:04x}-{}-{}", g.d1, g.d2, g.d3, &tail[..4], &tail[4..]), "bcc18b79-ba16-442f-80c4-8a59c30c463b");
         assert_eq!(g.d4, [0x80, 0xc4, 0x8a, 0x59, 0xc3, 0x0c, 0x46, 0x3b]);
     }
 }

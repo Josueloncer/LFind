@@ -1,9 +1,11 @@
 mod clipboard_cmd;
 mod commands;
 mod icons_cmd;
+mod index_cmd;
 mod state;
 mod system_cmd;
 mod thumbs_cmd;
+mod viewer_cmd;
 
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -11,14 +13,30 @@ use tauri::window::{Effect, EffectsBuilder};
 use tauri::Manager;
 
 pub fn run() {
+    nova_core::diagnostics::install_panic_hook();
     tauri::Builder::default()
         .manage(state::AppState::default())
+        // Contenido para el visor: solo archivos con permiso emitido por `viewer_open`.
+        .register_asynchronous_uri_scheme_protocol(viewer_cmd::SCHEME, |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || responder.respond(viewer_cmd::handle(&app, &request)));
+        })
         .setup(|app| {
+            // Registro de errores: lo primero, para que cubra también el resto del arranque.
+            if let Ok(dir) = app.path().app_log_dir() {
+                nova_core::diagnostics::set_log_path(dir.join("lfind-errors.log"));
+            }
             // Miniaturas: caché en la carpeta de caché local de la app (no en Roaming).
             let thumbs_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("thumbs");
-            app.manage(thumbs_cmd::ThumbState(std::sync::Arc::new(nova_core::thumbs::ThumbService::with_defaults(thumbs_dir))));
+            let thumbs = std::sync::Arc::new(nova_core::thumbs::ThumbService::with_defaults(thumbs_dir));
+            app.manage(thumbs_cmd::ThumbState(thumbs.clone()));
+            let viewer_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("viewer-v1");
+            app.manage(viewer_cmd::ViewerState(std::sync::Arc::new(nova_core::viewer::ViewerService::new(viewer_dir, thumbs))));
             // Iconos del sistema: su caché en disco (solo iconos propios de archivo) va junto a la de miniaturas.
             let icons_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("nova-explorer")).join("icons");
+            // Índice de búsqueda global: se abre ahora y empieza a indexar en segundo plano poco después.
+            let index_state = index_cmd::init(app.handle());
+            app.manage(index_state);
             app.manage(icons_cmd::IconState(std::sync::Arc::new(nova_core::icons::IconService::with_defaults(icons_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
@@ -77,10 +95,22 @@ pub fn run() {
             system_cmd::send_to,
             system_cmd::list_new_templates,
             system_cmd::create_from_template,
+            index_cmd::index_search,
+            index_cmd::index_status,
+            index_cmd::index_get_settings,
+            index_cmd::index_set_settings,
+            index_cmd::index_available_drives,
+            index_cmd::index_start,
+            index_cmd::index_pause,
+            index_cmd::index_resume,
+            index_cmd::index_rebuild,
             commands::get_places,
             commands::get_platform_info,
             commands::get_prefs,
             commands::set_prefs,
+            commands::log_ui_error,
+            viewer_cmd::viewer_open,
+            viewer_cmd::viewer_close,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar LFind");

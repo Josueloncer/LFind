@@ -58,3 +58,19 @@ export { default as PackageOpen } from "lucide-react/dist/esm/icons/package-open
 export { default as SquareTerminal } from "lucide-react/dist/esm/icons/square-terminal.js";
 export { default as Send } from "lucide-react/dist/esm/icons/send.js";
 export { default as AppWindow } from "lucide-react/dist/esm/icons/app-window.js";
+// Update 05 (búsqueda global): nombres de archivo de lucide-react 0.460; si `vite build` no encuentra alguno, revisar node_modules/lucide-react/dist/esm/icons.
+export { default as Pause } from "lucide-react/dist/esm/icons/pause.js";
+export { default as Play } from "lucide-react/dist/esm/icons/play.js";
+export { default as Globe } from "lucide-react/dist/esm/icons/globe.js";
+export { default as SlidersHorizontal } from "lucide-react/dist/esm/icons/sliders-horizontal.js";
+export { default as Database } from "lucide-react/dist/esm/icons/database.js";
+export { default as TriangleAlert } from "lucide-react/dist/esm/icons/triangle-alert.js";
+// Visor (Update 07).
+export { default as Maximize2 } from "lucide-react/dist/esm/icons/maximize-2.js";
+export { default as Minimize2 } from "lucide-react/dist/esm/icons/minimize-2.js";
+export { default as ZoomIn } from "lucide-react/dist/esm/icons/zoom-in.js";
+export { default as ZoomOut } from "lucide-react/dist/esm/icons/zoom-out.js";
+export { default as Scan } from "lucide-react/dist/esm/icons/scan.js";
+export { default as MoveHorizontal } from "lucide-react/dist/esm/icons/move-horizontal.js";
+export { default as ChevronLeft } from "lucide-react/dist/esm/icons/chevron-left.js";
+export { default as ChevronUp } from "lucide-react/dist/esm/icons/chevron-up.js";

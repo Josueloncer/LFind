@@ -1,3 +1,60 @@
+# LFind · Update 07 · verificación en Windows (visor)
+**Ya comprobado en la app empaquetada** (37 archivos, batería automatizada): formatos de `UPDATE07_PROGRESS.md`, Espacio, ←, →, Esc, búsqueda global, zoom, rotación, SVG hostil, cierre sin Workers.
+**Falta comprobar a mano:**
+1. Instala `LFind_0.1.0_x64-setup.exe`. Abre el panel con Alt+P y arrastra su borde izquierdo: la anchura cambia y se recuerda al reiniciar.
+2. Doble clic e Intro abren con la aplicación predeterminada, también dentro de la vista ampliada.
+3. En los seis temas: panel, vista ampliada, barra flotante y fondo de transparencia se ven integrados.
+4. Tus archivos de trabajo reales: PSD en CMYK o 16 bits, AI grandes, PDF con contraseña y PDF con imágenes escaneadas JPEG2000.
+5. HEIC: instala «Extensiones de imagen HEIF» si quieres verlos; comprueba la calidad.
+6. Vídeo: reproducir, pausar y reanudar un MP4 y un MOV de tu cámara.
+7. Con un PDF enorme abierto, cambia de archivo: la interfaz sigue respondiendo.
+8. Pantallas con escalado 150–200 %: el PDF se ve nítido.
+9. No regresiones: miniaturas, búsqueda, operaciones de archivo y menú contextual.
+
+---
+
+# LFind · Update 06.0 · verificación en Windows (estabilidad)
+**Ya comprobado:** Rust 137/137, Vitest 205/205, tipos, `npm run tauri build`, arranque del binario, y el ciclo de `ErrorBoundary` en Edge con un arnés.
+**Falta comprobar a mano en la app instalada:**
+1. Uso normal: abrir carpetas grandes, miniaturas, vista previa, búsqueda global, copiar y eliminar. Sin cambios respecto a la versión anterior y sin archivo `%LOCALAPPDATA%\app.nova.explorer\logs\lfind-errors.log` nuevo.
+2. Una carpeta con imágenes dañadas o truncadas: se ve el icono en su lugar, LFind no se cierra y el resto de miniaturas sigue llegando.
+3. Pantalla de recuperación en la app real (requiere provocar un error de renderizado en una compilación de desarrollo): Reintentar, Recargar LFind, Cerrar y arrastrar la ventana desde la franja superior.
+4. Tras provocarla, `lfind-errors.log` contiene una línea `"kind":"ui"` con mensaje y pila.
+5. Comparar memoria y tiempo de arranque con la versión anterior: el ejecutable creció de 8,1 a 13,2 MB, y su efecto en memoria no se ha medido.
+
+---
+
+# LFind · Update 05.1 · verificación en Windows (botón «Buscar en todos los archivos»)
+**Comandos:** `npm install` → `npm test` → `npm run typecheck` → `npm run build` → `npm run tauri build`. Nada se ejecutó con las dependencias reales; la app no se probó en ejecución.
+1. El botón (lupa + «Buscar en todos los archivos») se ve en la barra superior en todas las vistas, junto al campo; no tapa ni empuja migas, botones ni el campo.
+2. Clic: se abre la búsqueda global y **el cursor queda en el campo** (texto previo seleccionado). Escribir muestra resultados al instante; los filtros, el panel del indexador y sus controles siguen igual.
+3. `Ctrl+Mayús+F`: misma vista, mismo campo enfocado, mismo resultado que el botón. Pulsarlo con la búsqueda ya abierta solo vuelve a enfocar.
+4. Volver: Esc (vacía el texto; otro Esc sale), el icono de globo del campo, o Esc en la lista de resultados → carpeta anterior intacta (selección/ruta), el índice sigue indexando.
+5. Cambiar el ancho de la ventana (mínimo 640 px): con ≥ ~1300 px se lee el texto; por debajo queda solo la lupa (tooltip «Buscar en todos los archivos»); en todos los anchos nada se desborda ni se encima, también en modo global.
+6. Los seis temas (Dark, Light, System, Cyberpunk, Hacker, Minimal): botón legible, resalte de acento cuando la búsqueda global está activa, foco visible con teclado (Tab + Enter/Espacio).
+7. No regresiones: filtro de carpeta (Ctrl+F), navegación, selección, filtros avanzados, virtualización con muchos resultados, menú contextual.
+
+---
+
+# LFind · Update 05 (Fase 1) · verificación en Windows
+**Orden:** `npm install` → `npm test` → `npm run typecheck` → `npm run build` → `cargo test --manifest-path crates/nova-core/Cargo.toml --features sqlite` (regenera `Cargo.lock`) → `npm run tauri build`. Pega cualquier error exacto.
+**Nada de esto se pudo ejecutar en el entorno de desarrollo** (Linux, sin Windows, sin crates.io ni npm). Sí se ejecutó: 26 pruebas del núcleo (rustc), 180 casos de SQL contra SQLite real, pruebas TS con arnés propio.
+Lista de comprobación:
+1. Primer arranque: la app abre sin retraso; ~3 s después empieza a indexar (barra/estado en la interfaz); sigue siendo fluida (navegar, ordenar, miniaturas).
+2. `Ctrl+Mayús+F`: buscar un archivo conocido por parte del nombre (3+ y 1–2 caracteres); resultados al escribir, sin parpadeo; seguir escribiendo cancela la consulta anterior.
+3. Filtros: PSD; PNG; > 1 GB; PDF del último mes; carpetas por nombre; unidad; carpeta; exacta/parcial; combinaciones.
+4. Doble clic abre el archivo (carpeta: navega); «abrir ubicación» selecciona el elemento en su carpeta.
+5. Panel del índice: estado, unidades, totales, progreso, errores/omitidos, última actualización; **pausar/reanudar** y **reconstruir** funcionan; la interfaz no se bloquea mientras tanto.
+6. Cerrar LFind a mitad del indexado y reabrir: continúa/reanuda sin duplicados. Reiniciar Windows: el índice persiste y las búsquedas funcionan al instante de abrir.
+7. Exclusiones: `Windows`, `ProgramData`, `$Recycle.Bin`, `System Volume Information` no aparecen; añadir una carpeta/extensión excluida y comprobar que sale del índice tras reindexar.
+8. Unidad USB/de red conectada y desconectada: sus resultados desaparecen al desconectar y vuelven al reconectar (sin reindexar si estaba completa).
+9. Carpetas sin permiso: el indexado sigue y el error queda registrado; LFind no pide administrador.
+10. Mide en TU equipo: tiempo del indexado inicial, tamaño de `%LOCALAPPDATA%\app.nova.explorer\index\lfind-index.db`, y tiempo de búsquedas comunes; compáralas con las cifras de `UPDATE05_PROGRESS.md` (son de Linux).
+11. **No regresiones:** navegación, temas (6), vistas, miniaturas, previsualización, operaciones, menú contextual, preferencias.
+**No existe aún:** actualización en tiempo real de archivos nuevos (Fase 2); un archivo creado ahora aparecerá tras la siguiente reconciliación.
+
+---
+
 # LFind · 04.3.3 · verificación pendiente en Windows
 Esta corrección toca solo `src/lib/themes.test.ts` y no se pudo ejecutar con Vitest (sin dependencias/red). Ejecuta, en este orden:
 1. `npm test` → esperado **148/148**. Si falla alguna prueba de `themes.test.ts`, el mensaje de la guarda indica si algún CSS llegó vacío.

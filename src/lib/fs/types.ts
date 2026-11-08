@@ -76,6 +76,7 @@ export interface Prefs {
   /** Iconos del sistema (Explorador de Windows) en lugar de los glifos propios. */
   systemIcons: boolean;
   previewPane: boolean;
+  previewWidth: number;
   version: number;
 }
 
@@ -95,6 +96,7 @@ export const DEFAULT_PREFS: Prefs = {
   thumbnails: true,
   systemIcons: true,
   previewPane: false,
+  previewWidth: 320,
   version: 2,
 };
 
@@ -195,6 +197,19 @@ export interface TextPreview {
   truncated: boolean;
   totalBytes: number;
 }
+/** Dato mostrado en la ficha del visor. */
+export interface ViewerFact {
+  label: string;
+  value: string;
+}
+/** Cómo se debe mostrar un archivo (espejo de nova-core::viewer::Source). */
+export type ViewerSource =
+  | { kind: "image"; token: string; mime: string; width: number | null; height: number | null; reduced: boolean; note: string | null; facts: ViewerFact[] }
+  | { kind: "pdf"; token: string; size: number; illustrator: boolean }
+  | { kind: "video" | "audio"; token: string; mime: string }
+  | { kind: "text" }
+  | { kind: "unsupported"; message: string; facts: ViewerFact[] }
+  | { kind: "cancelled" };
 export interface UndoResult {
   description: string;
   restored: number;
@@ -229,6 +244,94 @@ export interface SystemClipboardFiles {
  * directamente: todo pasa por aquí, de modo que las operaciones futuras
  * (copiar, mover, buscar, miniaturas) se añaden como métodos nuevos.
  */
+// ───────── búsqueda global e índice (espejo de nova-core::index::model; Update 05) ─────────
+
+export type SearchKind = "any" | "file" | "dir";
+export type SearchSort = "relevance" | "name" | "size" | "modified";
+/** Rango de fechas en milisegundos epoch Unix (ambos extremos incluidos). */
+export interface DateRange {
+  after: number | null;
+  before: number | null;
+}
+export interface SearchQuery {
+  /** Varias palabras = todas deben aparecer en el nombre, en cualquier orden. */
+  text: string;
+  /** El nombre completo (con o sin extensión) debe ser igual al texto. */
+  exact: boolean;
+  exts: string[];
+  category: string | null;
+  kind: SearchKind;
+  minSize: number | null;
+  maxSize: number | null;
+  modified: DateRange;
+  created: DateRange;
+  accessed: DateRange;
+  /** Raíces indexadas (p. ej. "C:\\"). Vacío = todas las conectadas. */
+  drives: string[];
+  folder: string | null;
+  sort: SearchSort;
+  desc: boolean;
+  limit: number;
+  offset: number;
+}
+export interface SearchHit {
+  path: string;
+  name: string;
+  ext: string;
+  isDir: boolean;
+  size: number;
+  modified: number | null;
+  created: number | null;
+}
+export interface SearchPage {
+  hits: SearchHit[];
+  /** Hay más resultados después de esta página. */
+  more: boolean;
+  cancelled: boolean;
+  elapsedMs: number;
+}
+export type RootState = "pending" | "scanning" | "complete" | "interrupted";
+export interface IndexRoot {
+  id: number;
+  path: string;
+  state: RootState;
+  online: boolean;
+  gen: number;
+  files: number;
+  dirs: number;
+  skipped: number;
+  lastComplete: number | null;
+}
+export interface IndexIssue {
+  path: string;
+  message: string;
+}
+export type IndexPhase = "idle" | "scanning" | "paused";
+export interface IndexStatus {
+  phase: IndexPhase;
+  currentRoot: string | null;
+  scanned: number;
+  /** 0..1 aproximado; `null` si no hay estimación (primer indexado de la unidad). */
+  progress: number | null;
+  roots: IndexRoot[];
+  totalFiles: number;
+  totalDirs: number;
+  skipped: number;
+  issues: IndexIssue[];
+  lastUpdate: number | null;
+}
+export interface IndexSettings {
+  enabled: boolean;
+  /** `null`: todas las unidades fijas. Lista: solo esas raíces. */
+  drives: string[] | null;
+  excludedPaths: string[];
+  excludedNames: string[];
+  excludedRootDirs: string[];
+  excludedExts: string[];
+  /** Cada cuántos minutos se reconcilia una unidad ya indexada (0 = solo al arrancar). */
+  reconcileMinutes: number;
+}
+
 export interface FsProvider {
   /** `false` fuera de la app de escritorio: no hay acceso a archivos reales. */
   readonly available: boolean;
@@ -240,6 +343,8 @@ export interface FsProvider {
   setWindowTheme(theme: Theme): Promise<void>;
   /** La ventana nace oculta; la interfaz la muestra cuando ya tiene contenido. Idempotente. */
   showWindow(): Promise<void>;
+  /** Guarda un error de la interfaz en el registro local de diagnóstico. */
+  logUiError(scope: string, message: string, stack: string | null): Promise<void>;
 
   // Operaciones de archivo. Todas se validan de nuevo en el backend (Rust).
   startOp(req: OpRequest, onEvent: (e: OpEvent) => void): OpHandle;
@@ -264,6 +369,13 @@ export interface FsProvider {
   clearThumbCache(): Promise<number>;
   getTextPreview(path: string): Promise<TextPreview>;
 
+  // Visor. `viewerOpen` prepara un archivo (una llamada nueva cancela la anterior) y da un permiso de lectura para ese archivo.
+  viewerOpen(path: string): Promise<ViewerSource>;
+  /** Retira los permisos y abandona lo pendiente. */
+  viewerClose(): Promise<void>;
+  /** URL del contenido asociado a un permiso. */
+  viewerUrl(token: string): string;
+
   /** Iconos del sistema (los del Explorador de Windows) de un lote de elementos. `have`: claves que ya se tienen. */
   getIcons(items: IconItem[], px: number, have: string[]): Promise<IconsReply>;
   clearIconCache(): Promise<number>;
@@ -286,6 +398,19 @@ export interface FsProvider {
   createFromTemplate(dir: string, id: string): Promise<string>;
   /** ¿Hay archivos en el portapapeles del sistema? (consulta barata, sin leer su contenido) */
   clipboardHasFiles(): Promise<boolean>;
+
+  // Búsqueda global (índice persistente en Rust). Una búsqueda nueva cancela la anterior en el backend.
+  indexSearch(query: SearchQuery): Promise<SearchPage>;
+  indexStatus(): Promise<IndexStatus>;
+  indexGetSettings(): Promise<IndexSettings>;
+  indexSetSettings(settings: IndexSettings): Promise<void>;
+  indexAvailableDrives(): Promise<string[]>;
+  /** Inicia un indexado (solo lo que hace falta). `false` si ya hay uno en marcha. */
+  indexStart(): Promise<boolean>;
+  indexPause(): Promise<void>;
+  indexResume(): Promise<void>;
+  /** Borra el índice y lo construye de nuevo. */
+  indexRebuild(): Promise<boolean>;
 }
 
 /** Extrae un mensaje legible de lo que rechaza una llamada IPC (texto u objeto OpError). */

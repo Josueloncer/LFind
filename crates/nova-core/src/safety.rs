@@ -111,11 +111,29 @@ mod tests {
 
     #[test]
     fn parse_rejects_bad_input() {
+        // Las rutas de ejemplo deben ser absolutas EN ESTE SISTEMA: en Windows `/a/b` no lo es (no tiene unidad).
+        // Si no, el caso de «..» pasaría por el motivo equivocado (rechazada por relativa).
+        let (dotdot, dot, clean) = if cfg!(windows) { (r"C:\a\..\etc", r"C:\a\.\b", r"C:\a\b") } else { ("/a/../etc", "/a/./b", "/a/b") };
         assert!(parse_path("").is_err());
         assert!(parse_path("relativa/ruta").is_err());
-        assert!(parse_path("/a/../etc").is_err());
+        assert!(parse_path(dotdot).unwrap_err().contains("«..»"), "debe rechazarse por contener «..»");
         assert!(parse_path("/a\0b").is_err());
-        assert_eq!(parse_path("/a/./b").unwrap(), PathBuf::from("/a/b"));
+        assert_eq!(parse_path(dot).unwrap(), PathBuf::from(clean));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn parse_handles_windows_path_forms() {
+        // Relativas a la unidad o a la raíz actual: dependen del directorio de trabajo, no son seguras.
+        for p in [r"/a/./b", r"\a\b", r"C:foo"] {
+            assert!(parse_path(p).unwrap_err().contains("absoluta"), "{p}");
+        }
+        // «..» no puede colarse por ninguna forma de ruta absoluta.
+        for p in [r"C:/a/../b", r"C:\a\b\..", r"\\srv\share\a\..\b", r"\\?\C:\a\..\b", r"\\?\UNC\srv\share\..\x"] {
+            assert!(parse_path(p).unwrap_err().contains("«..»"), "{p}");
+        }
+        assert_eq!(parse_path(r"C:/a/./b").unwrap(), PathBuf::from(r"C:\a\b"));
+        assert_eq!(parse_path(r"\\srv\share\a\.\b").unwrap(), PathBuf::from(r"\\srv\share\a\b"));
     }
 
     #[cfg(unix)]

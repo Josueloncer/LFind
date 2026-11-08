@@ -8,8 +8,10 @@ pub mod b64;
 pub mod clipboard;
 #[cfg(any(windows, nova_winck))]
 pub mod clipboard_win;
+pub mod diagnostics;
 pub mod dir;
 pub mod icons;
+pub mod index;
 #[cfg(any(windows, nova_winck))]
 pub mod icons_win;
 pub mod names;
@@ -29,4 +31,5 @@ pub mod thumbs;
 #[cfg(any(windows, nova_winck))]
 pub mod thumbs_win;
 pub mod undo;
+pub mod viewer;
 pub mod volumes;

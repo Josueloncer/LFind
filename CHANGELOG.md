@@ -1,5 +1,35 @@
 # LFind — Registro de cambios
 
+## Update 07: visor inteligente de archivos
+- Vista previa integrada: panel lateral redimensionable y vista ampliada (Espacio), que comparten el mismo contenido. ←/→ recorren los archivos de la carpeta o de los resultados de búsqueda; Esc vuelve conservando la selección.
+- Formatos: JPG, PNG, WebP, GIF animado, BMP, ICO, AVIF, SVG y TIFF con zoom, ajuste, tamaño real, desplazamiento y rotación; PDF y AI compatible con páginas, zoom y metadatos; PSD/PSB con la composición real, sin Photoshop; MP4, WebM y audio. Soporte parcial, siempre indicado: EPS, RAW, HEIC y MOV.
+- Seguridad: protocolo propio con permiso por archivo, sin scopes globales ni CSP relajada. SVG y PDF no ejecutan nada; PostScript nunca se ejecuta.
+- Rendimiento: carga bajo demanda, cancelación al cambiar de archivo, caché de 768 MB que se invalida si cambia el archivo, solo páginas visibles y sin procesos activos con el visor cerrado.
+- Dependencia nueva: `pdfjs-dist` 4.10.38. El ejecutable pasa de 13,2 a 15,5 MB y el instalador de 3,6 a 5,6 MB.
+- Rust 163/163, Vitest 217/217, instalador compilado y batería real en la app empaquetada. Detalle y límites: `UPDATE07_PROGRESS.md`.
+
+## Update 06.0: estabilidad y fiabilidad
+- **Errores de interfaz:** un error de renderizado ya no deja la ventana en blanco. `ErrorBoundary` a tres niveles (ventana, contenido, vista previa) con pantalla de recuperación, reintento limitado si el error se repite y recuperación automática al cambiar de carpeta o elemento. El usuario no ve trazas técnicas.
+- **Registro local de errores:** `%LOCALAPPDATA%\app.nova.explorer\logs\lfind-errors.log` (errores de interfaz y pánicos de Rust; 512 KiB + un archivo rotado). Nuevo comando `log_ui_error`.
+- **Pánicos de Rust:** un archivo malformado que haga entrar en pánico al decodificador de miniaturas cuenta ahora como fallo de ese archivo y no cierra LFind. Cualquier otro pánico se registra y termina la aplicación, como antes. Release pasa de `panic = "abort"` a desenrollado.
+- **Coste:** el ejecutable crece de 8,1 a 13,2 MB y el instalador de 2,9 a 3,6 MB.
+- **Pruebas:** corregidas dos pruebas Rust que fallaban en Windows por errores de las propias pruebas (el código de producción era correcto); `safety` ahora comprueba `..` de verdad en Windows.
+- Resultados: Rust 137/137, Vitest 205/205, compilación de Tauri correcta. Detalle y pendientes: `UPDATE06_PROGRESS.md`. Sin dependencias nuevas.
+
+## Update 05.1: acceso directo visible a la búsqueda global
+- Nuevo botón permanente en la barra superior: lupa + «Buscar en todos los archivos» (a partir de 1240 px de ancho del panel principal muestra solo la lupa, con el mismo texto en `aria-label` y tooltip). Al pulsarlo abre la vista de búsqueda global existente y deja el cursor en el campo (con su texto seleccionado). Resalta (acento) mientras la búsqueda global está activa.
+- `Ctrl+Mayús+F` se conserva y ahora llama a la MISMA acción (`useSearch.openGlobal()`), igual que el icono de globo del campo: una sola implementación. Filtros, texto, controles del indexador y estado del índice no se tocan; salir (Esc o el globo) devuelve a la carpeta como antes.
+- Ventanas estrechas: el campo de búsqueda global cede ancho (190 px ≤900 px; 130 px ≤640 px) para que nada se desborde ni se encime; esto además corrige un desbordamiento de la barra que ya existía en modo global a ~560 px.
+- Sin cambios en el motor de indexación, SQLite ni el esquema; sin dependencias nuevas.
+- Verificado: pruebas de lógica y de cableado (5 nuevas), maquetación con el CSS real en 5 temas × 2 modos × 12 anchos. NO ejecutado: la app real (React/Tauri), Vitest, Windows.
+
+## Update 05 (Fase 1): motor de búsqueda global con índice persistente
+- Índice SQLite local (FTS5 trigram para subcadenas) de archivos y carpetas de todas las unidades fijas; indexado en segundo plano, por lotes, pausable y reanudable; sobrevive a reinicios y a cierres a mitad; exclusiones configurables (Windows, ProgramData, Recovery, papelera… por defecto).
+- Búsqueda integrada en el buscador existente (Ctrl+Mayús+F): resultados al escribir, relevancia, filtros combinables (extensión, tipo, tamaño, fechas, unidad, carpeta, archivos/carpetas, exacta/parcial), virtualización, abrir y abrir ubicación; panel de estado del índice.
+- Pendiente (Fase 2): observador `ReadDirectoryChangesW`. Hoy los cambios se recogen por reconciliación periódica.
+- Corregido: import sin usar (`basename`) en `SearchView.tsx` que rompía `noUnusedLocals`.
+- Medido en Linux con 1 M de filas sintéticas: consultas por nombre común 37–620 ms (no instantáneas); exactas y de filtros estructurados <2 ms. Detalle y limitaciones: `UPDATE05_PROGRESS.md`. No compilado en Windows.
+
 ## 04.3.3: causa raíz de las 3 pruebas de `themes.test.ts`
 - **Causa raíz (diagnóstico por evidencia; Vitest no pudo ejecutarse en el entorno de esta corrección, ver `UPDATE04_PROGRESS.md`):** `import … from "….css?raw"` no devuelve el CSS en Vitest. El plugin CSS de Vitest intercepta cualquier id con extensión CSS (también con `?raw`) y, con `test.css` por defecto (CSS sin procesar), lo sustituye por una cadena vacía. El parser recibía `""` → 0 bloques. No era CRLF ni la expresión regular (por eso 04.3.2 no lo arregló).
 - **Solución:** `themes.test.ts` lee `app.css`, `themes.css` y `tokens.css` con `readFileSync(new URL(…, import.meta.url))` (como ya hace `thumbLayout.test.ts`, que sí pasaba). Parser y aserciones intactos. Añadida una guarda en la primera prueba que falla si algún CSS llega vacío.

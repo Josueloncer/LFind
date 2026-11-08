@@ -12,7 +12,9 @@ import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
+import { useIndex } from "./stores/indexStatus";
 import { usePrefs } from "./stores/prefs";
+import { useSearch } from "./stores/search";
 
 const cache = (k: string, v: string) => {
   try {
@@ -41,6 +43,9 @@ export default function App() {
     void load();
     void boot();
   }, [load, boot]);
+
+  // Estado del índice de búsqueda: consulta periódica (más frecuente mientras se indexa). No hace nada fuera de la app de escritorio.
+  useEffect(() => useIndex.getState().start(), []);
 
   // Capacidad de las unidades: después del arranque (nunca lo retrasa) y tras cada operación.
   useEffect(() => {
@@ -106,14 +111,19 @@ export default function App() {
       if (e.altKey && e.key === "ArrowLeft") return e.preventDefault(), nav.goBack();
       if (e.altKey && e.key === "ArrowRight") return e.preventDefault(), nav.goForward();
       if (e.altKey && e.key === "ArrowUp") return e.preventDefault(), nav.goUp();
-      if (e.key === "Backspace" && !typing) return e.preventDefault(), nav.goUp();
+      if (e.key === "Backspace" && !typing && useSearch.getState().scope !== "global") return e.preventDefault(), nav.goUp();
       if (e.altKey && e.key.toLowerCase() === "p") return e.preventDefault(), update({ previewPane: !usePrefs.getState().previewPane });
       if (!ctrl) return;
       switch (e.key.toLowerCase()) {
         case "t": e.preventDefault(); nav.openTab(); break;
         case "w": e.preventDefault(); if (nav.activeId) nav.closeTab(nav.activeId); break;
         case "l": e.preventDefault(); window.dispatchEvent(new Event("nova:edit-path")); break;
-        case "f": e.preventDefault(); document.getElementById("nova-filter")?.focus(); break;
+        case "f":
+          e.preventDefault();
+          if (e.shiftKey) {
+            useSearch.getState().openGlobal(); // Ctrl+Mayús+F: misma acción que el botón «Buscar en todos los archivos»
+          } else document.getElementById("nova-filter")?.focus();
+          break;
         case "b": e.preventDefault(); update({ sidebarCollapsed: !usePrefs.getState().sidebarCollapsed }); break;
       }
     };

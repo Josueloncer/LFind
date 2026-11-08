@@ -1,93 +1,218 @@
-# LFind · Estado del proyecto
+# LFind · PROJECT_STATUS
 
-_Última actualización: Fase 1.1 (auditoría y optimización de arranque)._
+Inventario real del proyecto. **Auditoría Fase 0 — 2026-11-08, actualizado con la Update 06.0.** Sustituye a la versión de la Fase 1.1, archivada en [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
-## Cómo retomar el trabajo
-1. Leer este archivo y `README.md`.
-2. Pedir al usuario el resultado de `npm run tauri dev` y `npm run test:core` en Windows (ver "Pendiente de validar").
-3. No avanzar a la Fase 3 hasta que la Fase 2 (validación) esté confirmada.
+## Update 07 (visor inteligente)
 
-## Entorno de desarrollo
-- Claude trabaja en un **contenedor Linux** (sin acceso al PC del usuario, sin Windows, sin WebView2).
-- Ahí se pueden ejecutar: `tsc`, `vite build`, `vitest`, y `cargo test` de `nova-core` (Rust 1.75 de apt).
-- **No** se puede compilar `src-tauri` (Tauri 2 exige Rust ≥ 1.77.2 y librerías de GUI) ni ver la ventana.
-- El usuario compila y prueba en Windows y devuelve errores/capturas.
+Terminado con validación real en la app empaquetada. Rust 163/163 · Vitest 217/217 · tipos sin errores · instalador correcto · 51 = 51 comandos. Formatos, límites y pruebas pendientes: [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md).
 
-## Decisiones de arquitectura
-- **`nova-core` separado de Tauri**: toda la lógica de disco es testeable sin GUI y reutilizable (CLI, indexador).
-- **Lectura por lotes con `Channel`**: primer lote de 64 entradas (primer pintado inmediato), después lotes de 1500. Solo viaja el nombre, no la ruta completa.
-- **Cancelación real**: cada lectura tiene un id y una bandera atómica; cambiar de carpeta cancela la lectura anterior y la UI descarta sus eventos.
-- **`FsProvider`**: la UI nunca llama a Tauri directamente. Sin Tauri (navegador) no hay archivos y se muestra un aviso; no hay datos ficticios.
-- **Virtualización** con `@tanstack/react-virtual` en lista y cuadrícula.
-- **Orden diferido**: durante la carga se muestra en orden de llegada; se ordena una vez al terminar.
-- **Temas por variables CSS** (`tokens.css`); el modo claro está implementado.
-- **Mica** (Windows 11) se aplica en Rust; si falla, la UI usa superficies opacas (`data-vibrancy`).
-- Ventana sin decoraciones; barra de título y controles propios.
+Riesgos nuevos o abiertos: **R-28** PDF con páginas gigantes (1 GB, 1 página): sin pintar a los 150 s y 713 MB en la webview · **R-29** sin gestión de color ICC en PSD y CMYK aproximado · **R-30** HEIC y parte de RAW dependen de proveedores de Windows. **R-26** queda cubierto en el visor: `viewer_open` rechaza rutas de dispositivo.
 
-## Fase 1.1 · Auditoría de arranque y rendimiento
-Auditoría hecha sobre el código real. El síntoma ("pantalla blanca" y retraso al abrir) **no se pudo reproducir en el contenedor**: no hay Windows ni WebView2. Las causas siguientes están demostradas **en el código**; su peso real en tu PC está **sin medir** (ver "Pendiente de validar").
+## Update 06.0 (estabilidad)
 
-| Hallazgo (evidencia en código) | Cambio |
+Resuelto: **R-13** (pruebas), **R-01** (errores de render) y, parcialmente, **R-02** (pánicos). Detalle en [UPDATE06_PROGRESS.md](UPDATE06_PROGRESS.md).
+
+| Comprobación | Fase 0 | Update 06.0 |
+|---|---|---|
+| `nova-core`, con y sin SQLite | 125/127 | ✅ 137/137 |
+| Vitest | 190/190 | ✅ 205/205 |
+| Tipos | sin errores | ✅ sin errores |
+| `npm run tauri build` | no ejecutado | ✅ correcto |
+| Comandos Rust ↔ TS | 48 = 48 | ✅ 49 = 49 |
+
+Las tablas de §1 conservan la foto de la auditoría; la vigente es esta.
+
+**Leyenda de verificación**
+- **E** · Ejecutado en esta auditoría (pruebas automáticas).
+- **A** · Evidencia indirecta en artefactos reales de este equipo (binario, índice, cachés).
+- **C** · Solo leído en el código: no se observó funcionando.
+
+> La interfaz **no se abrió ni se manejó** en esta auditoría, para no lanzar otro indexado. Lo marcado **C** necesita comprobación manual; las listas están en `WINDOWS_VERIFICATION.md`.
+
+## 1. Resultados reales de la verificación
+
+| Comprobación | Comando | Resultado |
+|---|---|---|
+| Pruebas de frontend | `npx vitest run` | ✅ **190/190**, 19 archivos |
+| Tipos (producción y pruebas) | `npm run typecheck` | ✅ Sin errores |
+| Núcleo Rust | `cargo test … --locked --offline` | ❌ **125/127** |
+| Núcleo Rust con SQLite | `cargo test … --features sqlite --locked --offline` | ❌ **125/127**, los mismos dos |
+| Compilación de `SqliteStore` | `cargo check --features sqlite --locked --offline` | ✅ Compila |
+| Paridad de comandos | Comparación `lib.rs` ↔ `tauri.ts` | ✅ 48 = 48 |
+| El binario corresponde al código | Ningún archivo fuente más nuevo que `nova-explorer.exe` | ✅ **A** |
+
+**Los dos fallos son errores de las propias pruebas, no del producto:**
+- `safety::tests::parse_rejects_bad_input` (`safety.rs:118`): usa `/a/./b`, que no es absoluta en Windows.
+- `thumbs_win::tests::iid_matches_the_documented_guid` (`thumbs_win.rs:212`): el formato solo imprime tres grupos y compara con el GUID completo. El GUID del código sí es el correcto.
+
+No se ejecutaron `npm run build` ni `npm run tauri build`, para no generar otra versión. Ya existía una: `dist/` y el instalador son del 2026-11-07.
+
+**Corrección de documentación anterior:** decía «nunca compilado en Windows». Es falso desde el 2026-11-07: existen `nova-explorer.exe` (8,1 MB), `LFind_0.1.0_x64-setup.exe` (2,9 MB) y un índice real generado por la app. También están actualizados `Cargo.lock` y `package-lock.json`.
+
+## 2. Funcionalidades terminadas
+
+«Terminada» significa código completo. La columna **Ver.** indica cuánto se ha comprobado.
+
+| Funcionalidad | Dónde | Cómo funciona | Ver. |
+|---|---|---|---|
+| Ventana sin marco, Mica, arranque oculto | `lib.rs`, `App.tsx`, `boot.js`, `TitleBar` | Tema antes de pintar; se muestra al estar lista | A (la app se ha ejecutado), C (aspecto) |
+| Pestañas e historial | `stores/nav.ts`, `TitleBar` | Historial por pestaña; salto por menú | E lógica, C interfaz |
+| Lectura de carpetas | `dir.rs`, `useDirectory` | Lotes por `Channel`, cancelable | E núcleo, C interfaz |
+| Vistas (detalles, lista, mosaicos, contenido, iconos) y agrupación | `FileView`, `layout.ts`, `view.ts` | Virtualizadas | E lógica, C interfaz |
+| Orden | `sortCore`, `sort.worker` | Worker a partir de 3 000 | E lógica, C Worker en WebView2 |
+| Selección, rectángulo, teclado, escritura rápida | `FileView`, `marquee.ts` | Por nombre; geometría calculada | E rectángulo, C resto |
+| Barra de dirección | `Toolbar`, `addressBar.ts`, `pathbar.rs` | Valida en Rust con 6 s de límite | E lógica, C interfaz |
+| Copiar, mover, papelera, eliminar, renombrar, crear | `ops.rs`, `stores/ops.ts`, `commands.rs` | Cola, conflictos, temporales | E lógica, C papelera real |
+| Deshacer | `undo.rs` | Pila de 30 en memoria | E |
+| Protección del sistema | `safety.rs` | Listas protegidas, validación | E (salvo el caso de R-13) |
+| Arrastrar y soltar interno | `dnd.ts`, `useDropTarget` | Ctrl copia, Mayús mueve | C |
+| Portapapeles con Windows | `clipboard*.rs`, `systemClipboard.ts` | `CF_HDROP` | E formato, C real |
+| Menú contextual propio | `contextMenu.ts`, `ContextMenu.tsx` | Modelo puro, sin IPC | E modelo, C interfaz |
+| Abrir, abrir con, terminal, mostrar en Explorador, accesos directos | `shell.rs`, `system_cmd.rs` | ShellExecute, PowerShell para `.lnk` | C |
+| Enviar a, Nuevo | `sendto.rs`, `newmenu.rs` | Por identificador; `reg.exe` | E análisis, C real |
+| Propiedades y estadísticas | `props.rs`, `Dialogs` | Recorrido cancelable | C |
+| Favoritos, recientes, uso de discos | `Sidebar`, `prefs`, `volumes.rs` | Persistentes | C |
+| Preferencias y vista por carpeta | `prefs.rs`, `viewState.ts` | JSON atómico, migración | E |
+| Seis temas | `themes.css`, `themes.ts` | Contrato de variables | E contrato, C aspecto |
+| Miniaturas | `thumbs*.rs`, `thumbService.ts` | Proveedores + cachés | E lógica; A 1 309 archivos en caché |
+| Iconos del sistema | `icons*.rs`, `iconService.ts` | Lotes por tipo | E lógica; A caché de 2,2 MB |
+| Visor inteligente (panel y vista ampliada) | `PreviewPane`, `components/viewer/*`, `nova-core::viewer` | Ver Update 07 | E, y batería en la app empaquetada |
+
+## 3. Búsqueda global e indexación (Update 05)
+
+| Aspecto | Estado | Ver. |
+|---|---|---|
+| Índice SQLite persistente | Terminado | **A**: 8 unidades, todas `complete` |
+| Indexado en segundo plano, por lotes | Terminado | **A** |
+| Reconciliación por generaciones | Terminado | E con `MemStore`; **A** `gen` 3–4 |
+| Exclusiones configurables | Terminado | E reglas |
+| Pausa, reanudar, reconstruir | Terminado | E con `MemStore`, C interfaz |
+| Filtros, relevancia, paginación, cancelación | Terminado | E lógica TS y SQL (`sqlgen`), C interfaz |
+| Panel de estado | Terminado | C |
+| `SqliteStore` | Terminado, **sin pruebas propias** (R-12) | **A** por el índice real |
+| Actualización en tiempo real | **Pendiente** (Fase 2) | — |
+| Búsqueda por contenido | Fuera de alcance | — |
+
+**Índice real de este equipo (consulta de solo lectura, 2026-11-08):**
+
+| Métrica | Valor |
 |---|---|
-| La ventana se creaba visible: se veía vacía hasta que WebView2 cargaba y pintaba | `"visible": false`; la UI la muestra al tener prefs+ubicaciones (`App.tsx`); respaldo a 1,2 s en JS y a 6 s en Rust |
-| `get_places`, `get_prefs`, `set_prefs` eran comandos síncronos: Tauri los ejecuta en el **hilo principal de la ventana**; `get_places` consulta carpetas del shell y hace `is_dir()` (Escritorio/Documentos están en OneDrive) | `async` + `spawn_blocking` |
-| Tema y Mica se decidían tras 2–3 llamadas IPC: parpadeo de tema equivocado / fondo opaco→Mica; con SO claro la app nacía clara | `index.html` (fondo inmediato) + `public/boot.js` (último tema/Mica cacheados); el tema no se toca hasta cargar prefs |
-| `Pane` mostraba "Sin ubicación inicial" durante el arranque | Estado `starting`: no se muestra nada hasta tener pestaña |
-| `lucide-react` pre-empaquetado en dev = **1,1 MB** (~1 500 iconos evaluados al arrancar) para usar 27 | `src/components/icons.ts` con importaciones directas. En build ya se hacía tree-shaking |
-| Ordenar por nombre en el hilo de UI: **543 ms con 100 k, 1,7 s con 300 k** (medido en el contenedor) | Worker (`sort.worker.ts`) para listas > 3 000; comparador único en `sortCore.ts`; fallback síncrono |
-| El orden se recalculaba al teclear en el filtro | Se ordena la lista completa una vez y el filtro solo filtra; `useDeferredValue` |
-| `ListRow` memoizada, pero `onDown`/`pick` cambiaban en cada selección | Refs → callbacks estables |
-| `ResizeObserver` re-renderizaba la lista en cada resize aunque solo la cuadrícula usa el ancho | Solo se observa en modo cuadrícula |
-| `onResized` hacía una llamada IPC por cada evento de redimensión | Agrupado (120 ms) |
-| `hidden.some()` recorría toda la lista en cada render de `Pane` | `useMemo` |
-| StrictMode (solo dev) duplicaba `load()`/`boot()` → IPC doble | Promesas idempotentes |
-| `tauri dev` = Rust en **debug**: serializar 100 k entradas a JSON = **221 ms** (14 ms con opt-level 2; medido en Linux con `bench_dir`) | `[profile.dev.package.*]` en `src-tauri/Cargo.toml` solo para nova-core, serde_json y la lib propia |
+| Entradas | **2 904 460** (2 633 530 archivos + 270 930 carpetas) en 8 unidades |
+| Tamaño | **1 891,5 MB** de base + 81,2 MB de WAL residual → **≈ 683 B por entrada** |
+| Reparto | `entries` 992,5 MB · índice único de `key` 509,5 MB · FTS 255,4 MB · índices secundarios 134,1 MB |
+| Carpetas omitidas | 26 (79 problemas registrados) |
 
-Instrumentación nueva (solo desarrollo): marcas de arranque (`src/lib/perf.ts`) que imprimen una tabla en la consola de DevTools al terminar la primera carpeta; línea `[nova] open_dir …` en la terminal de `tauri dev`; banco de pruebas `crates/nova-core/examples/bench_dir.rs`.
+## 4. Funcionalidades parciales y pendientes
 
-**Descartado por no estar justificado** (se dejó como está): fusionar los comandos de arranque en uno (ya van en paralelo; el coste real era el hilo principal), caché de listados, reescribir la ordenación en Rust (ver "Siguientes pasos").
+**Parciales**
+- **Acciones en resultados de búsqueda:** abrir, abrir ubicación, Explorador, copiar ruta y propiedades. Sin selección múltiple, copiar, cortar, renombrar ni eliminar.
+- **Comprimir y extraer:** funcionan fuera de la cola, sin progreso ni cancelación; una extracción fallida puede dejar archivos parciales.
+- **Visor:** EPS, RAW, HEIC y MOV con soporte parcial; el texto sigue limitado a 8 KiB; PDF sin miniaturas laterales ni selección de texto.
+- **Accesibilidad:** roles ARIA presentes; los modales no retienen el foco.
+- **Miniaturas en resultados:** solo iconos.
 
-## Qué funciona (implementado)
-- Ventana premium: pestañas, navegación, migas editables, búsqueda-filtro, panel lateral, vistas lista/iconos, estado, tema oscuro/claro/sistema.
-- Lectura real de directorios, historial por pestaña, favoritos persistentes, ocultos, ordenación por columnas, selección múltiple y teclado.
-- Preferencias en `%APPDATA%\app.nova.explorer\prefs.json` (escritura atómica; si está corrupto se guarda `.bak`).
-- Filtro del panel: filtra **solo la carpeta abierta** (no es la búsqueda avanzada).
+**Pendientes**
+- Observador de cambios (`ReadDirectoryChangesW`), para carpetas abiertas y para el índice.
+- Doble panel, duplicados, análisis de almacenamiento (mencionados en planes anteriores).
+- Firma del instalador y actualizador.
 
-## Verificado en el contenedor (Linux)
-| Comprobación | Resultado |
+## 5. Rendimiento y recursos
+
+**Cifras reales conocidas**
+
+| Medida | Valor | Origen |
+|---|---|---|
+| Binario / instalador | 15,5 MB / 5,6 MB (06.0: 13,2 / 3,6; Fase 0: 8,1 / 2,9) | Este equipo |
+| JS / CSS de producción | 345 KB / 43 KB (sin comprimir) | `dist/` |
+| Caché: miniaturas / iconos / WebView2 | 9,2 MB / 2,2 MB / 96 MB | Este equipo |
+| Reescaneo de la unidad H: | ≈ 101 800 entradas en ≈ 95 s | Derivado de `last_complete` consecutivos; tipo de disco desconocido |
+| Consultas sobre 1 M de filas sintéticas | 0,1–621 ms | Linux, Update 05; **no es Windows ni este índice** |
+| Orden, serialización | 543 ms con 100 k en hilo principal | Linux, Fase 1.1 |
+
+**No medido en Windows:** tiempo de arranque, CPU y RAM reales, carpetas de 100 k, consultas sobre este índice de 2,9 M, duración de un indexado inicial.
+
+| Área | Riesgo | Cómo comprobarlo |
+|---|---|---|
+| Disco · indexado | R-06: cada reconciliación reescribe todas las filas | Bytes escritos por proceso durante una pasada (Resource Monitor) |
+| Disco · espacio | R-07: 683 B por entrada | `dbstat` tras cambiar el esquema |
+| Inicio | R-08: SQLite abre en el hilo principal | Marcas de `perf.ts` + cronómetro en `setup`, con y sin WAL grande |
+| Búsqueda | R-05 y coste lineal de la relevancia | `elapsedMs` en la barra de estado, con «a», «fo», «foto», indexando y en reposo |
+| Carpetas grandes | R-15: copia completa cada 60 ms | Carpeta de 100 k + perfil de DevTools |
+| Renderizado | Por selección: `Pane` recalcula y filtra | Perfil de React con Ctrl+A en 50 k |
+| RAM · miniaturas | R-16: hasta 3 imágenes de 100 MP a la vez | Memoria de trabajo con varias fotos enormes |
+| RAM · interfaz | `data:` URL en memoria (400 miniaturas + iconos) | Instantánea del montón en DevTools |
+| Segundo plano | Sondeo cada 1,5 s + reintento de búsqueda cada 3 s | CPU durante una pasada |
+
+## 6. Problemas detectados y riesgos
+
+Prioridad según impacto en estabilidad, datos y ligereza. Verificado leyendo el código salvo indicación.
+
+### Alta
+| ID | Problema | Dónde | Consecuencia |
+|---|---|---|---|
+| ~~R-01~~ | **Resuelto en 06.0:** `ErrorBoundary` a tres niveles | `main.tsx`, `Pane.tsx` | Errores de eventos y promesas siguen fuera (no dejan la ventana en blanco) |
+| R-02 | **Parcial en 06.0:** decodificación de miniaturas aislada; cualquier otro pánico registra y cierra a propósito | `diagnostics.rs`, `thumbs.rs` | Fallos nativos y falta de memoria siguen cerrando la app. Coste: +5 MB de ejecutable |
+| R-06 | Cada pasada reescribe todas las filas y el índice `(root_id, gen)` | `sqlgen.rs:65-71` | Escritura masiva en cada reconciliación, por defecto cada 6 h con la app abierta |
+| R-04 | Sin instancia única; dos indexadores cruzan generaciones | `lib.rs`, `sqlite.rs:152` | `finish_scan` de uno puede borrar filas marcadas por el otro |
+| R-07 | La ruta se guarda 3 veces: `path`, `key` y su índice único | `sqlgen.rs:21-36` | La tabla y el índice de `key` ocupan juntos el 79 % de los 1,89 GB |
+
+### Media
+| ID | Problema | Dónde | Consecuencia |
+|---|---|---|---|
+| R-03 | Si falla el `read_dir` de la raíz se cuenta como omitida, no como error, y el barrido borra todo lo de esa unidad | `scanner.rs:87`, `engine.rs:208` | Índice de la unidad vaciado hasta la próxima pasada. También afecta a subcarpetas con fallo transitorio |
+| R-05 | Buscar usa la conexión **escritora** para `roots()`, contra lo que indica el diseño | `engine.rs:275`, `sqlite.rs:96` | La búsqueda espera a los lotes y al barrido final |
+| R-08 | SQLite abre de forma síncrona en `setup`, con recuperación de WAL y escritura de `user_version` | `lib.rs:24`, `sqlite.rs:53-70` | Puede retrasar el arranque |
+| R-09 | Sin `journal_size_limit` ni cierre ordenado | `sqlite.rs:56` | WAL residual de 81 MB observado |
+| R-10 | Con «0 minutos», la interfaz promete «solo al abrir LFind», pero el motor **no reconcilia nunca** | `engine.rs:187`, `IndexDialog.tsx:182`, `model.rs:226` | Índice que envejece sin aviso |
+| R-11 | «Se retoma sola» en realidad reinicia la pasada desde cero | `IndexDialog.tsx:12`, `engine.rs:197` | Coste alto con millones de entradas |
+| R-12 | No hay pruebas de `SqliteStore` | `index/tests.rs` usa `MemStore` | La capa real solo se valida con uso real y `index_xcheck` |
+| ~~R-13~~ | **Resuelto en 06.0:** `npm run test:core` en verde en Windows | `safety.rs`, `thumbs_win.rs` | — |
+| R-14 | Sin observador de cambios | — | Carpeta e índice desactualizados |
+| R-15 | `all.slice()` y recálculo completo en cada lote | `useDirectory.ts:49`, `Pane`, `layout.ts` | Coste cuadrático en carpetas enormes |
+| R-16 | Miniaturas: 100 MP a 3 en paralelo, sin decodificación reducida | `thumbs.rs:140,169,478` | Picos de más de 1 GB posibles |
+| R-17 | Un hilo de Shell colgado libera el permiso pero sigue vivo | `thumbs_win.rs:183-192` | Acumulación de hilos con un manejador defectuoso |
+
+### Baja
+| ID | Problema | Dónde |
+|---|---|---|
+| R-18 | Atajos globales activos con modal abierto; `ConflictDialog` no cuenta como diálogo; `Modal` sin retención de foco | `App.tsx`, `Pane.tsx:213`, `Modal.tsx` |
+| R-19 | Comprimir/extraer bloquean un hilo sin cancelación | `archive.rs:77` |
+| R-20 | `undo_last` saca la entrada antes de aplicar: si falla, se pierde | `commands.rs:341` |
+| R-21 | `stop()` en la ventana entre `swap` y guardar el hilo pierde la cancelación; el ticker puede colarse en `rebuild` | `engine.rs:123-148,249` |
+| R-22 | `open_dir` y `get_drive_usage` no pasan por `parse_path` (solo lectura) | `commands.rs:39,421` |
+| R-23 | Worker expirado (15 s) → orden síncrono que congela la interfaz | `useSortedEntries.ts:33` |
+| R-24 | Un archivo «demasiado grande» en caché se informa después como «sin proveedor» | `thumbs.rs:321,355` |
+| R-25 | PowerShell con `-ExecutionPolicy Bypass` puede alertar a un antivirus | `shell.rs:59`, `sendto.rs:106` |
+| R-26 | `parse_path` acepta el espacio de dispositivos (`\\.\PhysicalDrive0`). Solo alcanzable con IPC manipulado; las operaciones de archivo fallarían, pero conviene rechazarlo al añadir lectura de contenido | `safety.rs:7` |
+| R-27 | Un pánico fuera de frontera cierra la app sin avisar al volver a abrirla; el motivo solo está en `lfind-errors.log` | `diagnostics.rs` |
+
+## 7. Deuda técnica
+
+| ID | Deuda |
 |---|---|
-| `cargo test` en `crates/nova-core` | 12 tests OK (en Windows: 10, los otros 2 son solo Unix) |
-| `tsc --noEmit` (strict) | Sin errores |
-| `vitest` | 25 tests OK (rutas, navegación/pestañas, ordenación, equivalencia worker↔síncrono, acentos) |
-| `vite build` | OK; 104 módulos (antes 1 612); worker generado |
-| Servidor `vite` dev | Sirve `index.html`, `boot.js`, `main.tsx` y el worker (HTTP 200); el paquete de 1,1 MB de iconos ya no se genera |
-| TOML/JSON de `src-tauri` | Sintaxis válida (**no compilado**) |
-| `bench_dir` (100 k archivos, Linux) | debug 415 ms (json 221) · release 253 ms (json 16) · debug opt-level 2: 187 ms (json 14) |
+| D-01 | Documentación obsoleta: `README.md` dice «Fase 1» y «módulos reservados»; `CHANGELOG.md`, `WINDOWS_VERIFICATION.md` y `UPDATE05_PROGRESS.md` dicen que no se compiló. Se conservan como historial |
+| D-02 | Listas duplicadas sin prueba de paridad: categorías (`classify.rs` ↔ `fileKinds.ts`, hoy idénticas), texto previsualizable (`preview.rs` ↔ `thumbKinds.ts`), comprimidos (`archive.rs` ↔ `contextMenu.ts`), temas (`boot.js` ↔ `themes.ts`). Miniaturas e iconos sí tienen prueba |
+| D-03 | Código sin uso: `search.rs`, 8 iconos exportados (`MonitorCog`, `Moon`, `Sun`, `ChevronDown`, `Layers`, `Columns3`, `Folder`, `ImageOff`), extracción de iconos de carpeta en `icons.rs`, `first` en `Dialogs.tsx:147` |
+| D-04 | Utilidades repetidas: `expand_env` (`pathbar`, `newmenu`), `ms()` (varios), claves de ruta en TS (`pathKey`, `folderKey`, `samePath`) |
+| D-05 | `thumbService.test.ts:53` tiene una aserción sin `await` que fallará con Vitest 3 |
+| D-06 | Controles nativos en filtros e índice sin integrar con el tema; 140 `px` literales en `app.css` |
+| D-07 | Tipos Rust↔TS mantenidos a mano |
+| D-08 | La versión sigue en 0.1.0 pese a las actualizaciones |
 
-## Pendiente de validar en Windows (NO probado)
-- **Fase 1.1:** que `src-tauri` siga compilando (cambios en `commands.rs`, `lib.rs`, perfiles de `Cargo.toml`, permiso `core:window:allow-show`).
-- Que la ventana oculta **se muestre** y que no haya un fotograma vacío al mostrarla; si no aparece, el respaldo de 6 s la mostrará.
-- Que el **Worker** de ordenación funcione dentro de WebView2 (también en `tauri build`, con la CSP). Si falla, se ordena de forma síncrona (no se rompe, pero se congela con carpetas enormes).
-- Medir de verdad: tabla de marcas en DevTools (F12) y línea `[nova]` de la terminal; carpetas de 10 k / 100 k.
-- Que `src-tauri` compile: las APIs `tauri::window::{Effect, EffectsBuilder}` y `WebviewWindow::set_effects`, `tauri::ipc::Channel` y los identificadores de permisos (`core:window:allow-*`) se escribieron sin poder compilarlos.
-- Que la ventana sin decoraciones se pueda **redimensionar y mover**, y que los controles funcionen.
-- Efecto Mica, transparencias, esquinas redondeadas, y el aspecto real de ambos temas (la UI **no se ha visto renderizada**).
-- Ramas `#[cfg(windows)]` de `nova-core` (atributos de ocultos/sistema, `GetLogicalDrives`).
-- Lectura de carpetas reales, accesos denegados, uniones/enlaces, rutas UNC.
-- Todo el **rendimiento**: no hay métricas. Pendiente medir con carpetas grandes (10k/100k/1M) en Windows.
-- Generación del instalador NSIS.
+## 8. Riesgos para las próximas actualizaciones
 
-## Limitaciones conocidas
-- Doble clic en archivos no hace nada aún (sin plugin de apertura).
-- La ordenación de carpetas grandes ya no bloquea la UI (Worker), pero con ~1 M de entradas copiar/ordenar sigue siendo costoso (copiar nombres ≈ 180 ms en el hilo UI, medido en Node). Si hiciera falta: ordenar en Rust con `StrCmpLogicalW` y enviar solo la permutación.
-- Durante la lectura la lista se muestra en orden de llegada; se reordena al terminar.
-- Sin caché de listados ni miniaturas (módulos `thumbs`/`search` reservados).
-- Sin `Cargo.lock` en `src-tauri` (se genera al compilar; conviene commitearlo).
-- Si Mica falla en Windows 10, la ventana queda sin esquinas redondeadas.
+- La CSP y la falta de protocolo de assets impiden mostrar archivos grandes, vídeo, audio o PDF sin cambios de configuración.
+- `data:` por IPC no escala a imágenes a resolución completa.
+- Todo decodificador nuevo en Rust debe ir dentro de `diagnostics::isolate`; las bibliotecas nativas, en un proceso aparte (R-02). `parse_path` debería rechazar dispositivos antes de leer contenido (R-26).
+- El cambio de esquema del índice (R-06, R-07) debe subir `SCHEMA_VERSION`, lo que **reconstruye** el índice en todos los equipos.
 
-## Próximos pasos
-**Fase 2 · Validación en Windows** — aplicar la Fase 1.1, compilar, pegar la tabla de arranque y la línea `[nova]`, revisar capturas del diseño, ajustar. Medir carpetas grandes con `bench_dir` y en la app.
-**Fase 3** — abrir archivos con la app predeterminada, menú contextual real, copiar/mover/renombrar/eliminar (papelera), crear carpeta/archivo, cola de tareas.
-**Fase 4** — miniaturas bajo demanda + panel de vista previa; caché LRU en disco.
-**Fase 5** — búsqueda e indexación incremental; doble panel.
-Después: duplicados y análisis de almacenamiento, comparación/sincronización, automatizaciones, IA local opcional.
+## 9. Lista priorizada recomendada
+
+1. ~~Corregir las dos pruebas (R-13).~~ Hecho en 06.0.
+2. ~~`ErrorBoundary` y estrategia de pánicos (R-01, R-02).~~ Hecho en 06.0; para bibliotecas nativas hará falta un proceso aparte.
+3. Instancia única (R-04).
+4. Evitar reescrituras sin cambios y reducir duplicación de rutas (R-06, R-07).
+5. Búsqueda sin pasar por el escritor (R-05) y apertura diferida de SQLite (R-08, R-09).
+6. Corregir el barrido ante raíz fallida y «0 minutos» (R-03, R-10).
+7. Pruebas de `SqliteStore` (R-12).
+8. Medir en Windows la tabla de §5.

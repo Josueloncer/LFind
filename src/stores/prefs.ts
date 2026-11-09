@@ -1,16 +1,20 @@
 import { create } from "zustand";
 import { DEFAULT_PREFS, fs } from "../lib/fs";
 import type { Prefs } from "../lib/fs";
-import { samePath } from "../lib/path";
+import { movePin, recordVisit, removeRecent, renamePin, togglePin } from "../lib/locations";
 import { normalizeTheme } from "../lib/themes";
-import { applyViewChange, effectiveView, withPinned, withRecent } from "../lib/viewState";
+import { applyViewChange, effectiveView, withPinned } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 
 interface PrefsState extends Prefs {
   loaded: boolean;
   load(): Promise<void>;
   update(patch: Partial<Prefs>): void;
+  /** Fija o quita una carpeta de Ubicaciones. */
   toggleFavorite(path: string, label: string): void;
+  /** Cambia solo el nombre visible del acceso fijado. */
+  renameFavorite(path: string, label: string): void;
+  moveFavorite(from: number, before: number): void;
   /** Cambia la vista: modo y tamaño → vista global (o la de la carpeta si está fijada); orden y agrupación → carpeta. */
   setView(path: string, patch: Partial<EffectiveView>): void;
   /** Recuerda (o deja de recordar) el modo y el tamaño de icono de esa carpeta. */
@@ -19,7 +23,10 @@ interface PrefsState extends Prefs {
   flush(): Promise<void>;
   /** Convierte la vista de esa carpeta en la predeterminada y olvida las vistas por carpeta. */
   applyViewToAll(path: string): void;
-  pushRecent(path: string): void;
+  /** Registra una visita real a una carpeta. Si no cambia nada, no se escribe. */
+  visitFolder(path: string): void;
+  forgetRecent(path: string): void;
+  clearRecents(): void;
 }
 
 const KEYS = Object.keys(DEFAULT_PREFS) as (keyof Prefs)[];
@@ -58,11 +65,19 @@ export const usePrefs = create<PrefsState>((set, get) => ({
   },
 
   toggleFavorite(path, label) {
-    const { favorites } = get();
-    const exists = favorites.some((f) => samePath(f.path, path));
-    get().update({
-      favorites: exists ? favorites.filter((f) => !samePath(f.path, path)) : [...favorites, { path, label }],
-    });
+    get().update({ favorites: togglePin(get().favorites, path, label) });
+  },
+
+  renameFavorite(path, label) {
+    const cur = get().favorites;
+    const next = renamePin(cur, path, label);
+    if (next !== cur) get().update({ favorites: [...next] });
+  },
+
+  moveFavorite(from, before) {
+    const cur = get().favorites;
+    const next = movePin(cur, from, before);
+    if (next !== cur) get().update({ favorites: [...next] });
   },
 
   setView(path, patch) {
@@ -84,8 +99,17 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     get().update({ ...effectiveView(get(), path), folderViews: [] });
   },
 
-  pushRecent(path) {
-    const next = withRecent(get().recents, path);
-    if (next[0] !== get().recents[0] || next.length !== get().recents.length) get().update({ recents: next });
+  visitFolder(path) {
+    const cur = get().recentFolders;
+    const next = recordVisit(cur, path, Date.now());
+    if (next !== cur) get().update({ recentFolders: [...next] });
+  },
+
+  forgetRecent(path) {
+    get().update({ recentFolders: removeRecent(get().recentFolders, path) });
+  },
+
+  clearRecents() {
+    if (get().recentFolders.length) get().update({ recentFolders: [] });
   },
 }));

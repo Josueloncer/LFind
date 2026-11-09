@@ -16,9 +16,9 @@ export const SHELL = [
 
 const ALL = new Set([...RASTER, ...SVG, ...SHELL]);
 
-/** Archivos visibles con extensión conocida. Las carpetas y los archivos ocultos no generan miniatura. */
-export function isThumbEligible(e: Pick<Entry, "kind" | "ext" | "hidden" | "size">): boolean {
-  return e.kind === "file" && !e.hidden && e.size > 0 && !!e.ext && ALL.has(e.ext);
+/** Archivos visibles con extensión conocida. Las carpetas, los ocultos y los que solo están en la nube no generan miniatura. */
+export function isThumbEligible(e: Pick<Entry, "kind" | "ext" | "hidden" | "size" | "cloud">): boolean {
+  return e.kind === "file" && !e.hidden && !e.cloud && e.size > 0 && !!e.ext && ALL.has(e.ext);
 }
 
 /** Texto/código con vista previa textual en el panel de vista previa (coincide con nova-core::preview). */

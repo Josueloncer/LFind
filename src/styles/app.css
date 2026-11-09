@@ -109,9 +109,10 @@ svg { display: block; }
 .side-theme { position: relative; height: var(--ctl-h); flex: none; display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4); border-radius: var(--r-s); color: var(--text-2); white-space: nowrap; }
 .side-theme:hover { background: var(--bg-hover); color: var(--text); }
 @container side (max-width: 110px) {
-  .side-label, .side-title, .side-hint, .side-unpin, .drive-text, .drive-bar { display: none; }
+  .side-label, .side-title, .side-hint, .side-unpin, .side-more, .side-warn, .drive-text, .drive-bar { display: none; }
   .side-item, .side-theme { justify-content: center; padding: 0; }
-  .side-title { display: block; height: 14px; padding: 0; visibility: hidden; }
+  .side-title { display: block; height: 14px; padding: 0; visibility: hidden; overflow: hidden; }
+  .side-clear { display: none; }
 }
 
 /* ───────── Panel principal ───────── */
@@ -210,7 +211,7 @@ svg { display: block; }
 .link-badge { width: 12px; height: 12px; color: var(--text-3); flex: none; margin-left: var(--sp-f5); }
 
 .item-details { display: grid; grid-template-columns: var(--dcols); height: 32px; margin: 0 var(--sp-3); padding: 0 var(--sp-7) 0 var(--sp-3); width: calc(100% - 16px); }
-.cell-name { display: flex; align-items: center; gap: var(--sp-f11); min-width: 0; color: var(--text); }
+.cell-name { display: flex; align-items: center; gap: var(--sp-f11); min-width: 0; padding-right: var(--sp-4); color: var(--text); }
 .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-s); }
 .cell-num { text-align: right; padding-right: var(--sp-6); font-variant-numeric: tabular-nums; }
 
@@ -518,3 +519,36 @@ button.sv-h:hover { color: var(--text); }
 .ix-field textarea { height: auto; padding: var(--sp-2) var(--sp-3); resize: vertical; font-family: var(--font-mono); font-size: var(--fs-s); }
 .ix-field input { width: 100%; }
 
+
+/* ───────── Ubicaciones, Recientes y Mi equipo ───────── */
+.side-title[data-action] { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.side-clear { font-size: var(--fs-xs); letter-spacing: 0; text-transform: none; color: var(--text-3); opacity: 0; transition: opacity var(--t-fast); }
+.side-title:hover .side-clear, .side-clear:focus-visible { opacity: 1; }
+.side-clear:hover { color: var(--text); }
+.side-more { height: 24px; padding: 0 var(--sp-4); font-size: var(--fs-s); color: var(--text-3); text-align: left; width: 100%; border-radius: var(--r-s); }
+.side-more:hover { background: var(--bg-hover); color: var(--text); }
+.side-item[data-state] { color: var(--text-3); }
+.side-warn { width: 14px; height: 14px; flex: none; color: var(--warning); }
+.side-row[data-mark]::before { content: ""; position: absolute; left: var(--sp-2); right: var(--sp-2); height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; z-index: 1; }
+.side-row[data-mark="before"]::before { top: -1px; }
+.side-row[data-mark="after"]::before { bottom: -1px; }
+.side-row[data-dragging] { opacity: 0.45; }
+.side-row[draggable="true"] .side-item { cursor: default; }
+
+.computer { height: 100%; overflow-y: auto; padding: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-6); }
+.computer-title { margin: 0 0 var(--sp-3); font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--text-3); }
+.drive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+.drive-card { display: flex; align-items: flex-start; gap: var(--sp-4); min-width: 0; padding: var(--sp-4); text-align: left; color: var(--text-2); background: var(--bg-field); border-radius: var(--r-m); box-shadow: inset 0 0 0 1px var(--line); transition: background var(--t-fast); }
+.drive-card:hover { background: var(--bg-hover); color: var(--text); }
+.drive-card[data-off] { color: var(--text-3); }
+.drive-card-ico { width: 28px; height: 28px; flex: none; stroke-width: 1.5; }
+.drive-card-main { display: flex; flex-direction: column; gap: var(--sp-f3); min-width: 0; flex: 1; }
+.drive-card-name { color: var(--text); font-weight: var(--fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drive-card[data-off] .drive-card-name { color: var(--text-2); }
+.drive-card-kind { font-size: var(--fs-xs); color: var(--text-3); }
+.drive-card .drive-bar { margin-top: var(--sp-2); height: 6px; }
+/* La insignia y el nombre comparten línea: el nombre es el que se recorta, nunca baja la insignia. */
+.gname[data-cloud] { display: flex; align-items: center; justify-content: center; gap: var(--sp-f5); }
+.gname[data-cloud] .link-badge { margin: 0; }
+.sv-title-line { display: flex; align-items: center; min-width: 0; }
+.sv-title-line .sv-title { min-width: 0; }

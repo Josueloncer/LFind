@@ -188,6 +188,9 @@ Texto: los primeros 8 KiB, como antes.
 | Tema y Mica para el primer pintado | `localStorage` (`nova.theme`, `nova.vibrancy`) |
 | Pestañas, selección, deshacer | Solo en memoria |
 
+### Navegación (Update 09)
+Las rutas guardadas se comparan siempre con `canonicalKey`. «Mi equipo» es la ruta virtual `COMPUTER`: el código que recibe la ruta de una pestaña debe contemplarla. Ningún código nuevo debe abrir el contenido de un archivo sin comprobar antes `dir::is_cloud_only`, o hidrataría los archivos de OneDrive.
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.

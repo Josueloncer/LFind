@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import { parent, samePath } from "../lib/path";
+import { samePath, upOf } from "../lib/path";
 
 export interface Tab {
   id: string;
   path: string;
   back: string[];
   forward: string[];
+  /** La abrió la aplicación al arrancar: mientras el usuario no navegue, no cuenta como visita. */
+  auto?: boolean;
 }
 
 interface NavState {
@@ -36,7 +38,7 @@ export const useNav = create<NavState>((set, get) => ({
 
   init(path) {
     if (get().tabs.length) return;
-    const t = mk(path);
+    const t = { ...mk(path), auto: true };
     set({ tabs: [t], activeId: t.id });
   },
 
@@ -61,7 +63,7 @@ export const useNav = create<NavState>((set, get) => ({
   navigate(path) {
     set((s) =>
       patchActive(s, (t) =>
-        samePath(t.path, path) ? t : { ...t, path, back: [...t.back, t.path], forward: [] },
+        samePath(t.path, path) ? t : { ...t, path, back: [...t.back, t.path], forward: [], auto: false },
       ),
     );
   },
@@ -107,7 +109,7 @@ export const useNav = create<NavState>((set, get) => ({
 
   goUp() {
     const t = get().tabs.find((x) => x.id === get().activeId);
-    const up = t && parent(t.path);
+    const up = t && upOf(t.path);
     if (up) get().navigate(up);
   },
 }));

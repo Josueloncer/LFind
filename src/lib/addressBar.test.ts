@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { crumbsFor, driveLabel, outcomeFor } from "./addressBar";
+import { COMPUTER } from "./path";
 
 describe("barra de dirección: migas", () => {
-  it("Windows: Este equipo › Disco local (C:) › … con la ruta de cada segmento", () => {
+  it("Windows: Mi equipo › Disco local (C:) › … con la ruta de cada segmento", () => {
     const c = crumbsFor(String.raw`C:\Users\Usuario\Downloads`);
-    expect(c.map((x) => x.label)).toEqual(["Este equipo", "Disco local (C:)", "Users", "Usuario", "Downloads"]);
-    expect(c.map((x) => x.path)).toEqual([null, "C:\\", String.raw`C:\Users`, String.raw`C:\Users\Usuario`, String.raw`C:\Users\Usuario\Downloads`]);
+    expect(c.map((x) => x.label)).toEqual(["Mi equipo", "Disco local (C:)", "Users", "Usuario", "Downloads"]);
+    expect(c.map((x) => x.path)).toEqual([COMPUTER, "C:\\", String.raw`C:\Users`, String.raw`C:\Users\Usuario`, String.raw`C:\Users\Usuario\Downloads`]);
   });
   it("usa la etiqueta del volumen y su tipo", () => {
     expect(driveLabel("d", { label: "Datos", kind: "fixed" })).toBe("Datos (D:)");
     expect(driveLabel("e", { label: null, kind: "removable" })).toBe("Disco extraíble (E:)");
     expect(crumbsFor(String.raw`D:\x`, { ["D:\\"]: { label: "Datos", kind: "fixed" } })[1].label).toBe("Datos (D:)");
   });
-  it("raíz de unidad: solo Este equipo › Disco local", () => {
-    expect(crumbsFor("C:\\").map((x) => x.label)).toEqual(["Este equipo", "Disco local (C:)"]);
+  it("raíz de unidad: solo Mi equipo › Disco local", () => {
+    expect(crumbsFor("C:\\").map((x) => x.label)).toEqual(["Mi equipo", "Disco local (C:)"]);
   });
   it("red: el primer segmento es \\\\servidor\\recurso", () => {
     const c = crumbsFor(String.raw`\\srv\share\a\b`);

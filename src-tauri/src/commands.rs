@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use nova_core::ops::{self, Decision};
 use nova_core::undo::{self, UndoEntry};
-use nova_core::{dir, names, pathbar, places, prefs, props, safety, shell, volumes};
+use nova_core::{cloud, dir, names, pathbar, places, prefs, props, safety, shell, volumes};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -105,6 +105,56 @@ pub async fn get_places() -> Result<PlacesInfo, String> {
     tauri::async_runtime::spawn_blocking(|| PlacesInfo { places: places::user_places(), drives: places::drives() })
         .await
         .map_err(|e| e.to_string())
+}
+
+/// OneDrive se consulta aparte de `get_places`: así no retrasa el primer pintado.
+#[tauri::command]
+pub async fn get_cloud_places() -> Result<Vec<places::Place>, String> {
+    tauri::async_runtime::spawn_blocking(cloud::onedrive_places).await.map_err(|e| e.to_string())
+}
+
+/// Máscara de unidades presentes. Es una consulta instantánea al sistema: permite detectar cambios sin tocar los discos.
+#[tauri::command]
+pub fn drives_mask() -> u32 {
+    places::drives_mask()
+}
+
+/// Lista actual de unidades.
+#[tauri::command]
+pub async fn get_drives() -> Result<Vec<places::Place>, String> {
+    tauri::async_runtime::spawn_blocking(places::drives).await.map_err(|e| e.to_string())
+}
+
+const MAX_CLOUD_ONLY: usize = 128;
+
+/// Qué rutas están solo en la nube (filas visibles de la búsqueda). Solo lee atributos: no abre ni descarga nada.
+#[tauri::command]
+pub async fn cloud_only(paths: Vec<String>) -> Result<Vec<bool>, String> {
+    if paths.len() > MAX_CLOUD_ONLY {
+        return Err("Demasiadas rutas.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || paths.iter().map(|p| safety::parse_path(p).is_ok_and(|p| cloud::path_is_cloud_only(&p))).collect())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+const CHECK_PATHS_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_CHECK_PATHS: usize = 256;
+
+/// Estado de las carpetas de Ubicaciones y Recientes, con tiempo límite por si hay unidades de red caídas.
+#[tauri::command]
+pub async fn check_paths(paths: Vec<String>) -> Result<Vec<places::PathState>, String> {
+    if paths.len() > MAX_CHECK_PATHS {
+        return Err("Demasiadas rutas.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let parsed: Vec<Option<PathBuf>> = paths.iter().map(|p| safety::parse_path(p).ok()).collect();
+        let valid: Vec<PathBuf> = parsed.iter().flatten().cloned().collect();
+        let mut states = places::check_paths(valid, CHECK_PATHS_TIMEOUT).into_iter();
+        parsed.iter().map(|p| if p.is_some() { states.next().unwrap_or(places::PathState::Unavailable) } else { places::PathState::Unavailable }).collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]

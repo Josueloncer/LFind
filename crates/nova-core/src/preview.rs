@@ -37,6 +37,9 @@ pub fn text_preview(path: &Path, max_bytes: usize) -> Result<TextPreview, String
     if !meta.is_file() {
         return Err("No es un archivo.".into());
     }
+    if crate::dir::is_cloud_only(&meta) {
+        return Err("Este archivo está solo en la nube: la vista previa lo descargaría.".into());
+    }
     let mut buf = vec![0u8; max_bytes.min(MAX_PREVIEW_BYTES * 4)];
     let n = File::open(path).and_then(|mut f| f.read(&mut buf)).map_err(|e| crate::ops::classify(&e).1)?;
     buf.truncate(n);

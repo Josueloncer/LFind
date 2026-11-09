@@ -74,7 +74,15 @@ pub enum Column {
 pub const MAX_RECENTS: usize = 15;
 pub const MAX_FOLDER_VIEWS: usize = 300;
 pub const MAX_FAVORITES: usize = 100;
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 3;
+
+/// Carpeta del historial. El orden de la lista es de más a menos reciente.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RecentFolder {
+    pub path: String,
+    /// Último acceso, en milisegundos epoch. 0 si procede de una versión que no lo guardaba.
+    pub at: i64,
+}
 
 /// Vista recordada para una carpeta concreta.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -112,7 +120,9 @@ pub struct Prefs {
     pub icon_size: u16,
     pub group_by: GroupBy,
     pub columns: Vec<Column>,
+    /// Formato anterior del historial: se migra a `recent_folders` y queda vacío.
     pub recents: Vec<String>,
+    pub recent_folders: Vec<RecentFolder>,
     pub folder_views: Vec<FolderView>,
     /// Mostrar miniaturas reales de imágenes, PDF, etc. (se pueden desactivar en discos lentos).
     pub thumbnails: bool,
@@ -135,13 +145,27 @@ fn zero() -> u32 {
     0
 }
 
+fn newest_first(k: SortKey) -> bool {
+    matches!(k, SortKey::Modified | SortKey::Created | SortKey::Size)
+}
+
 impl Prefs {
     /// Limita tamaños y valores: lo que llega de la interfaz no es de fiar.
     pub fn sanitize(&mut self) {
         self.icon_size = self.icon_size.clamp(16, 512);
         self.preview_width = self.preview_width.clamp(220, 900);
         self.recents.truncate(MAX_RECENTS);
+        self.recent_folders.truncate(MAX_RECENTS);
         self.favorites.truncate(MAX_FAVORITES);
+        let mut pinned = vec![];
+        self.favorites.retain(|f| {
+            let k = crate::index::classify::path_key(&f.path);
+            let new = !pinned.contains(&k);
+            if new {
+                pinned.push(k);
+            }
+            new
+        });
         let excess = self.folder_views.len().saturating_sub(MAX_FOLDER_VIEWS);
         self.folder_views.drain(..excess); // se descartan las más antiguas
         for f in &mut self.folder_views {
@@ -157,8 +181,20 @@ impl Prefs {
             if self.view_mode == ViewMode::List {
                 self.view_mode = ViewMode::Details;
             }
-            self.version = CURRENT_VERSION;
         }
+        if self.version < 3 {
+            self.recent_folders = std::mem::take(&mut self.recents).into_iter().map(|path| RecentFolder { path, at: 0 }).collect();
+            // Hasta ahora elegir fecha o tamaño fijaba siempre el orden ascendente, por un error: se corrige lo que quedó guardado.
+            if newest_first(self.sort_key) && self.sort_dir == SortDir::Asc {
+                self.sort_dir = SortDir::Desc;
+            }
+            for f in &mut self.folder_views {
+                if newest_first(f.sort_key) && f.sort_dir == SortDir::Asc {
+                    f.sort_dir = SortDir::Desc;
+                }
+            }
+        }
+        self.version = CURRENT_VERSION;
     }
 }
 
@@ -176,6 +212,7 @@ impl Default for Prefs {
             group_by: GroupBy::None,
             columns: vec![Column::Modified, Column::Type, Column::Size],
             recents: vec![],
+            recent_folders: vec![],
             folder_views: vec![],
             thumbnails: true,
             system_icons: true,
@@ -243,6 +280,34 @@ mod tests {
     }
 
     #[test]
+    fn version_2_files_migrate_history_favorites_and_wrong_sort_directions() {
+        let d = dir("v2");
+        fs::create_dir_all(&d).unwrap();
+        let f = d.join("prefs.json");
+        fs::write(
+            &f,
+            r#"{"version":2,"sortKey":"size","sortDir":"asc","recents":["C:\\A","C:\\B"],
+                "favorites":[{"path":"C:\\X","label":"Mi X"},{"path":"c:/x/","label":"dup"}],
+                "folderViews":[{"path":"C:\\F","viewMode":"icons","iconSize":64,"sortKey":"modified","sortDir":"asc","groupBy":"none"},
+                               {"path":"C:\\G","viewMode":"icons","iconSize":64,"sortKey":"name","sortDir":"asc","groupBy":"none"},
+                               {"path":"C:\\H","viewMode":"icons","iconSize":64,"sortKey":"created","sortDir":"desc","groupBy":"none"}]}"#,
+        )
+        .unwrap();
+        let p = load(&f);
+        assert_eq!(p.recent_folders.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(), ["C:\\A", "C:\\B"], "se conserva el orden");
+        assert!(p.recents.is_empty());
+        assert_eq!(p.favorites, vec![Favorite { path: "C:\\X".into(), label: "Mi X".into() }], "sin perderlos y sin duplicados");
+        assert_eq!(p.sort_dir, SortDir::Desc);
+        assert_eq!(p.folder_views.iter().map(|v| v.sort_dir).collect::<Vec<_>>(), [SortDir::Desc, SortDir::Asc, SortDir::Desc], "el nombre sigue ascendente");
+        // Una vez migrado, una elección explícita del usuario ya no se toca.
+        let mut q = p.clone();
+        q.sort_dir = SortDir::Asc;
+        save(&f, &q).unwrap();
+        assert_eq!(load(&f).sort_dir, SortDir::Asc);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
     fn roundtrip() {
         let d = dir("rt");
         let f = d.join("prefs.json");
@@ -293,7 +358,7 @@ mod tests {
         let f = d.join("prefs.json");
         fs::write(&f, r#"{"theme":"dark","viewMode":"list","favorites":[{"path":"C:/X","label":"X"}]}"#).unwrap();
         let p = load(&f);
-        assert_eq!((p.theme, p.view_mode, p.version), (Theme::Dark, ViewMode::Details, 2));
+        assert_eq!((p.theme, p.view_mode, p.version), (Theme::Dark, ViewMode::Details, CURRENT_VERSION));
         assert_eq!(p.favorites.len(), 1, "los favoritos se conservan");
         fs::write(&f, r#"{"viewMode":"grid"}"#).unwrap();
         assert_eq!(load(&f).view_mode, ViewMode::Icons);

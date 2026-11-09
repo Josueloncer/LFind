@@ -11,6 +11,8 @@ export interface Entry {
   hidden: boolean;
   ext: string | null;
   link: boolean;
+  /** El contenido solo está en la nube: leerlo provocaría una descarga. */
+  cloud?: boolean;
 }
 
 export type DirEvent =
@@ -26,8 +28,13 @@ export interface Place {
   id: string;
   label: string;
   path: string;
-  kind: "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos" | "drive";
+  kind: "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos" | "drive" | "cloud";
+  /** Solo en unidades: tipo según Windows, obtenido sin tocar el disco. */
+  driveKind?: DriveUsage["kind"] | null;
 }
+
+/** Resultado de comprobar una ruta guardada. `unavailable`: su unidad no responde, así que no se sabe si existe. */
+export type PathState = "ok" | "missing" | "unavailable";
 
 export interface PlacesInfo {
   places: Place[];
@@ -59,6 +66,12 @@ export interface Favorite {
   label: string;
 }
 
+/** Carpeta visitada de verdad. `at`: última visita (ms desde epoch; 0 si viene de una versión anterior). */
+export interface RecentFolder {
+  path: string;
+  at: number;
+}
+
 export interface Prefs {
   theme: Theme;
   viewMode: ViewMode;
@@ -70,7 +83,7 @@ export interface Prefs {
   iconSize: number;
   groupBy: GroupBy;
   columns: Column[];
-  recents: string[];
+  recentFolders: RecentFolder[];
   folderViews: FolderView[];
   thumbnails: boolean;
   /** Iconos del sistema (Explorador de Windows) en lugar de los glifos propios. */
@@ -93,7 +106,7 @@ export const DEFAULT_PREFS: Prefs = {
   iconSize: 64,
   groupBy: "none",
   columns: ["modified", "type", "size"],
-  recents: [],
+  recentFolders: [],
   folderViews: [],
   thumbnails: true,
   systemIcons: true,
@@ -101,7 +114,7 @@ export const DEFAULT_PREFS: Prefs = {
   previewWidth: 320,
   autoUpdateCheck: true,
   lastUpdateCheck: 0,
-  version: 2,
+  version: 3,
 };
 
 // ───────── operaciones de archivo (espejo de src-tauri/commands.rs y nova-core::ops) ─────────
@@ -348,6 +361,15 @@ export interface FsProvider {
   readonly available: boolean;
   openDir(path: string, onEvent: (e: DirEvent) => void): DirHandle;
   getPlaces(): Promise<PlacesInfo>;
+  /** Carpetas de OneDrive de cada cuenta configurada (ninguna si no hay OneDrive). */
+  getCloudPlaces(): Promise<Place[]>;
+  getDrives(): Promise<Place[]>;
+  /** Máscara de letras de unidad presentes: consulta instantánea que no toca los discos. */
+  drivesMask(): Promise<number>;
+  /** Estado de cada ruta, en el mismo orden; una unidad caída no retrasa más que el tiempo límite. */
+  checkPaths(paths: string[]): Promise<PathState[]>;
+  /** Qué rutas están solo en la nube, en el mismo orden. Solo lee atributos: nunca descarga. Máximo 128 por llamada. */
+  cloudOnly(paths: string[]): Promise<boolean[]>;
   loadPrefs(): Promise<Prefs>;
   savePrefs(p: Prefs): Promise<void>;
   vibrancy(): Promise<boolean>;

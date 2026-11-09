@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { errMsg, fs } from "../lib/fs";
 import type { Entry, NewTemplate, SendToItem } from "../lib/fs";
 import { scheduleRefresh } from "../lib/contextMenu";
+import { isPinned } from "../lib/locations";
 import { basename, join, parent, samePath } from "../lib/path";
 import { copyText, useClipboard } from "../stores/clipboard";
 import { useNav } from "../stores/nav";
@@ -87,7 +88,9 @@ export function useFileActions(a: Args) {
         if (p.length) useUi.getState().openDialog({ type: "properties", paths: p });
       },
       togglePin: (e: Entry) => usePrefs.getState().toggleFavorite(pathOf(e), e.name),
-      isPinned: (e: Entry) => usePrefs.getState().favorites.some((f) => samePath(f.path, pathOf(e))),
+      isPinned: (e: Entry) => isPinned(usePrefs.getState().favorites, pathOf(e)),
+      togglePinFolder: () => path && usePrefs.getState().toggleFavorite(path, basename(path)),
+      folderPinned: () => !!path && isPinned(usePrefs.getState().favorites, path),
       openWith: (e: Entry) => fs.openWith(pathOf(e)).catch(fail),
       openTerminal: (e?: Entry) => {
         const d = e ? pathOf(e) : path;

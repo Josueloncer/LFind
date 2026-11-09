@@ -313,6 +313,14 @@ flowchart LR
 
 El plugin hace la red desde Rust, así que la CSP de la interfaz no cambia. Las capacidades tampoco: solo se usan comandos propios.
 
+## 8 quater. Navegación y ubicaciones
+- `lib/locations.ts` (puro): historial, accesos fijados y agrupación de unidades. `lib/path.ts`: `canonicalKey`, única forma de comparar rutas, y `COMPUTER`, ruta virtual de Mi equipo (nunca llega a Rust).
+- `stores/pathHealth.ts`: comprueba en segundo plano las rutas guardadas con `check_paths` (tiempo límite de 3 s). Nunca se consulta al pintar.
+- `stores/app.ts`: `watchDrives` sondea `drives_mask` cada 4 s con la ventana visible y solo entonces pide `get_drives` y la capacidad. Una consulta por unidad como máximo.
+- `nova-core::cloud`: cuentas de OneDrive desde el registro. `dir::is_cloud_only` protege miniaturas, iconos por archivo, visor y vista previa: leer atributos no descarga, abrir el contenido sí.
+- Búsqueda: el índice no guarda si un archivo está solo en la nube. `useCloudHits` lo pregunta con `cloud_only` (solo atributos) para las filas visibles dentro de OneDrive.
+- Preferencias v3: `recentFolders` sustituye a `recents`, que se conserva vacío para poder volver a una versión anterior.
+
 ## 9. Errores y permisos
 
 | Situación | Tratamiento |

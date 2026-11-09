@@ -517,6 +517,10 @@ impl ThumbService {
             CacheHit::Negative(e) => return Err(e),
             CacheHit::Miss => {}
         }
+        // Generar la miniatura obligaría a descargar el archivo de la nube: una carpeta entera serían descargas masivas.
+        if crate::dir::is_cloud_only(&meta) {
+            return Err(ThumbError::Unsupported);
+        }
 
         for _attempt in 0..2 {
             let (flight, leader) = {

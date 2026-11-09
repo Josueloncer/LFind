@@ -6,6 +6,7 @@
 pub mod archive;
 pub mod b64;
 pub mod clipboard;
+pub mod cloud;
 #[cfg(any(windows, nova_winck))]
 pub mod clipboard_win;
 pub mod diagnostics;

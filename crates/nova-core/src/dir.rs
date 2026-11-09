@@ -44,6 +44,29 @@ pub struct Entry {
     pub ext: Option<String>,
     /// `true` si es un enlace simbólico o unión (kind refleja el destino).
     pub link: bool,
+    /// `true` si el contenido solo está en la nube: leerlo provocaría una descarga.
+    pub cloud: bool,
+}
+
+/// Atributos de Windows de un archivo cuyo contenido no está en el disco.
+pub(crate) const fn attrs_cloud_only(attrs: u32) -> bool {
+    const DIRECTORY: u32 = 0x10;
+    const OFFLINE: u32 = 0x1000;
+    const RECALL_ON_OPEN: u32 = 0x4_0000;
+    const RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
+    attrs & DIRECTORY == 0 && attrs & (OFFLINE | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS) != 0
+}
+
+/// ¿Leer este archivo obligaría a descargarlo? (OneDrive «disponible solo en línea» y similares). Consultar los atributos no descarga nada.
+#[cfg(windows)]
+pub fn is_cloud_only(meta: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    attrs_cloud_only(meta.file_attributes())
+}
+
+#[cfg(not(windows))]
+pub fn is_cloud_only(_meta: &fs::Metadata) -> bool {
+    false
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,7 +140,8 @@ fn build_entry(de: fs::DirEntry) -> Option<Entry> {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_millis() as i64);
 
-    Some(Entry { name, kind, size, modified, created, hidden, ext, link })
+    let cloud = meta.as_ref().is_some_and(is_cloud_only);
+    Some(Entry { name, kind, size, modified, created, hidden, ext, link, cloud })
 }
 
 /// Lee `path` y entrega las entradas por lotes mediante `emit`.

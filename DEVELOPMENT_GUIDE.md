@@ -69,6 +69,8 @@ python scripts/index_xcheck.py <dir> [--bench]
 python scripts/index_bench.py <dir> [filas]
 ```
 
+> Para probar la navegación sin tocar los datos reales, compila con otro identificador, `productName` y `mainBinaryName` mediante `tauri build --config`, y copia `prefs.json` a la carpeta de esa instalación antes del primer arranque. Una unidad temporal se simula con `subst`.
+
 ## Compilación e instalador
 
 ```powershell

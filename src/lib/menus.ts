@@ -1,6 +1,7 @@
 import type { Column, GroupBy, SortDir, SortKey, ViewMode } from "./fs";
 import { GROUP_LABEL } from "./group";
 import { ICON_PRESETS, VIEW_LABEL } from "./view";
+import { defaultSortDir } from "./viewState";
 import type { EffectiveView } from "./viewState";
 import type { MenuItem } from "../stores/ui";
 
@@ -72,7 +73,8 @@ export function sortMenu(v: EffectiveView, a: Pick<ViewActions, "setView">): Men
   const group = (g: GroupBy): MenuItem => ({ kind: "item", label: GROUP_LABEL[g], checked: v.groupBy === g, run: () => a.setView({ groupBy: g }) });
   return [
     { kind: "header", label: "Ordenar por" },
-    ...SORTS.map(([k, label]): MenuItem => ({ kind: "item", label, checked: v.sortKey === k, run: () => a.setView({ sortKey: k }) })),
+    // Elegir otra columna usa su sentido natural; volver a elegir la actual no cambia nada.
+    ...SORTS.map(([k, label]): MenuItem => ({ kind: "item", label, checked: v.sortKey === k, run: () => a.setView({ sortKey: k, sortDir: k === v.sortKey ? v.sortDir : defaultSortDir(k) }) })),
     { kind: "sep" },
     dir("asc", "Ascendente"),
     dir("desc", "Descendente"),

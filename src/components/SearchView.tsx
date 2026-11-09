@@ -1,13 +1,16 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { pinLabel } from "../lib/contextMenu";
 import { kindLabel } from "../lib/fileKinds";
 import { formatBytes, formatDate } from "../lib/format";
 import { errMsg, fs } from "../lib/fs";
+import { isPinned } from "../lib/locations";
 import type { SearchHit } from "../lib/fs";
 import { parent } from "../lib/path";
 import { activeFilterCount, describeIndex, hasCriteria, hitToEntry, invalidSizes } from "../lib/searchQuery";
 import type { DatePreset, SearchFilters } from "../lib/searchQuery";
+import { useCloudHits } from "../hooks/useCloudHits";
 import { copyText } from "../stores/clipboard";
 import { useIndex } from "../stores/indexStatus";
 import { useNav } from "../stores/nav";
@@ -18,7 +21,7 @@ import { useViewer } from "../stores/viewer";
 import type { MenuItem } from "../stores/ui";
 import { EmptyState } from "./EmptyState";
 import { EntryIcon } from "./EntryIcon";
-import { Database, SlidersHorizontal } from "./icons";
+import { Cloud, Database, SlidersHorizontal } from "./icons";
 
 export const ROW_H = 48;
 const nf = new Intl.NumberFormat();
@@ -53,6 +56,7 @@ function hitMenu(h: SearchHit): MenuItem[] {
     { kind: "item", label: h.isDir ? "Abrir carpeta" : "Abrir", icon: "open", run: () => openHit(h), shortcut: "Intro" },
     { kind: "item", label: "Abrir ubicación", icon: "folder", run: () => openLocation(h), disabled: !parent(h.path), shortcut: "Ctrl+Intro" },
     { kind: "item", label: "Mostrar en el Explorador de Windows", icon: "explorer", run: () => void fs.revealPath(h.path).catch(fail) },
+    ...(h.isDir ? [{ kind: "item", label: pinLabel(isPinned(usePrefs.getState().favorites, h.path)), icon: "pin", run: () => usePrefs.getState().toggleFavorite(h.path, h.name) } as MenuItem] : []),
     { kind: "sep" },
     { kind: "item", label: "Copiar ruta completa", icon: "path", run: () => void copyText(h.path).then((ok) => toast(ok ? "Ruta copiada" : "No se pudo copiar al portapapeles", ok ? "success" : "error")) },
     { kind: "item", label: "Propiedades", icon: "props", run: () => useUi.getState().openDialog({ type: "properties", paths: [h.path] }) },
@@ -63,11 +67,13 @@ interface RowProps {
   hit: SearchHit;
   top: number;
   selected: boolean;
+  /** El contenido solo está en la nube. */
+  cloud: boolean;
   onSelect(h: SearchHit): void;
   onContext(ev: MouseEvent, h: SearchHit): void;
 }
 
-const Row = memo(function Row({ hit, top, selected, onSelect, onContext }: RowProps) {
+const Row = memo(function Row({ hit, top, selected, cloud, onSelect, onContext }: RowProps) {
   const entry = useMemo(() => hitToEntry(hit), [hit]);
   const dir = parent(hit.path) ?? "";
   return (
@@ -78,7 +84,10 @@ const Row = memo(function Row({ hit, top, selected, onSelect, onContext }: RowPr
       <div className="sv-name">
         <span className="sv-ico"><EntryIcon entry={entry} basePath={dir} size={24} /></span>
         <span className="sv-text">
-          <span className="sv-title" title={hit.name}>{hit.name}</span>
+          <span className="sv-title-line">
+            <span className="sv-title" title={hit.name}>{hit.name}</span>
+            {cloud && <Cloud className="link-badge" aria-label="Solo en la nube"><title>Solo en la nube</title></Cloud>}
+          </span>
           <span className="sv-path" title={hit.path}>{dir || hit.path}</span>
         </span>
       </div>
@@ -183,6 +192,7 @@ export function SearchView({ basePath }: { basePath: string }) {
 
   const vv = useVirtualizer({ count: hits.length, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 8 });
   const items = vv.getVirtualItems();
+  const cloudHits = useCloudHits(items.flatMap((it) => hits[it.index] ?? []));
   const last = items.length ? items[items.length - 1].index : -1;
 
   // Al acercarse al final se pide la página siguiente.
@@ -256,7 +266,7 @@ export function SearchView({ basePath }: { basePath: string }) {
         <div style={{ height: vv.getTotalSize(), position: "relative" }}>
           {items.map((it) => {
             const h = hits[it.index];
-            return h ? <Row key={h.path} hit={h} top={it.start} selected={h.path === selected} onSelect={onSelect} onContext={onContext} /> : null;
+            return h ? <Row key={h.path} hit={h} top={it.start} selected={h.path === selected} cloud={cloudHits.has(h.path)} onSelect={onSelect} onContext={onContext} /> : null;
           })}
         </div>
         {snap.loadingMore && <div className="sv-more">Cargando más resultados…</div>}

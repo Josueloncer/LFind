@@ -1,10 +1,10 @@
 /** Modelo puro de la barra de dirección: migas de pan y decisión de qué hacer con lo escrito. Sin React ni Tauri. */
 import type { DriveUsage } from "./fs/types";
-import { join, samePath, segments } from "./path";
+import { COMPUTER, join, samePath, segments } from "./path";
 
 export interface Crumb {
   label: string;
-  /** Ruta a la que lleva. `null` = «Este equipo»: no es una carpeta, abre la lista de unidades. */
+  /** Ruta a la que lleva (`COMPUTER` es la vista «Mi equipo»). */
   path: string | null;
 }
 
@@ -20,11 +20,12 @@ export function driveLabel(letter: string, usage?: Pick<DriveUsage, "label" | "k
  */
 export function crumbsFor(path: string, usage: Record<string, Pick<DriveUsage, "label" | "kind"> | undefined> = {}): Crumb[] {
   if (!path) return [];
+  if (path === COMPUTER) return [{ label: "Mi equipo", path: COMPUTER }];
   const segs = segments(path);
   if (/^[A-Za-z]:/.test(path)) {
     const [drive, ...rest] = segs;
     const u = usage[drive.path] ?? usage[drive.path.toUpperCase()];
-    return [{ label: "Este equipo", path: null }, { label: driveLabel(drive.label[0], u), path: drive.path }, ...rest];
+    return [{ label: "Mi equipo", path: COMPUTER }, { label: driveLabel(drive.label[0], u), path: drive.path }, ...rest];
   }
   if (path.startsWith("\\\\") && segs.length >= 2) {
     const root = join(segs[0].path, segs[1].label);

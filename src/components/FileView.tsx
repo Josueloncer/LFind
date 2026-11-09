@@ -14,7 +14,7 @@ import { thumbService } from "../lib/thumbService";
 import { iconGeometry } from "../lib/view";
 import { CONTENT_H, DETAILS_H, HEADER_H, LIST, TILE } from "../lib/viewGeometry";
 import { EntryIcon } from "./EntryIcon";
-import { ArrowDown, ArrowUp, Link2 } from "./icons";
+import { ArrowDown, ArrowUp, Cloud, Link2 } from "./icons";
 import { Thumb } from "./Thumb";
 
 export const COL_ORDER: Column[] = ["modified", "created", "type", "size"];
@@ -145,7 +145,8 @@ interface ItemProps {
 
 const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming, drop, cols, h, thumbs, basePath, style }: ItemProps) {
   const name = renaming ? <RenameInput entry={e} onCommit={(n) => h.rename(e.name, n)} onCancel={h.cancelRename} /> : <span className="nm" title={e.name}>{e.name}</span>;
-  const link = e.link && <Link2 className="link-badge" />;
+  const cloud = e.cloud && <Cloud className="link-badge" aria-label="Solo en la nube"><title>Solo en la nube</title></Cloud>;
+  const link = (e.link || e.cloud) && <>{e.link && <Link2 className="link-badge" />}{cloud}</>;
   const common = {
     className: `item item-${variant}`,
     role: "option" as const,
@@ -193,7 +194,7 @@ const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming
       return (
         <div {...common} title={e.name}>
           <Visual e={e} size={size} thumbs={thumbs} basePath={basePath} />
-          <div className="gname">{name}</div>
+          <div className="gname" data-cloud={(cloud && !renaming) || undefined}>{!renaming && cloud}{name}</div>
         </div>
       );
     default: // small | list

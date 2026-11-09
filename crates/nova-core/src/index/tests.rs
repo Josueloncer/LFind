@@ -410,6 +410,31 @@ fn synthetic(root: i64, i: usize) -> IndexedEntry {
     IndexedEntry { root_id: root, depth: classify::depth_of(&key), key, path, name_lc: name.to_lowercase(), name, ext: "txt".into(), is_dir: false, size: i as u64, modified: Some(i as i64), created: None, accessed: None }
 }
 
+/// Más recientes primero y, sea cual sea el sentido, lo que no tiene fecha al final.
+fn check_date_order(store: Arc<dyn IndexStore>) {
+    let id = store.ensure_root("/r").unwrap();
+    let gen = store.begin_scan(id).unwrap();
+    let rows: Vec<_> = [None, Some(100), Some(300), Some(200)].into_iter().enumerate().map(|(i, m)| IndexedEntry { modified: m, ..synthetic(id, i) }).collect();
+    store.upsert(id, gen, &rows).unwrap();
+    store.finish_scan(id, gen, 0, 1).unwrap();
+    let ix = Indexer::new(store);
+    let order = |desc| ix.search(&Query { text: "archivo".into(), sort: SortBy::Modified, desc, ..Default::default() }, &nocancel()).unwrap().hits.iter().map(|h| h.modified).collect::<Vec<_>>();
+    assert_eq!(order(true), [Some(300), Some(200), Some(100), None]);
+    assert_eq!(order(false), [Some(100), Some(200), Some(300), None]);
+}
+
+#[test]
+fn date_order_in_memory() {
+    check_date_order(Arc::new(MemStore::new()));
+}
+
+#[cfg(feature = "sqlite")]
+#[test]
+fn date_order_in_sqlite_matches_memory() {
+    let t = Tmp::new();
+    check_date_order(Arc::new(super::sqlite::SqliteStore::open(&t.p("i.db")).unwrap()));
+}
+
 #[test]
 fn large_result_sets_page_without_overlap() {
     let store = Arc::new(MemStore::new());

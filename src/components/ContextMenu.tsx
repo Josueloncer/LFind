@@ -4,12 +4,12 @@ import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import {
   AppWindow, Archive, ArrowUpDown, Check, ChevronRight, ClipboardPaste, Copy, ExternalLink, FilePlus, FolderOpen, FolderPlus, Info, LayoutGrid, Link, Link2, PackageOpen,
-  Pencil, Plus, RotateCw, Scissors, Send, SquareArrowOutUpRight, SquareTerminal, Star, Trash2, Undo2,
+  Pencil, Pin, Plus, RotateCw, Scissors, Send, SquareArrowOutUpRight, SquareTerminal, Star, Trash2, Undo2,
 } from "./icons";
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   open: FolderOpen, openwith: AppWindow, copy: Copy, cut: Scissors, paste: ClipboardPaste, trash: Trash2, rename: Pencil, folder: FolderPlus, file: FilePlus,
-  props: Info, path: Link, shortcut: Link2, reveal: ExternalLink, undo: Undo2, refresh: RotateCw, star: Star, tab: Plus, explorer: SquareArrowOutUpRight,
+  props: Info, path: Link, shortcut: Link2, reveal: ExternalLink, undo: Undo2, refresh: RotateCw, star: Star, pin: Pin, tab: Plus, explorer: SquareArrowOutUpRight,
   terminal: SquareTerminal, zip: Archive, extract: PackageOpen, send: Send, new: FilePlus, sort: ArrowUpDown, view: LayoutGrid,
 };
 

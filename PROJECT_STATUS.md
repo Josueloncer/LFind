@@ -2,9 +2,12 @@
 
 Inventario real del proyecto. **Auditoría Fase 0 — 2026-11-08, actualizado con la Update 06.0.** Sustituye a la versión de la Fase 1.1, archivada en [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
+## Update 09 (navegación y organización)
+Implementado, validado localmente y autorizado para su publicación. Rust 175+3 con SQLite y 174+3 sin él · Vitest 264/264 · TypeScript sin errores · instalador generado. Sin comprobar con hardware real: OneDrive de empresa y unidades extraíbles o de red. Detalle: [UPDATE09_PROGRESS.md](UPDATE09_PROGRESS.md).
+
 ## Update 08 (actualizaciones)
 
-Implementado y probado localmente, con una actualización real en una instalación aislada. Rust 164/164 · Vitest 239/239. **Aún sin activar:** faltan los secrets, y el repositorio privado impide las descargas anónimas (**R-31**). El workflow no se ha ejecutado. Detalle: [UPDATE08_PROGRESS.md](UPDATE08_PROGRESS.md).
+Implementado y probado localmente, con una actualización real en una instalación aislada. Rust 164/164 · Vitest 239/239. Activado y publicado: primera Release v0.1.1 generada por el workflow. Detalle: [UPDATE08_PROGRESS.md](UPDATE08_PROGRESS.md).
 
 ## Update 07 (visor inteligente)
 

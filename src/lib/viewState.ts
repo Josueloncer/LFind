@@ -9,7 +9,9 @@ export interface EffectiveView {
 }
 
 export const MAX_FOLDER_VIEWS = 300;
-export const MAX_RECENTS = 15;
+
+/** Sentido natural al elegir una columna: lo más nuevo y lo más grande arriba; lo demás, de la A a la Z. */
+export const defaultSortDir = (k: SortKey): SortDir => (k === "modified" || k === "created" || k === "size" ? "desc" : "asc");
 
 /** Clave estable de una carpeta: sin barra final y sin distinguir mayúsculas. */
 export const folderKey = (p: string) => p.replace(/[\\/]+$/, "").toLowerCase() || p;
@@ -54,11 +56,17 @@ export function splitViewPatch(patch: Partial<EffectiveView>): { look: Partial<P
 }
 
 /** Aplica un cambio de vista según la regla A: modo/tamaño → global (o la carpeta, si está fijada); orden → carpeta. */
-export function applyViewChange(p: ViewPrefs, path: string, patch: Partial<EffectiveView>): Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews">> {
+export function applyViewChange(p: ViewPrefs, path: string, patch: Partial<EffectiveView>): Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews" | "sortKey" | "sortDir">> {
   const { look, order } = splitViewPatch(patch);
   if (isPinned(p, path)) return { folderViews: withFolderView(p, path, patch) };
-  const out: Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews">> = { ...look };
+  const out: Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews" | "sortKey" | "sortDir">> = { ...look };
   if (Object.keys(order).length > 0) out.folderViews = withFolderView(p, path, order);
+  // El orden elegido también pasa a ser el de las carpetas que aún no tienen uno propio: así se mantiene al navegar.
+  if (order.sortKey !== undefined || order.sortDir !== undefined) {
+    const next = { ...effectiveView(p, path), ...order };
+    out.sortKey = next.sortKey;
+    out.sortDir = next.sortDir;
+  }
   return out;
 }
 
@@ -67,7 +75,3 @@ export function withPinned(p: ViewPrefs, path: string, pinned: boolean): FolderV
   return withFolderView(p, path, pinned ? effectiveView(p, path) : {}, pinned);
 }
 
-export function withRecent(recents: string[], path: string): string[] {
-  const k = folderKey(path);
-  return [path, ...recents.filter((r) => folderKey(r) !== k)].slice(0, MAX_RECENTS);
-}

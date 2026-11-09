@@ -243,7 +243,9 @@ pub fn build_query(q: &Query, fts: bool) -> Built {
         }
         SortBy::Name => format!("e.name_lc {dir}, e.key"),
         SortBy::Size => format!("e.size {dir}, e.key"),
-        SortBy::Modified => format!("e.modified {dir}, e.key"),
+        // SQLite ordena NULL como el valor menor: al descender ya quedan al final (y se usa el índice); al ascender hay que pedirlo.
+        SortBy::Modified if pl.desc => "e.modified DESC, e.key".to_string(),
+        SortBy::Modified => "e.modified IS NULL, e.modified ASC, e.key".to_string(),
     };
     b.sql.push_str(" ORDER BY ");
     b.sql.push_str(&order);

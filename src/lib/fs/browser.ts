@@ -24,6 +24,12 @@ export class BrowserProvider implements FsProvider {
     return { places: [], drives: [] };
   }
 
+  getCloudPlaces = async () => [];
+  getDrives = async () => [];
+  drivesMask = async () => 0;
+  checkPaths: FsProvider["checkPaths"] = async (paths) => paths.map(() => "ok");
+  cloudOnly: FsProvider["cloudOnly"] = async (paths) => paths.map(() => false);
+
   async loadPrefs(): Promise<Prefs> {
     try {
       return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };

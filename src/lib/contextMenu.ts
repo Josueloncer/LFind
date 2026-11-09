@@ -56,6 +56,9 @@ export interface MenuActions {
   shortcut(e: Entry): void;
   togglePin(e: Entry): void;
   isPinned(e: Entry): boolean;
+  /** Fija o quita de Ubicaciones la carpeta que se está viendo. */
+  togglePinFolder(): void;
+  folderPinned(): boolean;
   startRename(name: string): void;
   remove(l: Entry[], permanent: boolean): void;
   properties(l: Entry[]): void;
@@ -71,6 +74,42 @@ export interface MenuActions {
 }
 
 const sep: MenuItem = { kind: "sep" };
+
+export const pinLabel = (pinned: boolean) => (pinned ? "Quitar de Ubicaciones" : "Fijar en Ubicaciones");
+
+/** Lo que se puede hacer con una fila de la barra lateral o una tarjeta de Mi equipo. Lo opcional solo aparece si aplica. */
+export interface PlaceMenuActions {
+  open(): void;
+  openInNewTab(): void;
+  pinned: boolean;
+  togglePin(): void;
+  rename?(): void;
+  moveUp?(): void;
+  moveDown?(): void;
+  copyPath(): void;
+  properties(): void;
+  forget?(): void;
+  clearAll?(): void;
+}
+
+export function placeMenu(a: PlaceMenuActions): MenuItem[] {
+  const opt = (label: string, run: (() => void) | undefined, icon?: string): MenuItem[] => (run ? [{ kind: "item", label, icon, run }] : []);
+  return tidy([
+    { kind: "item", label: "Abrir", icon: "open", run: a.open },
+    { kind: "item", label: "Abrir en una pestaña nueva", icon: "tab", run: a.openInNewTab },
+    sep,
+    { kind: "item", label: pinLabel(a.pinned), icon: "pin", run: a.togglePin },
+    ...opt("Cambiar nombre", a.rename, "rename"),
+    ...opt("Subir en la lista", a.moveUp),
+    ...opt("Bajar en la lista", a.moveDown),
+    sep,
+    { kind: "item", label: "Copiar ruta de acceso", icon: "path", run: a.copyPath },
+    { kind: "item", label: "Propiedades", icon: "props", run: a.properties },
+    sep,
+    ...opt("Quitar del historial", a.forget),
+    ...opt("Limpiar historial", a.clearAll),
+  ]);
+}
 
 /** Quita separadores duplicados, iniciales y finales (los grupos vacíos no dejan huecos). */
 export function tidy(items: MenuItem[]): MenuItem[] {
@@ -109,7 +148,7 @@ function itemMenu(s: MenuState, a: MenuActions): MenuItem[] {
     sep,
     { kind: "item", label: one ? "Copiar ruta de acceso" : "Copiar rutas", icon: "path", run: () => a.copyPaths(list) },
     ...(one ? [{ kind: "item", label: "Crear acceso directo", icon: "shortcut", run: () => a.shortcut(e) } as MenuItem] : []),
-    ...(dirOne ? [{ kind: "item", label: a.isPinned(e) ? "Quitar de favoritos" : "Anclar a favoritos", icon: "star", run: () => a.togglePin(e) } as MenuItem] : []),
+    ...(dirOne ? [{ kind: "item", label: pinLabel(a.isPinned(e)), icon: "pin", run: () => a.togglePin(e) } as MenuItem] : []),
     sep,
     { kind: "item", label: one && isArchive(e.name) ? "Comprimir en otro .zip" : list.length > 1 ? "Comprimir en .zip" : "Comprimir en .zip", icon: "zip", run: () => a.compress(list) },
     ...(one && isArchive(e.name) ? [{ kind: "item", label: "Extraer aquí", icon: "extract", run: () => a.extract(e) } as MenuItem] : []),
@@ -141,6 +180,7 @@ function backgroundMenu(s: MenuState, a: MenuActions): MenuItem[] {
     { kind: "item", label: "Abrir terminal aquí", icon: "terminal", run: () => a.openTerminal() },
     { kind: "item", label: "Abrir esta carpeta en el Explorador de Windows", icon: "explorer", run: a.openFolderInExplorer },
     { kind: "item", label: "Copiar ruta de la carpeta", icon: "path", run: () => a.copyPaths([]) },
+    { kind: "item", label: pinLabel(a.folderPinned()), icon: "pin", run: a.togglePinFolder },
     sep,
     { kind: "item", label: "Propiedades de la carpeta", icon: "props", run: () => a.properties([]) },
   ];

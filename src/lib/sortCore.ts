@@ -41,6 +41,16 @@ export function sortPermutation(c: SortColumns, key: SortKey, dir: SortDir): Uin
     const da = isDir[a] ? 0 : 1;
     const db = isDir[b] ? 0 : 1;
     if (da !== db) return da - db;
+    if (key === "modified" || key === "created") {
+      // Sin fecha conocida (NaN): siempre al final, sea cual sea el sentido.
+      const col = key === "modified" ? modified : created;
+      const [x, y] = [col[a], col[b]];
+      if (x !== x || y !== y) {
+        if (x === x) return -1;
+        if (y === y) return 1;
+        return collator.compare(names[a], names[b]);
+      }
+    }
     let r = 0;
     switch (key) {
       case "modified": r = modified[a] - modified[b]; break;

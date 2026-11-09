@@ -14,9 +14,10 @@ import type { ContextPoint } from "../lib/contextMenu";
 import { columnsMenu } from "../lib/menus";
 import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
-import { basename, join, parent, samePath } from "../lib/path";
+import { VISIT_DWELL_MS } from "../lib/locations";
+import { COMPUTER, basename, join, parent, samePath } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
-import { effectiveView, isPinned } from "../lib/viewState";
+import { defaultSortDir, effectiveView, isPinned } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
 import { useClipboard } from "../stores/clipboard";
@@ -27,6 +28,7 @@ import { useSearch } from "../stores/search";
 import { useUi } from "../stores/ui";
 import { useViewer } from "../stores/viewer";
 import { filePosition, neighborIndex } from "../lib/viewerMath";
+import { ComputerView } from "./ComputerView";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileView } from "./FileView";
@@ -41,7 +43,7 @@ export function Pane() {
     viewMode: s.viewMode, iconSize: s.iconSize, sortKey: s.sortKey, sortDir: s.sortDir, groupBy: s.groupBy, folderViews: s.folderViews,
     showHidden: s.showHidden, columns: s.columns, loaded: s.loaded, thumbnails: s.thumbnails, previewPane: s.previewPane,
   })));
-  const { setView: setPrefsView, setPinned, applyViewToAll, pushRecent, update } = usePrefs.getState();
+  const { setView: setPrefsView, setPinned, applyViewToAll, visitFolder, update } = usePrefs.getState();
   const appReady = useApp((s) => s.ready);
   const hasStart = useApp((s) => s.places.length > 0 || s.drives.length > 0);
   const openMenu = useUi((s) => s.openMenu);
@@ -55,7 +57,10 @@ export function Pane() {
   const viewerExpanded = useViewer((s) => s.expanded);
   const orderRef = useRef<Entry[]>([]); // orden real en pantalla (con agrupación): lo mantiene FileView
 
-  const path = tab?.path ?? null;
+  const isComputer = tab?.path === COMPUTER;
+  const driveCount = useApp((s) => s.drives.length);
+  // «Mi equipo» no es una carpeta: sin ruta no se lee nada del disco y las acciones de archivo no hacen nada.
+  const path = isComputer ? null : tab?.path ?? null;
   const view = useMemo(() => effectiveView(p, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dir = useDirectory(path);
@@ -153,10 +158,20 @@ export function Pane() {
     setReveal(name);
   }, [revealReq, dir.status, path, visible]);
 
-  // Recientes: solo carpetas que se abrieron correctamente.
+  // Recientes: carpetas que el usuario abrió y en las que se detuvo. No cuentan la inicial, las recargas ni las de paso.
+  const visited = useRef(new Map<string, string>());
   useEffect(() => {
-    if (dir.status === "ready" && path) pushRecent(path);
-  }, [dir.status, path]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (dir.status !== "ready" || !path || !tab || tab.auto || visited.current.get(tab.id) === path) return;
+    const id = tab.id;
+    const t = setTimeout(() => {
+      visited.current.set(id, path);
+      visitFolder(path);
+    }, VISIT_DWELL_MS);
+    return () => clearTimeout(t);
+  }, [dir.status, path, tab?.id, tab?.auto]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshComputer = useCallback(() => void useApp.getState().refreshDrives().catch(() => {}), []);
+  const reload = isComputer ? refreshComputer : dir.reload;
 
   // ───────── vista ─────────
   // Modo y tamaño de icono → vista global (se conserva al navegar, al cambiar de unidad y al reiniciar);
@@ -164,7 +179,7 @@ export function Pane() {
   const setView = useCallback((patch: Partial<EffectiveView>) => path && setPrefsView(path, patch), [path, setPrefsView]);
   const pinned = useMemo(() => !!path && isPinned(p, path), [p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
-  const onSort = (k: SortKey) => setView(k === view.sortKey ? { sortDir: view.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: "asc" });
+  const onSort = (k: SortKey) => setView(k === view.sortKey ? { sortDir: view.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: defaultSortDir(k) });
   const onZoom = useCallback((d: 1 | -1) => setView(zoomStep(view, d)), [setView, view]);
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
 
@@ -248,8 +263,8 @@ export function Pane() {
   }, []);
 
   // ───────── atajos de archivo ─────────
-  const keys = useRef({ A, selected, view, dir });
-  keys.current = { A, selected, view, dir };
+  const keys = useRef({ A, selected, view, reload });
+  keys.current = { A, selected, view, reload };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -266,7 +281,7 @@ export function Pane() {
       const { A, selected } = keys.current;
       const ctrl = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
-      if (e.key === "F5") return e.preventDefault(), keys.current.dir.reload();
+      if (e.key === "F5") return e.preventDefault(), keys.current.reload();
       if (ctrl && !e.shiftKey && k === "c") return e.preventDefault(), A.copy();
       if (ctrl && !e.shiftKey && k === "x") return e.preventDefault(), A.cut();
       if (ctrl && !e.shiftKey && k === "v") return e.preventDefault(), A.paste();
@@ -294,7 +309,9 @@ export function Pane() {
       </EmptyState>
     );
   } else if (global) {
-    body = <SearchView basePath={tab?.path ?? ""} />;
+    body = <SearchView basePath={path ?? ""} />;
+  } else if (isComputer) {
+    body = <ComputerView />;
   } else if (dir.status === "error") {
     body = <EmptyState title="No se puede abrir la carpeta">{dir.error}</EmptyState>;
   } else if (!loading && !sorting && visible.length === 0) {
@@ -319,7 +336,7 @@ export function Pane() {
   return (
     <main className="main">
       <Toolbar
-        filter={filter} onFilter={setFilter} onReload={dir.reload}
+        filter={filter} onFilter={setFilter} onReload={reload}
         view={view} columns={p.columns} setView={setView} setColumns={setColumns} applyAll={() => path && applyViewToAll(path)} pinned={pinned} togglePin={togglePin}
         newFolder={() => void A.newFolder()} newFile={() => void A.newFile()}
       />
@@ -330,12 +347,12 @@ export function Pane() {
           <ErrorBoundary scope="panel" resetKey={global ? pickedHit?.path : `${tab?.path}|${A.sel.length === 1 ? A.sel[0].name : ""}`}>
             {(p.previewPane || viewerExpanded) && (global
               ? <PreviewPane entry={pickedHit ? hitToEntry(pickedHit) : null} basePath={pickedHit ? parent(pickedHit.path) ?? "" : ""} count={pickedHit ? 1 : 0} />
-              : tab && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
+              : tab && !isComputer && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
           </ErrorBoundary>
         </div>
       </div>
       <StatusBar
-        total={dir.entries.length - hiddenHere} shown={visible.length} selected={selCount} selectedBytes={selectedBytes}
+        total={isComputer ? driveCount : dir.entries.length - hiddenHere} shown={isComputer ? driveCount : visible.length} selected={selCount} selectedBytes={selectedBytes}
         loading={loading} sorting={sorting} filtered={filter.trim() !== "" || (!p.showHidden && hasHidden)}
         view={view} onLadder={(pos) => setView(ladderAt(pos, view.iconSize))} ladder={ladderPos(view)}
         info={global ? <SearchStatusInfo /> : undefined}

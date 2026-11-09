@@ -225,6 +225,7 @@ impl IndexStore for MemStore {
         found.sort_by(|a, b| {
             use std::cmp::Ordering::*;
             let dir = |o: std::cmp::Ordering| if pl.desc { o.reverse() } else { o };
+            let o_rev = |o: std::cmp::Ordering| o.reverse();
             let main = match pl.sort {
                 SortBy::Relevance => rank(&a.name_lc, &a.ext, &first)
                     .cmp(&rank(&b.name_lc, &b.ext, &first))
@@ -233,7 +234,9 @@ impl IndexStore for MemStore {
                     .then(a.name_lc.cmp(&b.name_lc)),
                 SortBy::Name => dir(a.name_lc.cmp(&b.name_lc)),
                 SortBy::Size => dir(a.size.min(i64::MAX as u64).cmp(&b.size.min(i64::MAX as u64))),
-                SortBy::Modified => dir(a.modified.cmp(&b.modified)), // None es el menor, igual que NULL en SQLite
+                // Sin fecha, siempre al final (igual que `sqlgen`): en ascendente hay que pedirlo.
+                SortBy::Modified if !pl.desc => a.modified.is_none().cmp(&b.modified.is_none()).then(a.modified.cmp(&b.modified)),
+                SortBy::Modified => o_rev(a.modified.cmp(&b.modified)),
             };
             match main {
                 Equal => a.key.cmp(&b.key),

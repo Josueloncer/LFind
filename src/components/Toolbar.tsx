@@ -7,7 +7,9 @@ import { thumbService } from "../lib/thumbService";
 import { newMenu, sortMenu, viewMenu } from "../lib/menus";
 import { crumbsFor, outcomeFor } from "../lib/addressBar";
 import type { Crumb as CrumbModel } from "../lib/addressBar";
-import { basename, parent, samePath } from "../lib/path";
+import { pinLabel } from "../lib/contextMenu";
+import { isPinned } from "../lib/locations";
+import { COMPUTER, basename, upOf } from "../lib/path";
 import { VIEW_LABEL } from "../lib/view";
 import type { EffectiveView } from "../lib/viewState";
 import { useDropTarget } from "../hooks/useDropTarget";
@@ -19,7 +21,7 @@ import { useSearch } from "../stores/search";
 import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import {
-  ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Plus, RotateCw, Rows3, Search, Star, Table2,
+  ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Pin, Plus, RotateCw, Rows3, Search, Table2,
 } from "./icons";
 
 const MODE_ICON = { details: Table2, list: List, tiles: LayoutGrid, content: Rows3, icons: Grid2x2 } as const;
@@ -93,10 +95,12 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const global = scope === "global";
 
   const path = tab?.path ?? "";
+  // Las acciones sobre carpetas no existen en «Mi equipo», que no es una carpeta.
+  const folder = path === COMPUTER ? "" : path;
   const crumbs: CrumbModel[] = path ? crumbsFor(path, usage) : [];
   const startEdit = () => {
     if (!path) return;
-    setDraft(path);
+    setDraft(folder);
     setInvalid(false);
     setEditing(true);
   };
@@ -114,7 +118,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
     if (editing) input.current?.select();
   }, [editing]);
 
-  const isFav = !!path && favorites.some((f) => samePath(f.path, path));
+  const isFav = !!folder && isPinned(favorites, folder);
   /**
    * Enter: la ruta se valida en Rust (existe, es accesible; con tiempo límite para rutas de red) SIN bloquear la interfaz.
    * Si no es válida se conserva la ubicación anterior y la barra sigue abierta con el mensaje. Si es válida se navega con
@@ -150,8 +154,8 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const subfolderMenu = async (ev: MouseEvent, p: string | null) => {
     const btn = ev.currentTarget as HTMLElement;
     const r = btn.getBoundingClientRect();
-    if (p === null) {
-      // «Este equipo»: no hay una vista propia; se ofrece la lista de unidades (datos ya en memoria, sin consultar nada).
+    if (p === null || p === COMPUTER) {
+      // «Mi equipo»: la lista de unidades (datos ya en memoria, sin consultar nada).
       openMenu(r.left, r.bottom + 4, drives.length
         ? drives.map((d): MenuItem => ({ kind: "item", label: crumbsFor(d.path, usage)[1]?.label ?? d.label, icon: "folder", run: () => navigate(d.path) }))
         : [{ kind: "header", label: "Sin unidades" }]);
@@ -189,7 +193,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         <span className="tb-sep" />
         <button className="ibtn" disabled={!tab?.back.length} title="Atrás (Alt+←) · clic derecho: historial" aria-label="Atrás" onClick={goBack} onContextMenu={(e) => history(e, "back")}><ArrowLeft /></button>
         <button className="ibtn" disabled={!tab?.forward.length} title="Adelante (Alt+→) · clic derecho: historial" aria-label="Adelante" onClick={goForward} onContextMenu={(e) => history(e, "forward")}><ArrowRight /></button>
-        <button className="ibtn" disabled={!path || !parent(path)} title="Subir un nivel (Alt+↑)" aria-label="Subir un nivel" onClick={goUp}><ArrowUp /></button>
+        <button className="ibtn" disabled={!path || !upOf(path)} title="Subir un nivel (Alt+↑)" aria-label="Subir un nivel" onClick={goUp}><ArrowUp /></button>
       </div>
 
       <div className="crumbs">
@@ -215,9 +219,9 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
       </div>
 
       <div className="tb-group">
-        <button className="tbtn" disabled={!path} title="Crear una carpeta o un archivo nuevo" onClick={(e) => below(e, newMenu({ newFolder, newFile }))}><Plus /><span className="tb-label">Nuevo</span></button>
-        <button className="tbtn" disabled={!path} title="Ordenar y agrupar" onClick={(e) => below(e, sortMenu(view, { setView }))}><ArrowUpDown /><span className="tb-label">Ordenar</span></button>
-        <button className="tbtn" disabled={!path} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll, pinned, togglePin }, {
+        <button className="tbtn" disabled={!folder} title="Crear una carpeta o un archivo nuevo" onClick={(e) => below(e, newMenu({ newFolder, newFile }))}><Plus /><span className="tb-label">Nuevo</span></button>
+        <button className="tbtn" disabled={!folder} title="Ordenar y agrupar" onClick={(e) => below(e, sortMenu(view, { setView }))}><ArrowUpDown /><span className="tb-label">Ordenar</span></button>
+        <button className="tbtn" disabled={!folder} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll, pinned, togglePin }, {
           thumbnails,
           toggleThumbnails: () => update({ thumbnails: !thumbnails }),
           systemIcons,
@@ -228,7 +232,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         }))}><ModeIcon /><span className="tb-label">Ver</span></button>
         <span className="tb-sep tb-hide-narrow" />
         <button className="ibtn tb-hide-narrow" aria-pressed={showHidden} title={showHidden ? "Ocultar elementos ocultos" : "Mostrar elementos ocultos"} aria-label="Elementos ocultos" onClick={() => update({ showHidden: !showHidden })}>{showHidden ? <Eye /> : <EyeOff />}</button>
-        <button className="ibtn tb-hide-narrow" disabled={!path} aria-pressed={isFav} title={isFav ? "Quitar de favoritos" : "Añadir carpeta a favoritos"} aria-label="Favorito" onClick={() => toggleFavorite(path, basename(path))}><Star fill={isFav ? "currentColor" : "none"} /></button>
+        <button className="ibtn tb-hide-narrow" disabled={!folder} aria-pressed={isFav} title={pinLabel(isFav)} aria-label={pinLabel(isFav)} onClick={() => toggleFavorite(folder, basename(folder))}><Pin fill={isFav ? "currentColor" : "none"} /></button>
         <button className="ibtn tb-hide-narrow" aria-pressed={previewPane} title="Panel de vista previa (Alt+P)" aria-label="Panel de vista previa" onClick={() => update({ previewPane: !previewPane })}><PanelRight /></button>
         <span className="tb-sep" />
         <button

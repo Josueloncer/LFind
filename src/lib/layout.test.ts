@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Entry } from "./fs";
 import { groupOf } from "./group";
 import { buildLayout } from "./layout";
-import { MAX_FOLDER_VIEWS, applyViewChange, effectiveView, folderKey, isPinned, withFolderView, withPinned, withRecent } from "./viewState";
+import { MAX_FOLDER_VIEWS, applyViewChange, effectiveView, folderKey, isPinned, withFolderView, withPinned } from "./viewState";
 import { canDropInto, dropOperation } from "./dnd";
 import { isInside, rootOf } from "./path";
 
@@ -76,12 +76,7 @@ describe("vista por carpeta", () => {
     expect(fv[fv.length - 1].path).toBe(`C:\\d${MAX_FOLDER_VIEWS + 19}`);
   });
 
-  it("recientes: sin duplicados, más nuevo primero, tope", () => {
-    let r: string[] = [];
-    for (const p of ["C:\\a", "C:\\b", "c:\\A\\"]) r = withRecent(r, p);
-    expect(r).toEqual(["c:\\A\\", "C:\\b"]);
-    for (let i = 0; i < 40; i++) r = withRecent(r, `C:\\x${i}`);
-    expect(r).toHaveLength(15);
+  it("la clave de carpeta no distingue mayúsculas ni barra final", () => {
     expect(folderKey("C:\\Dir\\")).toBe("c:\\dir");
   });
 });
@@ -135,11 +130,18 @@ describe("persistencia de vistas (actualización 03, opción A)", () => {
     expect(effectiveView(back, "D:\\Otra")).toMatchObject({ viewMode: "tiles", iconSize: 80 });
   });
 
-  it("el orden y la agrupación siguen siendo por carpeta", () => {
-    const p = change(base, "C:\\A", { sortKey: "size", groupBy: "type" });
-    expect(effectiveView(p, "C:\\A")).toMatchObject({ sortKey: "size", groupBy: "type" });
-    expect(effectiveView(p, "C:\\B")).toMatchObject({ sortKey: "name", groupBy: "none" });
+  it("el orden se recuerda por carpeta y además se mantiene al navegar a carpetas sin orden propio", () => {
+    const p = change(base, "C:\\A", { sortKey: "size", sortDir: "desc", groupBy: "type" });
+    expect(effectiveView(p, "C:\\A")).toMatchObject({ sortKey: "size", sortDir: "desc", groupBy: "type" });
+    expect(effectiveView(p, "C:\\B")).toMatchObject({ sortKey: "size", sortDir: "desc", groupBy: "none" });
     expect(p.viewMode).toBe("details");
+  });
+
+  it("una carpeta con orden propio lo conserva aunque cambie el de otra", () => {
+    let p = change(base, "C:\\A", { sortKey: "size", sortDir: "desc" });
+    p = change(p, "C:\\B", { sortKey: "modified", sortDir: "desc" });
+    expect(effectiveView(p, "C:\\A")).toMatchObject({ sortKey: "size" });
+    expect(effectiveView(p, "C:\\C")).toMatchObject({ sortKey: "modified" });
   });
 
   it("fijar congela la vista actual de esa carpeta y los cambios globales ya no la alcanzan", () => {

@@ -135,7 +135,8 @@ pub fn classify(path: &Path, dir: bool) -> Source {
         }
     } else {
         let e = ext_of(path);
-        if PER_FILE_EXTS.contains(&e.as_str()) {
+        // Leer el icono propio de un archivo que solo está en la nube lo descargaría: se usa el del tipo.
+        if PER_FILE_EXTS.contains(&e.as_str()) && !fs::metadata(path).is_ok_and(|m| crate::dir::is_cloud_only(&m)) {
             Source::Path { path: path.to_path_buf(), dir: false }
         } else {
             Source::Type { ext: e, dir: false }

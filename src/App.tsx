@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ContextMenu } from "./components/ContextMenu";
 import { Dialogs } from "./components/Dialogs";
 import { GlyphDefs } from "./components/Glyphs";
@@ -7,17 +7,21 @@ import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { Overlays } from "./components/Transfers";
 import { fs } from "./lib/fs";
+import { canonicalKey } from "./lib/path";
 import { mark } from "./lib/perf";
 import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
+import { usePathHealth } from "./stores/pathHealth";
 import { useIndex } from "./stores/indexStatus";
 import { usePrefs } from "./stores/prefs";
 import { useSearch } from "./stores/search";
 import { useUpdate } from "./stores/update";
 
 const UPDATE_CHECK_DELAY_MS = 8000;
+const PATH_CHECK_DELAY_MS = 2500;
+const FOCUS_RECHECK_MS = 60_000;
 
 const cache = (k: string, v: string) => {
   try {
@@ -61,6 +65,36 @@ export default function App() {
   useEffect(() => {
     if (ready) loadUsage();
   }, [ready, opsVersion, loadUsage]);
+
+  // Unidades que aparecen o desaparecen, y carpetas de OneDrive (lectura rápida del registro, después del arranque).
+  useEffect(() => {
+    if (!ready) return;
+    useApp.getState().loadCloud();
+    return useApp.getState().watchDrives();
+  }, [ready]);
+
+  // Rutas guardadas: se comprueban en reposo tras arrancar, cuando cambian los accesos fijados y tras cada operación.
+  const pinKeys = usePrefs((s) => s.favorites.map((f) => canonicalKey(f.path)).join("|"));
+  const firstCheck = useRef(true);
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => void usePathHealth.getState().check(), firstCheck.current ? PATH_CHECK_DELAY_MS : 300);
+    firstCheck.current = false;
+    return () => clearTimeout(t);
+  }, [loaded, pinKeys, opsVersion]);
+
+  // Al volver a la ventana puede haber cambiado algo fuera de LFind; como mucho una vez por minuto.
+  useEffect(() => {
+    let last = Date.now();
+    const onFocus = () => {
+      if (Date.now() - last < FOCUS_RECHECK_MS) return;
+      last = Date.now();
+      void usePathHealth.getState().check();
+      useApp.getState().loadCloud();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   // Carpeta inicial: la primera ubicación real disponible.
   useEffect(() => {

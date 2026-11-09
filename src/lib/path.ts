@@ -3,6 +3,20 @@
 const isWin = (p: string) => /^[A-Za-z]:/.test(p) || p.startsWith("\\\\") || p.includes("\\");
 const sepOf = (p: string) => (isWin(p) ? "\\" : "/");
 
+/** Ruta virtual de la vista «Mi equipo»: se navega a ella como a una carpeta, pero no existe en disco. */
+export const COMPUTER = "lfind://computer";
+
+export const isDriveRoot = (p: string): boolean => /^[A-Za-z]:[\\/]*$/.test(p);
+
+/** Clave de comparación: sin distinguir mayúsculas, tipo de barra ni barra final. */
+export function canonicalKey(p: string): string {
+  if (!isWin(p)) return p.replace(/\/+$/, "") || p;
+  return p.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+}
+
+/** A dónde lleva «subir»: la carpeta contenedora o, desde la raíz de una unidad, Mi equipo. */
+export const upOf = (p: string): string | null => (p === COMPUTER ? null : parent(p) ?? (isDriveRoot(p) ? COMPUTER : null));
+
 export function join(base: string, name: string): string {
   const s = sepOf(base);
   return base.endsWith(s) ? base + name : base + s + name;
@@ -10,6 +24,7 @@ export function join(base: string, name: string): string {
 
 /** Carpeta contenedora, o `null` si ya estamos en la raíz. */
 export function parent(p: string): string | null {
+  if (p === COMPUTER) return null;
   if (sepOf(p) === "\\") {
     const t = p.replace(/\\+$/, "");
     if (/^[A-Za-z]:$/.test(t)) return null;
@@ -27,6 +42,7 @@ export function parent(p: string): string | null {
 }
 
 export function basename(p: string): string {
+  if (p === COMPUTER) return "Mi equipo";
   const t = p.replace(/[\\/]+$/, "");
   if (/^[A-Za-z]:$/.test(t)) return t;
   if (t === "") return "/";
@@ -60,13 +76,7 @@ export function segments(p: string): Segment[] {
   return out;
 }
 
-export function samePath(a: string, b: string): boolean {
-  const norm = (x: string) => {
-    const t = x.length > 3 ? x.replace(/[\\/]+$/, "") : x;
-    return isWin(x) ? t.toLowerCase() : t;
-  };
-  return norm(a) === norm(b);
-}
+export const samePath = (a: string, b: string): boolean => canonicalKey(a) === canonicalKey(b);
 
 /** Raíz de la unidad (`c:`, `\\\\srv\\share`, `/`), en minúsculas. Sirve para saber si dos rutas están en la misma unidad. */
 export function rootOf(p: string): string {

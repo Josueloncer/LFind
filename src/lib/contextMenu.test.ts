@@ -26,7 +26,7 @@ describe("menú contextual propio", () => {
   });
   it("carpeta: pestaña nueva, terminal, pegar dentro, anclar", () => {
     const l = labels(buildContextMenu(state([dir("d")]), actions()));
-    expect(l).toEqual(expect.arrayContaining(["Abrir en una pestaña nueva", "Abrir terminal aquí", "Pegar en la carpeta", "Anclar a favoritos"]));
+    expect(l).toEqual(expect.arrayContaining(["Abrir en una pestaña nueva", "Abrir terminal aquí", "Pegar en la carpeta", "Fijar en Ubicaciones"]));
     expect(l).not.toContain("Abrir con…");
   });
   it("archivo comprimido: ofrece extraer", () => {

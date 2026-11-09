@@ -1,5 +1,12 @@
 # LFind — Registro de cambios
 
+## Update 09: navegación y organización de carpetas
+- Recientes muestra solo las carpetas que has visitado de verdad, sin repetidas y con las últimas primero. Puedes quitar una o limpiar el historial.
+- Fija cualquier carpeta en Ubicaciones con clic derecho, cámbiale el nombre visible y reordénala arrastrándola. Si una carpeta fijada desaparece, se marca sin borrarla.
+- OneDrive aparece en la barra lateral, con una entrada por cada cuenta. Los archivos que solo están en la nube se distinguen y LFind no los descarga por mostrarlos.
+- Nueva vista «Mi equipo» con todas las unidades, su tipo y su espacio libre. Se actualiza sola al conectar o retirar una unidad.
+- Ordenar por fecha o tamaño empieza por lo más reciente o lo más grande, y el orden elegido se mantiene al navegar.
+
 ## Update 08: actualizaciones automáticas
 - Nueva opción «Buscar actualizaciones» en la barra lateral: muestra la versión instalada, la nueva, las novedades y el progreso real de descarga, que se puede cancelar.
 - LFind comprueba al iniciar si hay una versión nueva y solo avisa: nunca descarga nada sin tu permiso. Se puede desactivar.

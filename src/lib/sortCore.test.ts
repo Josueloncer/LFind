@@ -2,6 +2,28 @@ import { describe, expect, it } from "vitest";
 import type { Entry, SortDir, SortKey } from "./fs";
 import { applyPermutation, sortEntries, toRequest } from "./sort";
 import { handleSortRequest } from "./sortCore";
+import { defaultSortDir } from "./viewState";
+
+describe("orden por fecha y sentido por defecto", () => {
+  const e = (name: string, modified: number | null, kind: "file" | "dir" = "file") => ({ name, kind, size: 0, modified, created: modified, hidden: false, ext: null, link: false });
+  const names = (l: { name: string }[]) => l.map((x) => x.name);
+  const list = [e("viejo", 100), e("sin", null), e("nuevo", 300), e("medio", 200), e("carpeta", 1, "dir")];
+
+  it("más recientes primero al descender, carpetas arriba y sin fecha al final", () => {
+    expect(names(sortEntries(list, "modified", "desc"))).toEqual(["carpeta", "nuevo", "medio", "viejo", "sin"]);
+    expect(names(sortEntries(list, "created", "desc"))).toEqual(["carpeta", "nuevo", "medio", "viejo", "sin"]);
+  });
+  it("al invertir, lo que no tiene fecha sigue al final", () => {
+    expect(names(sortEntries(list, "modified", "asc"))).toEqual(["carpeta", "viejo", "medio", "nuevo", "sin"]);
+  });
+  it("no depende del orden de llegada", () => {
+    const rev = [...list].reverse();
+    expect(names(sortEntries(rev, "modified", "desc"))).toEqual(names(sortEntries(list, "modified", "desc")));
+  });
+  it("cada columna tiene su sentido natural", () => {
+    expect([defaultSortDir("modified"), defaultSortDir("created"), defaultSortDir("size"), defaultSortDir("name"), defaultSortDir("kind")]).toEqual(["desc", "desc", "desc", "asc", "asc"]);
+  });
+});
 
 // Datos pseudoaleatorios deterministas (sin dependencias).
 function lcg(seed: number) {

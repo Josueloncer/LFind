@@ -15,8 +15,8 @@ export function toColumns(list: Entry[], key: SortKey): SortColumns {
     names[i] = e.name;
     isDir[i] = e.kind === "dir" ? 1 : 0;
     size[i] = e.size;
-    modified[i] = e.modified ?? 0;
-    created[i] = e.created ?? 0;
+    modified[i] = e.modified ?? NaN; // sin fecha: lo resuelve el comparador
+    created[i] = e.created ?? NaN;
   }
   // La etiqueta de tipo se calcula una vez por entrada, no en cada comparación.
   return { names, isDir, size, modified, created, kinds: key === "kind" ? list.map(kindLabel) : null };

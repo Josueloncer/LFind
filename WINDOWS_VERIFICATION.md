@@ -222,3 +222,9 @@ Si algo falla, lo más probable (en orden):
 
 **Regresión de la actualización 02**
 - [ ] Selección por rectángulo, miniaturas de imágenes, panel de vista previa (Alt+P), cola de operaciones, atajos Ctrl+L / Ctrl+F.
+
+## Update 09: comprobación pendiente con hardware real
+Ya verificado en Windows 11 con una instalación aislada (ver [UPDATE09_PROGRESS.md](UPDATE09_PROGRESS.md)). Falta comprobar:
+- Una cuenta de OneDrive de empresa.
+- Un USB al conectarlo y retirarlo, y un lector sin medio.
+- Una unidad de red desconectada.

@@ -66,6 +66,12 @@ export { default as SlidersHorizontal } from "lucide-react/dist/esm/icons/slider
 export { default as Database } from "lucide-react/dist/esm/icons/database.js";
 export { default as TriangleAlert } from "lucide-react/dist/esm/icons/triangle-alert.js";
 export { default as CircleArrowUp } from "lucide-react/dist/esm/icons/circle-arrow-up.js";
+// Navegación: nube, tipos de unidad y accesos fijados.
+export { default as Cloud } from "lucide-react/dist/esm/icons/cloud.js";
+export { default as Usb } from "lucide-react/dist/esm/icons/usb.js";
+export { default as Network } from "lucide-react/dist/esm/icons/network.js";
+export { default as Disc3 } from "lucide-react/dist/esm/icons/disc-3.js";
+export { default as Pin } from "lucide-react/dist/esm/icons/pin.js";
 // Visor (Update 07).
 export { default as Maximize2 } from "lucide-react/dist/esm/icons/maximize-2.js";
 export { default as Minimize2 } from "lucide-react/dist/esm/icons/minimize-2.js";

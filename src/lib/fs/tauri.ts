@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, UpdateEvent, UpdateInfo, ViewerSource,
+  DirEvent, DirHandle, PathState, Place, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, UpdateEvent, UpdateInfo, ViewerSource,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -34,6 +34,12 @@ export class TauriProvider implements FsProvider {
   getPlaces(): Promise<PlacesInfo> {
     return invoke<PlacesInfo>("get_places");
   }
+
+  getCloudPlaces = () => invoke<Place[]>("get_cloud_places");
+  getDrives = () => invoke<Place[]>("get_drives");
+  drivesMask = () => invoke<number>("drives_mask");
+  checkPaths = (paths: string[]) => invoke<PathState[]>("check_paths", { paths });
+  cloudOnly = (paths: string[]) => invoke<boolean[]>("cloud_only", { paths });
 
   async loadPrefs(): Promise<Prefs> {
     return { ...DEFAULT_PREFS, ...(await invoke<Partial<Prefs>>("get_prefs")) };

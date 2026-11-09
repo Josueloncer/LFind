@@ -210,6 +210,9 @@ impl ViewerService {
         if !meta.is_file() {
             return Ok(unsupported("Las carpetas no tienen vista previa."));
         }
+        if crate::dir::is_cloud_only(&meta) {
+            return Ok(unsupported("Este archivo está solo en la nube. Para no descargarlo sin tu permiso no se previsualiza; ábrelo para descargarlo."));
+        }
         let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
         let mut head = vec![0u8; SNIFF_BYTES];
         let n = File::open(path).and_then(|mut f| f.read(&mut head)).map_err(|e| crate::ops::classify(&e).1)?;

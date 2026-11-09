@@ -12,7 +12,7 @@
 //! Declarado a mano (sin la crate `windows`), como el resto de llamadas nativas. Cada llamada corre en un hilo
 //! del servicio con su propio COM STA (ver `icons::IconService`), con tiempo límite y sin bloquear la interfaz.
 
-use crate::icons::{IconProvider, RawIcon};
+use crate::icons::{without_corner_padding, IconProvider, RawIcon};
 use std::ffi::c_void;
 use std::path::Path;
 use std::ptr::null_mut;
@@ -205,7 +205,7 @@ unsafe fn icon_for(name: &str, attrs: u32, flags: u32, px: u32) -> Result<RawIco
         }
         let out = hicon_to_rgba(hicon);
         DestroyIcon(hicon);
-        return out;
+        return out.map(without_corner_padding);
     }
     Err(last)
 }

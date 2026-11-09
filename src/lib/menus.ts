@@ -1,7 +1,7 @@
 import type { Column, GroupBy, SortDir, SortKey, ViewMode } from "./fs";
 import { GROUP_LABEL } from "./group";
 import { ICON_PRESETS, VIEW_LABEL } from "./view";
-import { defaultSortDir } from "./viewState";
+import { nextSort } from "./viewState";
 import type { EffectiveView } from "./viewState";
 import type { MenuItem } from "../stores/ui";
 
@@ -68,13 +68,21 @@ export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t:
 
 const SORTS: [SortKey, string][] = [["name", "Nombre"], ["kind", "Tipo"], ["size", "Tamaño"], ["modified", "Fecha de modificación"], ["created", "Fecha de creación"]];
 
+/** Texto del orden vigente: criterio y qué queda arriba. */
+export function sortDescription(v: Pick<EffectiveView, "sortKey" | "sortDir">): string {
+  const label = SORTS.find(([k]) => k === v.sortKey)?.[1] ?? "";
+  const up = v.sortDir === "asc";
+  const end = v.sortKey === "modified" || v.sortKey === "created" ? (up ? "más antiguo primero" : "más reciente primero") : v.sortKey === "size" ? (up ? "más pequeño primero" : "más grande primero") : up ? "de la A a la Z" : "de la Z a la A";
+  return `${label}: ${end}`;
+}
+
 export function sortMenu(v: EffectiveView, a: Pick<ViewActions, "setView">): MenuItem[] {
   const dir = (d: SortDir, label: string): MenuItem => ({ kind: "item", label, checked: v.sortDir === d, run: () => a.setView({ sortDir: d }) });
   const group = (g: GroupBy): MenuItem => ({ kind: "item", label: GROUP_LABEL[g], checked: v.groupBy === g, run: () => a.setView({ groupBy: g }) });
   return [
     { kind: "header", label: "Ordenar por" },
-    // Elegir otra columna usa su sentido natural; volver a elegir la actual no cambia nada.
-    ...SORTS.map(([k, label]): MenuItem => ({ kind: "item", label, checked: v.sortKey === k, run: () => a.setView({ sortKey: k, sortDir: k === v.sortKey ? v.sortDir : defaultSortDir(k) }) })),
+    // Elegir otra columna usa su sentido natural; volver a elegir la actual lo invierte. La flecha indica el sentido vigente.
+    ...SORTS.map(([k, label]): MenuItem => ({ kind: "item", label, checked: v.sortKey === k, shortcut: v.sortKey === k ? (v.sortDir === "asc" ? "↑" : "↓") : undefined, run: () => a.setView(nextSort(v, k)) })),
     { kind: "sep" },
     dir("asc", "Ascendente"),
     dir("desc", "Descendente"),

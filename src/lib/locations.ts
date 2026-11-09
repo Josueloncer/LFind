@@ -57,6 +57,12 @@ export function renamePin(pins: readonly Favorite[], path: string, label: string
 export const canMovePin = (count: number, from: number, before: number): boolean =>
   Number.isInteger(from) && Number.isInteger(before) && from >= 0 && from < count && before >= 0 && before <= count && before !== from && before !== from + 1;
 
+/** Posición de inserción según la altura del puntero: delante de la primera fila cuyo centro queda por debajo. */
+export function insertionFromY(centers: readonly number[], y: number): number {
+  const i = centers.findIndex((c) => y < c);
+  return i < 0 ? centers.length : i;
+}
+
 /** Coloca el elemento `from` delante del que está ahora en `before` (`pins.length` = al final). */
 export function movePin(pins: readonly Favorite[], from: number, before: number): readonly Favorite[] {
   if (!canMovePin(pins.length, from, before)) return pins;

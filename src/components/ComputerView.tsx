@@ -6,6 +6,7 @@ import { formatBytes } from "../lib/format";
 import type { DriveUsage, Place } from "../lib/fs";
 import { driveKindLabel, groupDrives, isPinned, usedPercent } from "../lib/locations";
 import { useApp } from "../stores/app";
+import { useStorage } from "../stores/storage";
 import { copyText } from "../stores/clipboard";
 import { useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
@@ -32,6 +33,7 @@ export function openDriveMenu(ev: MouseEvent, d: Place, label: string) {
     togglePin: () => prefs.toggleFavorite(d.path, label),
     copyPath: () => void copyText(d.path).then((ok) => ui.toast(ok ? "Ruta copiada" : "No se pudo copiar al portapapeles", ok ? "success" : "error")),
     properties: () => ui.openDialog({ type: "properties", paths: [d.path] }),
+    analyze: () => useStorage.getState().analyze(d.path),
   }));
 }
 

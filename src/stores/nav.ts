@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { samePath, upOf } from "../lib/path";
+import { moveByKey } from "../lib/reorder";
 
 export interface Tab {
   id: string;
@@ -17,6 +18,7 @@ interface NavState {
   openTab(path?: string): void;
   closeTab(id: string): void;
   setActive(id: string): void;
+  moveTab(id: string, before: string | null): void;
   navigate(path: string): void;
   goBack(): void;
   goForward(): void;
@@ -59,6 +61,8 @@ export const useNav = create<NavState>((set, get) => ({
   },
 
   setActive: (id) => set({ activeId: id }),
+
+  moveTab: (id, before) => set((s) => ({ tabs: [...moveByKey(s.tabs, (t) => t.id, id, before)] })),
 
   navigate(path) {
     set((s) =>

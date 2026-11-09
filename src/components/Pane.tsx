@@ -15,9 +15,9 @@ import { columnsMenu } from "../lib/menus";
 import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
 import { VISIT_DWELL_MS } from "../lib/locations";
-import { COMPUTER, basename, join, parent, samePath } from "../lib/path";
+import { COMPUTER, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
-import { defaultSortDir, effectiveView, isPinned } from "../lib/viewState";
+import { effectiveView, isPinned, nextSort } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
 import { useClipboard } from "../stores/clipboard";
@@ -25,6 +25,7 @@ import { selectActiveTab, useNav } from "../stores/nav";
 import { pathKey, useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
 import { useSearch } from "../stores/search";
+import { useStorage } from "../stores/storage";
 import { useUi } from "../stores/ui";
 import { useViewer } from "../stores/viewer";
 import { filePosition, neighborIndex } from "../lib/viewerMath";
@@ -35,6 +36,7 @@ import { FileView } from "./FileView";
 import { PreviewPane } from "./PreviewPane";
 import { SearchStatusInfo, SearchView } from "./SearchView";
 import { StatusBar } from "./StatusBar";
+import { StorageStatusInfo, StorageView } from "./StorageView";
 import { Toolbar } from "./Toolbar";
 
 export function Pane() {
@@ -60,7 +62,8 @@ export function Pane() {
   const isComputer = tab?.path === COMPUTER;
   const driveCount = useApp((s) => s.drives.length);
   // «Mi equipo» no es una carpeta: sin ruta no se lee nada del disco y las acciones de archivo no hacen nada.
-  const path = isComputer ? null : tab?.path ?? null;
+  const storage = !!tab && isStorage(tab.path);
+  const path = !tab || isVirtual(tab.path) ? null : tab.path;
   const view = useMemo(() => effectiveView(p, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dir = useDirectory(path);
@@ -171,7 +174,8 @@ export function Pane() {
   }, [dir.status, path, tab?.id, tab?.auto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshComputer = useCallback(() => void useApp.getState().refreshDrives().catch(() => {}), []);
-  const reload = isComputer ? refreshComputer : dir.reload;
+  const refreshStorage = useCallback(() => useStorage.getState().refresh(), []);
+  const reload = isComputer ? refreshComputer : storage ? refreshStorage : dir.reload;
 
   // ───────── vista ─────────
   // Modo y tamaño de icono → vista global (se conserva al navegar, al cambiar de unidad y al reiniciar);
@@ -179,7 +183,7 @@ export function Pane() {
   const setView = useCallback((patch: Partial<EffectiveView>) => path && setPrefsView(path, patch), [path, setPrefsView]);
   const pinned = useMemo(() => !!path && isPinned(p, path), [p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
-  const onSort = (k: SortKey) => setView(k === view.sortKey ? { sortDir: view.sortDir === "asc" ? "desc" : "asc" } : { sortKey: k, sortDir: defaultSortDir(k) });
+  const onSort = (k: SortKey) => setView(nextSort(view, k));
   const onZoom = useCallback((d: 1 | -1) => setView(zoomStep(view, d)), [setView, view]);
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
 
@@ -206,6 +210,7 @@ export function Pane() {
         openFolderInExplorer: () => void A.openFolderInExplorer(),
         reload: dir.reload,
         setView,
+        analyze: (t) => useStorage.getState().analyze(t ? join(path, t.name) : path),
       },
     );
     openMenu(ev.clientX, ev.clientY, items);
@@ -312,6 +317,9 @@ export function Pane() {
     body = <SearchView basePath={path ?? ""} />;
   } else if (isComputer) {
     body = <ComputerView />;
+  } else if (storage) {
+    const r = parseStorageRoute(tab.path);
+    body = <StorageView root={r.root} at={r.at} />;
   } else if (dir.status === "error") {
     body = <EmptyState title="No se puede abrir la carpeta">{dir.error}</EmptyState>;
   } else if (!loading && !sorting && visible.length === 0) {
@@ -347,7 +355,7 @@ export function Pane() {
           <ErrorBoundary scope="panel" resetKey={global ? pickedHit?.path : `${tab?.path}|${A.sel.length === 1 ? A.sel[0].name : ""}`}>
             {(p.previewPane || viewerExpanded) && (global
               ? <PreviewPane entry={pickedHit ? hitToEntry(pickedHit) : null} basePath={pickedHit ? parent(pickedHit.path) ?? "" : ""} count={pickedHit ? 1 : 0} />
-              : tab && !isComputer && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
+              : tab && path && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
           </ErrorBoundary>
         </div>
       </div>
@@ -355,7 +363,7 @@ export function Pane() {
         total={isComputer ? driveCount : dir.entries.length - hiddenHere} shown={isComputer ? driveCount : visible.length} selected={selCount} selectedBytes={selectedBytes}
         loading={loading} sorting={sorting} filtered={filter.trim() !== "" || (!p.showHidden && hasHidden)}
         view={view} onLadder={(pos) => setView(ladderAt(pos, view.iconSize))} ladder={ladderPos(view)}
-        info={global ? <SearchStatusInfo /> : undefined}
+        info={global ? <SearchStatusInfo /> : storage ? <StorageStatusInfo /> : undefined}
       />
     </main>
   );

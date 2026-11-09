@@ -75,6 +75,8 @@ pub const MAX_RECENTS: usize = 15;
 pub const MAX_FOLDER_VIEWS: usize = 300;
 pub const MAX_FAVORITES: usize = 100;
 pub const CURRENT_VERSION: u32 = 3;
+const MAX_LAYOUT_ITEMS: usize = 128;
+const MAX_LAYOUT_ID: usize = 1024;
 
 /// Carpeta del historial. El orden de la lista es de más a menos reciente.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -107,6 +109,36 @@ pub struct Favorite {
     pub label: String,
 }
 
+/// Distribución personalizada de la interfaz. Listas de identificadores estables; vacías, la distribución original.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Layout {
+    pub sections: Vec<String>,
+    pub places: Vec<String>,
+    pub drives: Vec<String>,
+    pub toolbar: Vec<String>,
+    pub hidden_tools: Vec<String>,
+}
+
+impl Layout {
+    fn sanitize(&mut self) {
+        for list in [&mut self.sections, &mut self.places, &mut self.drives, &mut self.toolbar, &mut self.hidden_tools] {
+            list.truncate(MAX_LAYOUT_ITEMS);
+            let mut seen = vec![];
+            list.retain(|s| s.len() <= MAX_LAYOUT_ID && !seen.contains(s) && {
+                seen.push(s.clone());
+                true
+            });
+        }
+    }
+}
+
+/// Una distribución dañada no invalida el archivo: se pierde solo ella, nunca las ubicaciones fijadas ni el resto.
+fn lenient_layout<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Layout, D::Error> {
+    let v = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(v).unwrap_or_default())
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
@@ -136,6 +168,9 @@ pub struct Prefs {
     pub auto_update_check: bool,
     /// Última comprobación automática (milisegundos epoch), para no repetirla en cada arranque.
     pub last_update_check: i64,
+    /// Distribución de barras y secciones. Campo añadido sin cambiar la versión: un archivo sin él usa la distribución original.
+    #[serde(deserialize_with = "lenient_layout")]
+    pub layout: Layout,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
     #[serde(default = "zero")]
     pub version: u32,
@@ -171,6 +206,7 @@ impl Prefs {
         for f in &mut self.folder_views {
             f.icon_size = f.icon_size.clamp(16, 512);
         }
+        self.layout.sanitize();
         let mut seen = vec![];
         self.columns.retain(|c| !seen.contains(c) && { seen.push(*c); true });
     }
@@ -220,6 +256,7 @@ impl Default for Prefs {
             preview_width: 320,
             auto_update_check: true,
             last_update_check: 0,
+            layout: Layout::default(),
             version: CURRENT_VERSION,
         }
     }
@@ -265,6 +302,49 @@ mod tests {
         let p = std::env::temp_dir().join(format!("nova-prefs-{}-{}", n, std::process::id()));
         let _ = fs::remove_dir_all(&p);
         p
+    }
+
+    #[test]
+    fn files_without_layout_keep_everything_and_use_the_original_layout() {
+        let d = dir("layout-old");
+        let f = d.join("prefs.json");
+        fs::create_dir_all(&d).unwrap();
+        fs::write(&f, r#"{"version":3,"theme":"hacker","favorites":[{"path":"C:\\A","label":"Mi A"}]}"#).unwrap();
+        let p = load(&f);
+        assert_eq!(p.layout, Layout::default());
+        assert_eq!((p.theme, p.favorites.len(), p.favorites[0].label.as_str(), p.version), (Theme::Hacker, 1, "Mi A", CURRENT_VERSION));
+    }
+
+    #[test]
+    fn a_damaged_layout_never_loses_the_rest() {
+        let d = dir("layout-bad");
+        let f = d.join("prefs.json");
+        fs::create_dir_all(&d).unwrap();
+        for bad in ["3", "\"x\"", "[]", "null", r#"{"sections":7}"#, r#"{"toolbar":[1,2]}"#] {
+            fs::write(&f, format!(r#"{{"version":3,"favorites":[{{"path":"C:\\A","label":"Mi A"}}],"layout":{bad}}}"#)).unwrap();
+            let p = load(&f);
+            assert_eq!(p.favorites.len(), 1, "layout dañado: {bad}");
+            assert_eq!(p.layout, Layout::default());
+            assert!(!f.with_extension("json.bak").exists(), "no se trata como archivo corrupto");
+        }
+    }
+
+    #[test]
+    fn layout_round_trip_and_limits() {
+        let d = dir("layout-save");
+        let f = d.join("prefs.json");
+        let mut p = Prefs::default();
+        p.layout.sections = vec!["computer".into(), "computer".into(), "locations".into()];
+        p.layout.hidden_tools = vec!["new".into(), "x".repeat(MAX_LAYOUT_ID + 1)];
+        p.layout.toolbar = (0..MAX_LAYOUT_ITEMS + 9).map(|i| i.to_string()).collect();
+        save(&f, &p).unwrap();
+        let q = load(&f);
+        assert_eq!(q.layout.sections, ["computer", "locations"]);
+        assert_eq!(q.layout.hidden_tools, ["new"]);
+        assert_eq!(q.layout.toolbar.len(), MAX_LAYOUT_ITEMS);
+        assert_eq!(q.version, CURRENT_VERSION);
+        let raw = fs::read_to_string(&f).unwrap();
+        assert!(raw.contains("hiddenTools"), "se guarda en camelCase, como lo lee la interfaz");
     }
 
     #[test]

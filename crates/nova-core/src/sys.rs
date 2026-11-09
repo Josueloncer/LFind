@@ -19,6 +19,8 @@ pub mod win {
             flags: *mut u32, fs_name: *mut u16, fs_len: u32,
         ) -> i32;
         pub fn SetFileAttributesW(path: *const u16, attrs: u32) -> i32;
+        pub fn GetCurrentThread() -> *mut c_void;
+        pub fn SetThreadPriority(thread: *mut c_void, priority: i32) -> i32;
     }
 
     #[link(name = "shell32")]
@@ -30,6 +32,15 @@ pub mod win {
     extern "system" {
         pub fn CoInitializeEx(reserved: *mut c_void, coinit: u32) -> i32;
         pub fn CoUninitialize();
+    }
+}
+
+/// Pasa el hilo actual a segundo plano: prioridad baja de CPU y de disco. Dura lo que el hilo.
+pub fn background_thread() {
+    #[cfg(windows)]
+    unsafe {
+        const THREAD_MODE_BACKGROUND_BEGIN: i32 = 0x0001_0000;
+        win::SetThreadPriority(win::GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
     }
 }
 

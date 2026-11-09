@@ -106,6 +106,22 @@ export class BrowserProvider implements FsProvider {
   getNewTemplates = async () => [];
   createFromTemplate = NA;
 
+  // El analizador recorre el disco desde Rust: en el navegador la vista explica que hace falta la aplicación.
+  analyzerStart = NA as FsProvider["analyzerStart"];
+  analyzerPause = async () => {};
+  analyzerResume = async () => {};
+  analyzerCancel = async () => {};
+  analyzerReports = async () => [];
+  analyzerReport = async () => null;
+  analyzerForget = NA as FsProvider["analyzerForget"];
+  analyzerNode = NA as FsProvider["analyzerNode"];
+  analyzerDirs = NA as FsProvider["analyzerDirs"];
+  analyzerFiles = NA as FsProvider["analyzerFiles"];
+  analyzerCategories = NA as FsProvider["analyzerCategories"];
+  analyzerExts = NA as FsProvider["analyzerExts"];
+  analyzerTreemap = NA as FsProvider["analyzerTreemap"];
+  analyzerIssues = NA as FsProvider["analyzerIssues"];
+
   // Sin el motor de Rust no hay índice: nada se simula, la interfaz explica que hace falta la aplicación de escritorio.
   indexSearch = NA as FsProvider["indexSearch"];
   indexStatus = NA as FsProvider["indexStatus"];

@@ -29,18 +29,25 @@ export interface SortRequest {
   dir: SortDir;
 }
 
-/** Devuelve el orden como permutación de índices. Carpetas primero; desempate por nombre. */
+/** Las fechas ordenan carpetas y archivos juntos; con nombre, tamaño o tipo las carpetas siguen delante. */
+export const mixesFolders = (key: SortKey): boolean => key === "modified" || key === "created";
+
+/** Devuelve el orden como permutación de índices, sin tocar la lista original. Desempate por nombre y, si coincide, por posición. */
 export function sortPermutation(c: SortColumns, key: SortKey, dir: SortDir): Uint32Array {
   const { names, isDir, size, modified, created, kinds } = c;
   const n = names.length;
   const idx = new Array<number>(n);
   for (let i = 0; i < n; i++) idx[i] = i;
   const m = dir === "asc" ? 1 : -1;
+  const mixed = mixesFolders(key);
+  const byName = (a: number, b: number) => collator.compare(names[a], names[b]) || (names[a] < names[b] ? -1 : names[a] > names[b] ? 1 : a - b);
 
   idx.sort((a, b) => {
-    const da = isDir[a] ? 0 : 1;
-    const db = isDir[b] ? 0 : 1;
-    if (da !== db) return da - db;
+    if (!mixed) {
+      const da = isDir[a] ? 0 : 1;
+      const db = isDir[b] ? 0 : 1;
+      if (da !== db) return da - db;
+    }
     if (key === "modified" || key === "created") {
       // Sin fecha conocida (NaN): siempre al final, sea cual sea el sentido.
       const col = key === "modified" ? modified : created;
@@ -48,7 +55,7 @@ export function sortPermutation(c: SortColumns, key: SortKey, dir: SortDir): Uin
       if (x !== x || y !== y) {
         if (x === x) return -1;
         if (y === y) return 1;
-        return collator.compare(names[a], names[b]);
+        return byName(a, b);
       }
     }
     let r = 0;
@@ -58,7 +65,7 @@ export function sortPermutation(c: SortColumns, key: SortKey, dir: SortDir): Uin
       case "size": r = size[a] - size[b]; break;
       case "kind": r = kinds ? collator.compare(kinds[a], kinds[b]) : 0; break;
     }
-    return r !== 0 ? r * m : collator.compare(names[a], names[b]) * (key === "name" ? m : 1);
+    return r !== 0 ? r * m : byName(a, b) * (key === "name" ? m : 1);
   });
   return Uint32Array.from(idx);
 }

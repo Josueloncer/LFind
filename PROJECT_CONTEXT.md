@@ -191,6 +191,14 @@ Texto: los primeros 8 KiB, como antes.
 ### Navegación (Update 09)
 Las rutas guardadas se comparan siempre con `canonicalKey`. «Mi equipo» es la ruta virtual `COMPUTER`: el código que recibe la ruta de una pestaña debe contemplarla. Ningún código nuevo debe abrir el contenido de un archivo sin comprobar antes `dir::is_cloud_only`, o hidrataría los archivos de OneDrive.
 
+### Analizador de almacenamiento (Update 10)
+Módulo `nova_core::analyzer`, separado del índice de búsqueda: `walk` recorre solo metadatos en un hilo de prioridad baja y `report` guarda cada análisis en `%LOCALAPPDATA%\app.nova.explorer\analyzer\<hash>.db`. Los archivos se guardan en orden de recorrido, de modo que una carpeta es un intervalo de identificadores. Un análisis a la vez; pausar, reanudar y cancelar; cancelar o fallar conserva el informe anterior. La interfaz solo recibe instantáneas de tamaño fijo y páginas. No sigue enlaces ni uniones y no provoca descargas de la nube. Rutas virtuales `lfind://storage` y `lfind://storage?root=…&at=…`. No lee ni escribe el índice ni cambia preferencias.
+
+Orden: las fechas mezclan carpetas y archivos (`mixesFolders`); nombre, tamaño y tipo dejan las carpetas delante; `nextSort` alterna el sentido al repetir un criterio. Ubicaciones: el contenedor `.side-pins` resuelve la posición de inserción y la identidad es la ruta normalizada. Detalle en [UPDATE10_PROGRESS.md](UPDATE10_PROGRESS.md).
+
+### Personalización de la interfaz (Update 11)
+`useReorder` es el único motor de arrastre para reordenar (secciones, filas, herramientas y pestañas), con eventos de puntero; el arrastre HTML5 queda para mover archivos. La distribución vive en `Prefs.layout` (sigue la versión 3, campo con valor por defecto y lectura tolerante en `prefs.rs`): listas de identificadores estables, vacías por defecto. `lib/uiLayout.ts` define secciones y herramientas; una herramienta o sección nueva se añade ahí. El modo «Personalizar interfaz» (`stores/customize.ts`) no se guarda. Detalle en [UPDATE11_PROGRESS.md](UPDATE11_PROGRESS.md).
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.

@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, PathState, Place, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, UpdateEvent, UpdateInfo, ViewerSource,
+  AnalyzeEvent, CatStat, DirHit, DirsQuery, ExtStat, FileHit, FilesQuery, Issue, Page, ReportInfo, TreeNode, DirEvent, DirHandle, PathState, Place, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, UpdateEvent, UpdateInfo, ViewerSource,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -129,6 +129,25 @@ export class TauriProvider implements FsProvider {
   }
   updateCancel = () => invoke<void>("update_cancel");
   updateRestart = () => invoke<void>("update_restart");
+
+  analyzerStart(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void> {
+    const channel = new Channel<AnalyzeEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("analyzer_start", { root, onEvent: channel });
+  }
+  analyzerPause = () => invoke<void>("analyzer_pause");
+  analyzerResume = () => invoke<void>("analyzer_resume");
+  analyzerCancel = () => invoke<void>("analyzer_cancel");
+  analyzerReports = () => invoke<ReportInfo[]>("analyzer_reports");
+  analyzerReport = (root: string) => invoke<ReportInfo | null>("analyzer_report", { root });
+  analyzerForget = (root: string) => invoke<void>("analyzer_forget", { root });
+  analyzerNode = (root: string, at: string) => invoke<DirHit | null>("analyzer_node", { root, at });
+  analyzerDirs = (root: string, query: DirsQuery) => invoke<Page<DirHit>>("analyzer_dirs", { root, query });
+  analyzerFiles = (root: string, query: FilesQuery) => invoke<Page<FileHit>>("analyzer_files", { root, query });
+  analyzerCategories = (root: string, dir: number) => invoke<CatStat[]>("analyzer_categories", { root, dir });
+  analyzerExts = (root: string, dir: number, offset: number, limit: number) => invoke<Page<ExtStat>>("analyzer_exts", { root, dir, offset, limit });
+  analyzerTreemap = (root: string, dir: number) => invoke<TreeNode[]>("analyzer_treemap", { root, dir });
+  analyzerIssues = (root: string) => invoke<Issue[]>("analyzer_issues", { root });
 
   indexSearch = (query: SearchQuery) => invoke<SearchPage>("index_search", { query });
   indexStatus = () => invoke<IndexStatus>("index_status");

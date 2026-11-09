@@ -1,6 +1,6 @@
 /** Modelo puro de la barra de dirección: migas de pan y decisión de qué hacer con lo escrito. Sin React ni Tauri. */
 import type { DriveUsage } from "./fs/types";
-import { COMPUTER, join, samePath, segments } from "./path";
+import { COMPUTER, STORAGE, basename, isStorage, join, parseStorageRoute, samePath, segments, storageRoute } from "./path";
 
 export interface Crumb {
   label: string;
@@ -21,6 +21,19 @@ export function driveLabel(letter: string, usage?: Pick<DriveUsage, "label" | "k
 export function crumbsFor(path: string, usage: Record<string, Pick<DriveUsage, "label" | "kind"> | undefined> = {}): Crumb[] {
   if (!path) return [];
   if (path === COMPUTER) return [{ label: "Mi equipo", path: COMPUTER }];
+  if (isStorage(path)) {
+    const { root, at } = parseStorageRoute(path);
+    const out: Crumb[] = [{ label: "Almacenamiento", path: STORAGE }];
+    if (!root) return out;
+    const drive = /^[A-Za-z]:[\\/]*$/.test(root) ? usage[root] ?? usage[root.toUpperCase()] : undefined;
+    out.push({ label: /^[A-Za-z]:[\\/]*$/.test(root) ? driveLabel(root[0], drive) : basename(root), path: storageRoute(root) });
+    let acc = "";
+    for (const part of at.split("/").filter(Boolean)) {
+      acc = acc ? `${acc}/${part}` : part;
+      out.push({ label: part, path: storageRoute(root, acc) });
+    }
+    return out;
+  }
   const segs = segments(path);
   if (/^[A-Za-z]:/.test(path)) {
     const [drive, ...rest] = segs;

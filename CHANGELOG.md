@@ -1,5 +1,11 @@
 # LFind — Registro de cambios
 
+## Update 11: organiza LFind a tu manera
+- Arrastra las secciones de la barra lateral para ponerlas en el orden que prefieras.
+- Reordena también carpetas fijadas, ubicaciones del sistema, recientes, unidades y pestañas, con una línea que indica dónde quedarán. Escape cancela.
+- Nueva opción «Personalizar interfaz»: mueve o oculta las herramientas de la barra superior y vuelve a la distribución original cuando quieras. Fuera de ese modo, mantén Alt para mover una herramienta.
+- Tu distribución se conserva al cerrar y abrir LFind, y restaurarla no afecta a tus ubicaciones fijadas.
+
 ## Update 09: navegación y organización de carpetas
 - Recientes muestra solo las carpetas que has visitado de verdad, sin repetidas y con las últimas primero. Puedes quitar una o limpiar el historial.
 - Fija cualquier carpeta en Ubicaciones con clic derecho, cámbiale el nombre visible y reordénala arrastrándola. Si una carpeta fijada desaparece, se marca sin borrarla.

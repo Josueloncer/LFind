@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Súbela si cambia el aspecto de los iconos (invalida la caché en disco).
-pub const CACHE_VERSION: u32 = 1;
+pub const CACHE_VERSION: u32 = 2;
 pub const DISK_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const FAILED_TTL: Duration = Duration::from_secs(5 * 60);
 const MEM_MAX: usize = 2000;
@@ -286,6 +286,39 @@ pub fn encode_png(icon: &RawIcon, px: u32) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// Tamaños con los que se diseñan los iconos.
+const ICON_FRAMES: [u32; 10] = [16, 20, 24, 32, 40, 48, 64, 72, 96, 128];
+
+/// Recupera el icono real cuando Windows lo entrega arrinconado.
+///
+/// Si un archivo no tiene icono de 256 px, la lista grande del sistema no lo escala: lo deja en la esquina superior izquierda de un
+/// lienzo transparente. Al reducir ese lienzo, el icono queda diminuto y desplazado. Solo actúa si todo el contenido cabe en el cuadrante
+/// superior izquierdo, algo que un icono diseñado a ese tamaño no hace. Recorta al marco original: no deforma ni altera píxeles ni alfa.
+pub fn without_corner_padding(icon: RawIcon) -> RawIcon {
+    let (w, h) = (icon.w as usize, icon.h as usize);
+    if w != h || icon.w < 64 || icon.rgba.len() != w * h * 4 {
+        return icon;
+    }
+    let (mut right, mut bottom) = (0usize, 0usize);
+    for (i, p) in icon.rgba.chunks_exact(4).enumerate() {
+        if p[3] > 8 {
+            right = right.max(i % w + 1);
+            bottom = bottom.max(i / w + 1);
+        }
+    }
+    if right == 0 || right > w / 2 || bottom > h / 2 {
+        return icon;
+    }
+    let content = right.max(bottom) as u32;
+    let frame = ICON_FRAMES.iter().copied().find(|f| *f >= content).unwrap_or(content);
+    let side = frame as usize;
+    let mut rgba = Vec::with_capacity(side * side * 4);
+    for row in icon.rgba.chunks_exact(w * 4).take(side) {
+        rgba.extend_from_slice(&row[..side * 4]);
+    }
+    RawIcon { w: frame, h: frame, rgba }
+}
+
 // ───────────────────────── servicio ─────────────────────────
 
 #[derive(Clone)]
@@ -527,6 +560,38 @@ mod tests {
         fs::write(plain.join("desktop.ini"), "[.ShellClassInfo]\r\nLocalizedResourceName=@x,-1\r\n").unwrap();
         assert!(matches!(classify(&plain, true), Source::Type { dir: true, .. }), "desktop.ini sin icono no genera una petición por carpeta");
         let _ = fs::remove_dir_all(d);
+    }
+
+    /// Lienzo transparente con un cuadrado opaco en `[x0, x1) × [y0, y1)`.
+    fn canvas(side: u32, x0: u32, y0: u32, x1: u32, y1: u32) -> RawIcon {
+        let mut rgba = vec![0u8; (side * side * 4) as usize];
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let i = ((y * side + x) * 4) as usize;
+                rgba[i..i + 4].copy_from_slice(&[10, 20, 30, 200]);
+            }
+        }
+        RawIcon { w: side, h: side, rgba }
+    }
+
+    #[test]
+    fn a_small_icon_left_in_the_corner_recovers_its_frame() {
+        let out = without_corner_padding(canvas(256, 0, 0, 48, 48));
+        assert_eq!((out.w, out.h, out.rgba.len()), (48, 48, 48 * 48 * 4));
+        assert!(out.rgba.chunks_exact(4).all(|p| p == [10, 20, 30, 200]), "conserva color y alfa");
+        let with_margin = without_corner_padding(canvas(256, 6, 3, 42, 43));
+        assert_eq!(with_margin.w, 48, "mantiene el margen propio del icono");
+        assert_eq!(&with_margin.rgba[(3 * 48 + 6) * 4..(3 * 48 + 6) * 4 + 4], &[10, 20, 30, 200], "sin desplazar el contenido dentro de su marco");
+        assert_eq!(without_corner_padding(canvas(256, 0, 0, 32, 20)).w, 32, "contenido no cuadrado: marco cuadrado, sin deformar");
+    }
+
+    #[test]
+    fn icons_that_use_their_canvas_are_left_untouched() {
+        for icon in [canvas(256, 0, 0, 256, 256), canvas(256, 64, 64, 192, 192), canvas(256, 0, 0, 129, 40), canvas(256, 120, 0, 140, 40), canvas(256, 0, 0, 0, 0), canvas(48, 0, 0, 16, 16)] {
+            assert_eq!(without_corner_padding(icon.clone()), icon);
+        }
+        let rect = RawIcon { w: 256, h: 128, rgba: vec![0; 256 * 128 * 4] };
+        assert_eq!(without_corner_padding(rect.clone()), rect);
     }
 
     #[test]

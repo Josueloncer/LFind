@@ -2,19 +2,44 @@ import { describe, expect, it } from "vitest";
 import type { Entry, SortDir, SortKey } from "./fs";
 import { applyPermutation, sortEntries, toRequest } from "./sort";
 import { handleSortRequest } from "./sortCore";
-import { defaultSortDir } from "./viewState";
+import { defaultSortDir, nextSort } from "./viewState";
 
 describe("orden por fecha y sentido por defecto", () => {
   const e = (name: string, modified: number | null, kind: "file" | "dir" = "file") => ({ name, kind, size: 0, modified, created: modified, hidden: false, ext: null, link: false });
   const names = (l: { name: string }[]) => l.map((x) => x.name);
   const list = [e("viejo", 100), e("sin", null), e("nuevo", 300), e("medio", 200), e("carpeta", 1, "dir")];
 
-  it("más recientes primero al descender, carpetas arriba y sin fecha al final", () => {
-    expect(names(sortEntries(list, "modified", "desc"))).toEqual(["carpeta", "nuevo", "medio", "viejo", "sin"]);
-    expect(names(sortEntries(list, "created", "desc"))).toEqual(["carpeta", "nuevo", "medio", "viejo", "sin"]);
+  it("más recientes primero al descender, con carpetas y archivos mezclados y sin fecha al final", () => {
+    expect(names(sortEntries(list, "modified", "desc"))).toEqual(["nuevo", "medio", "viejo", "carpeta", "sin"]);
+    expect(names(sortEntries(list, "created", "desc"))).toEqual(["nuevo", "medio", "viejo", "carpeta", "sin"]);
   });
   it("al invertir, lo que no tiene fecha sigue al final", () => {
     expect(names(sortEntries(list, "modified", "asc"))).toEqual(["carpeta", "viejo", "medio", "nuevo", "sin"]);
+  });
+  it("respeta estrictamente las fechas: carpeta, archivo, carpeta, archivo", () => {
+    const mix = [e("D", 10), e("C", 30, "dir"), e("B", 40), e("A", 50, "dir")];
+    expect(names(sortEntries(mix, "modified", "desc"))).toEqual(["A", "B", "C", "D"]);
+    expect(names(sortEntries(mix, "modified", "asc"))).toEqual(["D", "C", "B", "A"]);
+  });
+  it("con la misma fecha desempata por nombre en ambos sentidos y no altera la lista original", () => {
+    const tie = [e("b", 5), e("a", 5, "dir"), e("c", 5)];
+    const copy = [...tie];
+    expect(names(sortEntries(tie, "modified", "desc"))).toEqual(["a", "b", "c"]);
+    expect(names(sortEntries(tie, "modified", "asc"))).toEqual(["a", "b", "c"]);
+    expect(tie).toEqual(copy);
+  });
+  it("con nombre y tamaño las carpetas siguen delante", () => {
+    expect(names(sortEntries(list, "name", "asc"))[0]).toBe("carpeta");
+    expect(names(sortEntries(list, "size", "desc"))[0]).toBe("carpeta");
+  });
+  it("repetir el criterio alterna el sentido indefinidamente; otro criterio usa su sentido natural", () => {
+    let v = nextSort({ sortKey: "name", sortDir: "asc" }, "modified");
+    expect(v).toEqual({ sortKey: "modified", sortDir: "desc" });
+    v = nextSort(v, "modified");
+    expect(v.sortDir).toBe("asc");
+    v = nextSort(v, "modified");
+    expect(v.sortDir).toBe("desc");
+    expect(nextSort(v, "name")).toEqual({ sortKey: "name", sortDir: "asc" });
   });
   it("no depende del orden de llegada", () => {
     const rev = [...list].reverse();
@@ -64,7 +89,7 @@ describe("ordenación por Worker == ordenación síncrona", () => {
     });
   }
 
-  it("las carpetas siempre van primero", () => {
+  it("con tamaño, las carpetas van primero", () => {
     const out = sortEntries(list, "size", "desc");
     const firstFile = out.findIndex((e) => e.kind !== "dir");
     expect(out.slice(firstFile).every((e) => e.kind !== "dir")).toBe(true);

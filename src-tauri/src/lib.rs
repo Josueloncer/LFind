@@ -1,3 +1,4 @@
+mod analyzer_cmd;
 mod clipboard_cmd;
 mod commands;
 mod icons_cmd;
@@ -40,6 +41,7 @@ pub fn run() {
             // Índice de búsqueda global: se abre ahora y empieza a indexar en segundo plano poco después.
             let index_state = index_cmd::init(app.handle());
             app.manage(index_state);
+            app.manage(analyzer_cmd::init(app.handle()));
             app.manage(icons_cmd::IconState(std::sync::Arc::new(nova_core::icons::IconService::with_defaults(icons_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
@@ -107,6 +109,20 @@ pub fn run() {
             index_cmd::index_pause,
             index_cmd::index_resume,
             index_cmd::index_rebuild,
+            analyzer_cmd::analyzer_start,
+            analyzer_cmd::analyzer_pause,
+            analyzer_cmd::analyzer_resume,
+            analyzer_cmd::analyzer_cancel,
+            analyzer_cmd::analyzer_reports,
+            analyzer_cmd::analyzer_report,
+            analyzer_cmd::analyzer_forget,
+            analyzer_cmd::analyzer_node,
+            analyzer_cmd::analyzer_dirs,
+            analyzer_cmd::analyzer_files,
+            analyzer_cmd::analyzer_categories,
+            analyzer_cmd::analyzer_exts,
+            analyzer_cmd::analyzer_treemap,
+            analyzer_cmd::analyzer_issues,
             commands::get_places,
             commands::get_cloud_places,
             commands::get_drives,

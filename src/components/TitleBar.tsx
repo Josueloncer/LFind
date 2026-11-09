@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "../lib/fs";
 import { basename } from "../lib/path";
 import { useDropTarget } from "../hooks/useDropTarget";
+import { useReorder } from "../hooks/useReorder";
 import type { Tab } from "../stores/nav";
 import { useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
@@ -50,7 +51,7 @@ function WindowControls() {
   );
 }
 
-function TabItem({ t, active, many, onSelect, onClose }: { t: Tab; active: boolean; many: boolean; onSelect(): void; onClose(): void }) {
+function TabItem({ t, active, many, onSelect, onClose, dnd }: { t: Tab; active: boolean; many: boolean; onSelect(): void; onClose(): void; dnd: object }) {
   // Soltar archivos sobre una pestaña los lleva a la carpeta que muestra.
   const { over, bind } = useDropTarget(t.path);
   return (
@@ -60,6 +61,7 @@ function TabItem({ t, active, many, onSelect, onClose }: { t: Tab; active: boole
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect()}
       onAuxClick={(e) => e.button === 1 && onClose()}
       {...bind}
+      {...dnd}
     >
       <FolderGlyph className="tab-icon" />
       <span className="tab-label">{basename(t.path)}</span>
@@ -71,13 +73,14 @@ function TabItem({ t, active, many, onSelect, onClose }: { t: Tab; active: boole
 }
 
 export function TitleBar() {
-  const { tabs, activeId, setActive, closeTab, openTab } = useNav();
+  const { tabs, activeId, setActive, closeTab, openTab, moveTab } = useNav();
+  const dnd = useReorder({ group: "tabs", axis: "x", ids: tabs.map((t) => t.id), ignore: ".tab-close", onMove: moveTab });
   return (
     <header className="titlebar" data-tauri-drag-region>
       <div className="brand" data-tauri-drag-region><BrandMark /></div>
       <div className="tabs" role="tablist" data-tauri-drag-region>
         {tabs.map((t) => (
-          <TabItem key={t.id} t={t} active={t.id === activeId} many={tabs.length > 1} onSelect={() => setActive(t.id)} onClose={() => closeTab(t.id)} />
+          <TabItem key={t.id} t={t} active={t.id === activeId} many={tabs.length > 1} onSelect={() => setActive(t.id)} onClose={() => closeTab(t.id)} dnd={{ ...dnd.attrs(t.id), ...dnd.handle(t.id) }} />
         ))}
         {tabs.length > 0 && (
           <button className="ibtn tab-new" title="Nueva pestaña (Ctrl+T)" aria-label="Nueva pestaña" onClick={() => openTab()}>

@@ -71,6 +71,8 @@ export interface MenuActions {
   undo(): void;
   reload(): void;
   setView(patch: Partial<EffectiveView>): void;
+  /** Abre el analizador de almacenamiento para esa carpeta (sin argumento: la que se está viendo). */
+  analyze?(dir?: Entry): void;
 }
 
 const sep: MenuItem = { kind: "sep" };
@@ -88,6 +90,7 @@ export interface PlaceMenuActions {
   moveDown?(): void;
   copyPath(): void;
   properties(): void;
+  analyze?(): void;
   forget?(): void;
   clearAll?(): void;
 }
@@ -100,6 +103,7 @@ export function placeMenu(a: PlaceMenuActions): MenuItem[] {
     sep,
     { kind: "item", label: pinLabel(a.pinned), icon: "pin", run: a.togglePin },
     ...opt("Cambiar nombre", a.rename, "rename"),
+    ...opt("Analizar almacenamiento", a.analyze, "props"),
     ...opt("Subir en la lista", a.moveUp),
     ...opt("Bajar en la lista", a.moveDown),
     sep,
@@ -149,6 +153,7 @@ function itemMenu(s: MenuState, a: MenuActions): MenuItem[] {
     { kind: "item", label: one ? "Copiar ruta de acceso" : "Copiar rutas", icon: "path", run: () => a.copyPaths(list) },
     ...(one ? [{ kind: "item", label: "Crear acceso directo", icon: "shortcut", run: () => a.shortcut(e) } as MenuItem] : []),
     ...(dirOne ? [{ kind: "item", label: pinLabel(a.isPinned(e)), icon: "pin", run: () => a.togglePin(e) } as MenuItem] : []),
+    ...(dirOne && a.analyze ? [{ kind: "item", label: "Analizar almacenamiento", icon: "props", run: () => a.analyze?.(e) } as MenuItem] : []),
     sep,
     { kind: "item", label: one && isArchive(e.name) ? "Comprimir en otro .zip" : list.length > 1 ? "Comprimir en .zip" : "Comprimir en .zip", icon: "zip", run: () => a.compress(list) },
     ...(one && isArchive(e.name) ? [{ kind: "item", label: "Extraer aquí", icon: "extract", run: () => a.extract(e) } as MenuItem] : []),
@@ -181,6 +186,7 @@ function backgroundMenu(s: MenuState, a: MenuActions): MenuItem[] {
     { kind: "item", label: "Abrir esta carpeta en el Explorador de Windows", icon: "explorer", run: a.openFolderInExplorer },
     { kind: "item", label: "Copiar ruta de la carpeta", icon: "path", run: () => a.copyPaths([]) },
     { kind: "item", label: pinLabel(a.folderPinned()), icon: "pin", run: a.togglePinFolder },
+    ...(a.analyze ? [{ kind: "item", label: "Analizar almacenamiento", icon: "props", run: () => a.analyze?.() } as MenuItem] : []),
     sep,
     { kind: "item", label: "Propiedades de la carpeta", icon: "props", run: () => a.properties([]) },
   ];

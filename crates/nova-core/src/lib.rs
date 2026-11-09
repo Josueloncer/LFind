@@ -3,6 +3,7 @@
 //! No depende de Tauri: todo lo que hay aquí se puede probar con `cargo test`
 //! y reutilizar desde una CLI, un servicio de indexación o tests de benchmark.
 
+pub mod analyzer;
 pub mod archive;
 pub mod b64;
 pub mod clipboard;

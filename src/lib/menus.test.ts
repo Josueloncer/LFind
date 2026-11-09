@@ -1,3 +1,4 @@
+import { sortDescription, sortMenu } from "./menus";
 import { describe, expect, it, vi } from "vitest";
 import { sortMenu, viewMenu } from "./menus";
 import type { MenuItem } from "../stores/ui";
@@ -53,5 +54,21 @@ describe("menú Ver", () => {
     expect(setView).toHaveBeenCalledWith({ sortDir: "desc" });
     m.find((i) => i.label === "(Ninguno)")!.run();
     expect(setView).toHaveBeenCalledWith({ groupBy: "none" });
+  });
+});
+
+describe("menú de ordenar", () => {
+  const view = { viewMode: "details", iconSize: 32, sortKey: "modified", sortDir: "desc", groupBy: "none" } as const;
+  const find = (items: ReturnType<typeof sortMenu>, label: string) => items.find((i) => i.kind === "item" && i.label === label) as Extract<ReturnType<typeof sortMenu>[number], { kind: "item" }>;
+  it("repetir el criterio invierte el sentido y la flecha lo indica", () => {
+    let patch: unknown = null;
+    const item = find(sortMenu(view, { setView: (p) => (patch = p) }), "Fecha de modificación");
+    expect(item.shortcut).toBe("↓");
+    item.run?.();
+    expect(patch).toEqual({ sortKey: "modified", sortDir: "asc" });
+  });
+  it("describe qué queda arriba", () => {
+    expect(sortDescription(view)).toBe("Fecha de modificación: más reciente primero");
+    expect(sortDescription({ sortKey: "name", sortDir: "desc" })).toBe("Nombre: de la Z a la A");
   });
 });

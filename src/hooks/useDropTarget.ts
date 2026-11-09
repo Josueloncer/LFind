@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { DragEvent } from "react";
 import { MIME, canDropInto, draggedPaths, dropOperation, endDrag } from "../lib/dnd";
-import { COMPUTER } from "../lib/path";
+import { isVirtual } from "../lib/path";
 import { useOps } from "../stores/ops";
 
 /** Paths que se están arrastrando (desde nuestro propio estado o, si no, del DataTransfer). */
@@ -32,7 +32,7 @@ export function dropInto(ev: DragEvent, dest: string): boolean {
 export function useDropTarget(dest: string | null) {
   const [over, setOver] = useState(false);
   // «Mi equipo» no es una carpeta: no se puede soltar nada en ella.
-  const bind = dest && dest !== COMPUTER
+  const bind = dest && !isVirtual(dest)
     ? {
         onDragOver(ev: DragEvent) {
           const p = draggedPaths();

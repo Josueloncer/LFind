@@ -2,6 +2,12 @@
 
 Inventario real del proyecto. **Auditoría Fase 0 — 2026-11-08, actualizado con la Update 06.0.** Sustituye a la versión de la Fase 1.1, archivada en [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
+## Update 11 (personalización de barras)
+Implementado y validado localmente, **sin commit ni publicación**. Rust 203+3 con SQLite y 188+3 sin él · Vitest 293/293 · TypeScript sin errores · instalador generado. Sin comprobar: arrastre con ratón físico. Detalle en [UPDATE11_PROGRESS.md](UPDATE11_PROGRESS.md).
+
+## Update 10 (analizador de almacenamiento)
+Implementado y validado localmente, **sin commit ni publicación**. Rust 200+3 con SQLite y 185+3 sin él · Vitest 280/280 · TypeScript sin errores · instalador generado. Probado en la app real con C: completa (2,34 M de archivos, 165 MB, bloqueo máximo de la interfaz 19 ms) y OneDrive sin hidratar nada. Sin comprobar: arrastre con ratón físico y discos extraíbles, de red o de Google Drive. Detalle en [UPDATE10_PROGRESS.md](UPDATE10_PROGRESS.md).
+
 ## Update 09 (navegación y organización)
 Implementado, validado localmente y autorizado para su publicación. Rust 175+3 con SQLite y 174+3 sin él · Vitest 264/264 · TypeScript sin errores · instalador generado. Sin comprobar con hardware real: OneDrive de empresa y unidades extraíbles o de red. Detalle: [UPDATE09_PROGRESS.md](UPDATE09_PROGRESS.md).
 

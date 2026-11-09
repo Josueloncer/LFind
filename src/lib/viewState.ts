@@ -13,6 +13,10 @@ export const MAX_FOLDER_VIEWS = 300;
 /** Sentido natural al elegir una columna: lo más nuevo y lo más grande arriba; lo demás, de la A a la Z. */
 export const defaultSortDir = (k: SortKey): SortDir => (k === "modified" || k === "created" || k === "size" ? "desc" : "asc");
 
+/** Elegir un criterio: si ya es el actual se invierte el sentido; si no, se usa su sentido natural. */
+export const nextSort = (v: { sortKey: SortKey; sortDir: SortDir }, k: SortKey): { sortKey: SortKey; sortDir: SortDir } =>
+  ({ sortKey: k, sortDir: k === v.sortKey ? (v.sortDir === "asc" ? "desc" : "asc") : defaultSortDir(k) });
+
 /** Clave estable de una carpeta: sin barra final y sin distinguir mayúsculas. */
 export const folderKey = (p: string) => p.replace(/[\\/]+$/, "").toLowerCase() || p;
 

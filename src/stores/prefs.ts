@@ -1,7 +1,10 @@
 import { create } from "zustand";
-import { DEFAULT_PREFS, fs } from "../lib/fs";
-import type { Prefs } from "../lib/fs";
+import { DEFAULT_LAYOUT, DEFAULT_PREFS, fs } from "../lib/fs";
+import type { Layout, Prefs } from "../lib/fs";
 import { movePin, recordVisit, removeRecent, renamePin, togglePin } from "../lib/locations";
+import { applyOrder, moveByKey, moveKey } from "../lib/reorder";
+import { normalizeLayout } from "../lib/uiLayout";
+import { canonicalKey } from "../lib/path";
 import { normalizeTheme } from "../lib/themes";
 import { applyViewChange, effectiveView, withPinned } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
@@ -15,6 +18,13 @@ interface PrefsState extends Prefs {
   /** Cambia solo el nombre visible del acceso fijado. */
   renameFavorite(path: string, label: string): void;
   moveFavorite(from: number, before: number): void;
+  /** Cambia la posición en Recientes; cada elemento conserva su fecha y sus acciones. */
+  moveRecent(key: string, before: string | null): void;
+  /** Mueve un elemento de Ubicaciones. `ids` es el orden visible completo; las carpetas fijadas conservan ruta y nombre. */
+  moveLocation(ids: readonly string[], id: string, before: string | null): void;
+  setLayout(patch: Partial<Layout>): void;
+  /** Vuelve a la distribución original. No toca ubicaciones fijadas, recientes ni vistas. */
+  resetLayout(): void;
   /** Cambia la vista: modo y tamaño → vista global (o la de la carpeta si está fijada); orden y agrupación → carpeta. */
   setView(path: string, patch: Partial<EffectiveView>): void;
   /** Recuerda (o deja de recordar) el modo y el tamaño de icono de esa carpeta. */
@@ -52,7 +62,7 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     return (loading ??= (async () => {
       try {
         const p = await fs.loadPrefs();
-        set({ ...p, theme: normalizeTheme(p.theme), loaded: true });
+        set({ ...p, theme: normalizeTheme(p.theme), layout: normalizeLayout(p.layout), loaded: true });
       } catch {
         set({ loaded: true });
       }
@@ -78,6 +88,26 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     const cur = get().favorites;
     const next = movePin(cur, from, before);
     if (next !== cur) get().update({ favorites: [...next] });
+  },
+
+  moveRecent(key, before) {
+    const cur = get().recentFolders;
+    const next = moveByKey(cur, (r) => canonicalKey(r.path), key, before);
+    if (next !== cur) get().update({ recentFolders: [...next] });
+  },
+
+  moveLocation(ids, id, before) {
+    const places = moveKey(ids, id, before);
+    if (places.every((k, i) => k === ids[i])) return;
+    get().update({ layout: { ...get().layout, places }, favorites: applyOrder(get().favorites, (f) => canonicalKey(f.path), places) });
+  },
+
+  setLayout(patch) {
+    get().update({ layout: { ...get().layout, ...patch } });
+  },
+
+  resetLayout() {
+    get().update({ layout: DEFAULT_LAYOUT });
   },
 
   setView(path, patch) {

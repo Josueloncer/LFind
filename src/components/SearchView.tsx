@@ -41,7 +41,7 @@ function openHit(h: SearchHit) {
 }
 
 /** «Abrir ubicación»: LFind abre la carpeta contenedora y selecciona el elemento. */
-function openLocation(h: SearchHit) {
+export function openLocation(h: SearchHit) {
   const dir = parent(h.path);
   if (!dir) return;
   useNav.getState().navigate(dir);
@@ -49,7 +49,7 @@ function openLocation(h: SearchHit) {
   useSearch.getState().leave();
 }
 
-function hitMenu(h: SearchHit): MenuItem[] {
+export function hitMenu(h: SearchHit): MenuItem[] {
   const toast = useUi.getState().toast;
   const fail = (e: unknown) => toast(errMsg(e), "error");
   return [

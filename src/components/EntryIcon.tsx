@@ -15,5 +15,6 @@ export function EntryIcon({ entry, basePath, size }: { entry: Entry; basePath: s
   const enabled = usePrefs((s) => s.systemIcons) && usesSystemIcon(entry);
   const url = useSystemIcon(entry, join(basePath, entry.name), size, enabled);
   if (!url) return <EntryGlyph entry={entry} size={size} />;
-  return <img className="sysicon" src={url} alt="" width={size} height={size} draggable={false} decoding="async" style={{ width: size, height: size }} />;
+  // `srcSet` declara que cada píxel del icono es un píxel de pantalla; con `object-fit: scale-down` se reduce si sobra, pero nunca se amplía.
+  return <img className="sysicon" src={url} srcSet={`${url} ${window.devicePixelRatio || 1}x`} alt="" width={size} height={size} draggable={false} decoding="async" style={{ width: size, height: size }} />;
 }

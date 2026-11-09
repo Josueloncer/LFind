@@ -6,6 +6,36 @@ const sepOf = (p: string) => (isWin(p) ? "\\" : "/");
 /** Ruta virtual de la vista «Mi equipo»: se navega a ella como a una carpeta, pero no existe en disco. */
 export const COMPUTER = "lfind://computer";
 
+/** Analizador de almacenamiento. Con informe abierto: `lfind://storage?root=…&at=carpeta/subcarpeta`. */
+export const STORAGE = "lfind://storage";
+
+export const isVirtual = (p: string): boolean => p.startsWith("lfind://");
+export const isStorage = (p: string): boolean => p === STORAGE || p.startsWith(STORAGE + "?");
+
+export const storageRoute = (root?: string | null, at = ""): string =>
+  root ? `${STORAGE}?root=${encodeURIComponent(root)}${at ? `&at=${encodeURIComponent(at)}` : ""}` : STORAGE;
+
+export function parseStorageRoute(p: string): { root: string | null; at: string } {
+  const q = new URLSearchParams(p.slice(STORAGE.length + 1));
+  return { root: q.get("root"), at: q.get("at") ?? "" };
+}
+
+/** Ruta de `path` respecto a `root`, con `/`. Cadena vacía si son la misma; sin distinguir mayúsculas ni tipo de barra. */
+export function relativeTo(root: string, path: string): string {
+  const clean = (x: string) => x.replace(/\\/g, "/").replace(/\/+$/, "");
+  const a = clean(root);
+  const b = clean(path);
+  return b.toLowerCase().startsWith(a.toLowerCase()) ? b.slice(a.length).replace(/^\/+/, "") : b;
+}
+
+function storageUp(p: string): string | null {
+  if (p === STORAGE) return null;
+  const { root, at } = parseStorageRoute(p);
+  if (!at) return STORAGE;
+  const i = at.lastIndexOf("/");
+  return storageRoute(root, i < 0 ? "" : at.slice(0, i));
+}
+
 export const isDriveRoot = (p: string): boolean => /^[A-Za-z]:[\\/]*$/.test(p);
 
 /** Clave de comparación: sin distinguir mayúsculas, tipo de barra ni barra final. */
@@ -15,7 +45,7 @@ export function canonicalKey(p: string): string {
 }
 
 /** A dónde lleva «subir»: la carpeta contenedora o, desde la raíz de una unidad, Mi equipo. */
-export const upOf = (p: string): string | null => (p === COMPUTER ? null : parent(p) ?? (isDriveRoot(p) ? COMPUTER : null));
+export const upOf = (p: string): string | null => (isStorage(p) ? storageUp(p) : p === COMPUTER ? null : parent(p) ?? (isDriveRoot(p) ? COMPUTER : null));
 
 export function join(base: string, name: string): string {
   const s = sepOf(base);
@@ -24,7 +54,7 @@ export function join(base: string, name: string): string {
 
 /** Carpeta contenedora, o `null` si ya estamos en la raíz. */
 export function parent(p: string): string | null {
-  if (p === COMPUTER) return null;
+  if (isVirtual(p)) return null;
   if (sepOf(p) === "\\") {
     const t = p.replace(/\\+$/, "");
     if (/^[A-Za-z]:$/.test(t)) return null;
@@ -43,6 +73,10 @@ export function parent(p: string): string | null {
 
 export function basename(p: string): string {
   if (p === COMPUTER) return "Mi equipo";
+  if (isStorage(p)) {
+    const { root, at } = parseStorageRoute(p);
+    return at ? at.slice(at.lastIndexOf("/") + 1) : root ? `Análisis de ${basename(root)}` : "Almacenamiento";
+  }
   const t = p.replace(/[\\/]+$/, "");
   if (/^[A-Za-z]:$/.test(t)) return t;
   if (t === "") return "/";

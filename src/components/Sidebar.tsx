@@ -1,6 +1,6 @@
-import { CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, TriangleAlert, X } from "./icons";
+import { ChartPie, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, SlidersHorizontal, TriangleAlert, X } from "./icons";
 import { useEffect, useRef, useState } from "react";
-import type { ComponentType, DragEvent, MouseEvent } from "react";
+import type { ComponentType, MouseEvent, ReactNode } from "react";
 import type { DriveUsage, Favorite, PathState, Place } from "../lib/fs";
 import { placeMenu } from "../lib/contextMenu";
 import type { PlaceMenuActions } from "../lib/contextMenu";
@@ -10,13 +10,18 @@ import type { MenuItem } from "../stores/ui";
 import { driveLabel } from "../lib/addressBar";
 import { formatBytes } from "../lib/format";
 import { useDropTarget } from "../hooks/useDropTarget";
-import { VISIBLE_RECENTS, canMovePin, isPinned, usedPercent, visibleRecents } from "../lib/locations";
-import { COMPUTER, basename, canonicalKey, samePath } from "../lib/path";
+import { useReorder } from "../hooks/useReorder";
+import { VISIBLE_RECENTS, isPinned, usedPercent, visibleRecents } from "../lib/locations";
+import { applyOrder, moveKey } from "../lib/reorder";
+import { locationOrder, sectionOrder } from "../lib/uiLayout";
+import { COMPUTER, STORAGE, basename, canonicalKey, isStorage, samePath } from "../lib/path";
 import { useApp } from "../stores/app";
 import { copyText } from "../stores/clipboard";
+import { useCustomize } from "../stores/customize";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePathHealth } from "../stores/pathHealth";
 import { usePrefs } from "../stores/prefs";
+import { useStorage } from "../stores/storage";
 import { useUpdate } from "../stores/update";
 import { driveIcon, openDriveMenu } from "./ComputerView";
 
@@ -25,30 +30,7 @@ const ICONS: Record<Place["kind"], ComponentType<{ className?: string }>> = {
   pictures: ImageIcon, music: Music, videos: Film, drive: HardDrive, cloud: Cloud,
 };
 
-/** Tipo propio del arrastre para reordenar: no se confunde con arrastrar archivos. */
-const PIN_MIME = "application/x-lfind-pin";
-
-interface Reorder {
-  /** Identifica el acceso: un índice dejaría de ser válido si la lista cambiara durante el arrastre. */
-  id: string;
-  index: number;
-  count: number;
-  /** Posición de inserción que se está señalando (índice «delante de»). */
-  mark: number | null;
-  dragging: boolean;
-  start(index: number, id: string): void;
-  /** Señala la posición; devuelve `false` si soltar ahí no cambiaría nada. */
-  point(at: number): boolean;
-  clearMark(): void;
-  drop(id: string, at: number): void;
-  end(): void;
-}
-
-/** Posición de inserción según la mitad de la fila sobre la que está el puntero. */
-const insertionAt = (ev: DragEvent, index: number) => {
-  const r = ev.currentTarget.getBoundingClientRect();
-  return ev.clientY < r.top + r.height / 2 ? index : index + 1;
-};
+const IGNORE_IN_ROW = ".side-unpin,input";
 
 function LabelEditor({ value, onDone }: { value: string; onDone(v: string | null): void }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -76,51 +58,34 @@ function LabelEditor({ value, onDone }: { value: string; onDone(v: string | null
   );
 }
 
-function Item({ label, path, Icon, active, onOpen, onRemove, removeLabel, usage, state, onMenu, reorder, editing, onEdited }: {
+function Item({ label, path, Icon, active, onOpen, onRemove, removeLabel, usage, state, onMenu, dnd, editing, onEdited, busy }: {
   label: string; path: string; Icon: ComponentType<{ className?: string }>; active: boolean;
   onOpen(p: string): void; onRemove?: () => void; removeLabel?: string; usage?: DriveUsage; state?: PathState;
-  onMenu?(ev: MouseEvent): void; reorder?: Reorder; editing?: boolean; onEdited?(v: string | null): void;
+  onMenu?(ev: MouseEvent): void; dnd?: { attrs: object; handle: object }; editing?: boolean; onEdited?(v: string | null): void; busy?: boolean;
 }) {
   // Soltar archivos sobre una ubicación los mueve/copia allí (Ctrl copia, Mayús mueve).
   const { over, bind } = useDropTarget(path);
   const pct = usedPercent(usage);
   const note = state === "missing" ? "La carpeta ya no existe en esta ruta" : state === "unavailable" ? "La unidad no responde" : null;
   const title = usage ? `${label} — ${formatBytes(usage.free)} libres de ${formatBytes(usage.total)}` : `${label} — ${note ?? path}`;
-  const isPinDrag = (ev: DragEvent) => !!reorder && Array.from(ev.dataTransfer.types).includes(PIN_MIME);
-  const mark = !reorder || reorder.mark === null ? undefined : reorder.mark === reorder.index ? "before" : reorder.mark === reorder.count && reorder.index === reorder.count - 1 ? "after" : undefined;
+  // Tras abrir la ubicación el cursor sigue encima: la acción de quitar no aparece hasta salir y volver a pasar.
+  const [quiet, setQuiet] = useState(false);
   return (
     <div
-      className="side-row" data-drop={over || undefined} data-mark={mark} data-dragging={reorder?.dragging || undefined} draggable={!!reorder && !editing}
-      onContextMenu={onMenu}
-      onDragStart={reorder && ((ev) => {
-        ev.dataTransfer.setData(PIN_MIME, reorder.id);
-        ev.dataTransfer.effectAllowed = "move";
-        reorder.start(reorder.index, reorder.id);
-      })}
-      onDragEnd={reorder && (() => reorder.end())}
-      onDragOver={(ev) => {
-        if (!isPinDrag(ev)) return bind.onDragOver?.(ev);
-        // Sin `preventDefault`, el sistema muestra el cursor de «no permitido» y no habrá `drop`.
-        if (!reorder?.point(insertionAt(ev, reorder.index))) return;
-        ev.preventDefault();
-        ev.dataTransfer.dropEffect = "move";
-      }}
+      className="side-row" data-drop={over || undefined} data-quiet={quiet || undefined} data-movable={dnd && !editing ? true : undefined}
+      {...dnd?.attrs} {...(editing ? undefined : dnd?.handle)}
+      onContextMenu={onMenu} onPointerLeave={() => setQuiet(false)}
+      // Soltar archivos: las filas siguen siendo destino del arrastre de archivos.
+      onDragOver={(ev) => bind.onDragOver?.(ev)}
       onDragLeave={(ev) => {
-        // Pasar de la fila a un elemento suyo también dispara `dragleave`: no debe parpadear el indicador.
-        if (ev.currentTarget.contains(ev.relatedTarget as Node | null)) return;
-        reorder?.clearMark();
-        bind.onDragLeave?.();
+        if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) bind.onDragLeave?.();
       }}
-      onDrop={(ev) => {
-        if (!isPinDrag(ev)) return bind.onDrop?.(ev);
-        ev.preventDefault();
-        if (reorder) reorder.drop(ev.dataTransfer.getData(PIN_MIME), insertionAt(ev, reorder.index));
-      }}
+      onDrop={(ev) => bind.onDrop?.(ev)}
     >
       {editing && onEdited ? (
         <div className="side-item"><Icon className="side-ico" /><LabelEditor value={label} onDone={onEdited} /></div>
       ) : (
-        <button className="side-item" data-active={active} data-tall={usage ? true : undefined} data-state={state && state !== "ok" ? state : undefined} title={title} onClick={() => onOpen(path)}>
+        <button className="side-item" data-active={active} data-tall={usage ? true : undefined} data-state={state && state !== "ok" ? state : undefined} title={title} onClick={() => (setQuiet(true), onOpen(path))}>
           <Icon className="side-ico" />
           <span className="side-main">
             <span className="side-label">{label}</span>
@@ -132,6 +97,7 @@ function Item({ label, path, Icon, active, onOpen, onRemove, removeLabel, usage,
             )}
           </span>
           {state === "missing" && <TriangleAlert className="side-warn" aria-label={note ?? undefined} />}
+          {busy && <i className="side-dot" title="Análisis en curso" />}
         </button>
       )}
       {onRemove && !editing && (
@@ -150,7 +116,9 @@ export function Sidebar() {
   const favorites = usePrefs((s) => s.favorites);
   const theme = usePrefs((s) => s.theme);
   const collapsed = usePrefs((s) => s.sidebarCollapsed);
-  const { update, toggleFavorite, renameFavorite, moveFavorite, forgetRecent, clearRecents } = usePrefs.getState();
+  const layout = usePrefs((s) => s.layout);
+  const { update, toggleFavorite, renameFavorite, moveLocation, moveRecent, setLayout, forgetRecent, clearRecents } = usePrefs.getState();
+  const customizing = useCustomize((s) => s.active);
   const health = usePathHealth((s) => s.states);
   const tab = useNav(selectActiveTab);
   const navigate = useNav((s) => s.navigate);
@@ -162,39 +130,8 @@ export function Sidebar() {
   const toast = useUi((s) => s.toast);
   const updateReady = useUpdate((s) => s.state.phase === "available" || s.state.phase === "ready");
   const [editing, setEditing] = useState<string | null>(null);
-  const [mark, setMark] = useState<number | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const dragFrom = useRef<number | null>(null);
-  const dragTimer = useRef<number | undefined>(undefined);
   const [allRecents, setAllRecents] = useState(false);
-
-  const endDrag = () => {
-    window.clearTimeout(dragTimer.current);
-    dragFrom.current = null;
-    setMark(null);
-    setDragging(null);
-  };
-  const reorderBase = {
-    count: favorites.length,
-    mark,
-    start(index: number, id: string) {
-      dragFrom.current = index;
-      // Después del `dragstart`: cambiar la fila arrastrada durante ese evento puede cancelar el arrastre.
-      dragTimer.current = window.setTimeout(() => setDragging(id), 0);
-    },
-    point(at: number) {
-      const ok = dragFrom.current !== null && canMovePin(favorites.length, dragFrom.current, at);
-      setMark(ok ? at : null);
-      return ok;
-    },
-    clearMark: () => setMark(null),
-    drop(id: string, at: number) {
-      const from = favorites.findIndex((f) => canonicalKey(f.path) === id);
-      if (canMovePin(favorites.length, from, at)) moveFavorite(from, at);
-      endDrag();
-    },
-    end: endDrag,
-  };
+  const analyzing = useStorage((s) => !!s.job);
 
   // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
   const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
@@ -214,74 +151,130 @@ export function Sidebar() {
       togglePin: () => toggleFavorite(path, label),
       copyPath: () => void copyText(path).then((ok) => toast(ok ? "Ruta copiada" : "No se pudo copiar al portapapeles", ok ? "success" : "error")),
       properties: () => openDialog({ type: "properties", paths: [path] }),
+      analyze: () => useStorage.getState().analyze(path),
       ...extra,
     }));
   };
 
-  const pinMenu = (f: Favorite, i: number) => menu(f.path, f.label, {
+  const pinMenu = (f: Favorite, i: number, ids: string[]) => menu(f.path, f.label, {
     rename() {
       // En modo raíl no hay sitio para el campo: se abre el panel.
       if (collapsed) update({ sidebarCollapsed: false });
       setEditing(canonicalKey(f.path));
     },
-    moveUp: i > 0 ? () => moveFavorite(i, i - 1) : undefined,
-    moveDown: i < favorites.length - 1 ? () => moveFavorite(i, i + 2) : undefined,
+    moveUp: i > 0 ? () => moveLocation(ids, ids[i], ids[i - 1]) : undefined,
+    moveDown: i < ids.length - 1 ? () => moveLocation(ids, ids[i], ids[i + 2] ?? null) : undefined,
   });
 
   const known = [...places, ...cloud].filter((p) => !isPinned(favorites, p.path));
   const history = visibleRecents(recents, [...favorites.map((f) => f.path), ...places.map((p) => p.path), ...cloud.map((p) => p.path)]);
   const shownRecents = allRecents ? history : history.slice(0, VISIBLE_RECENTS);
+  const orderedDrives = applyOrder(drives, (d) => canonicalKey(d.path), layout.drives);
+
+  // Carpetas fijadas y ubicaciones del sistema se ven como una sola lista y se ordenan como una sola lista.
+  const pinByKey = new Map(favorites.map((f) => [canonicalKey(f.path), f]));
+  const placeByKey = new Map(known.map((p) => [canonicalKey(p.path), p]));
+  const locationIds = locationOrder([...pinByKey.keys()], [...placeByKey.keys()], layout.places);
+  const locationDnd = useReorder({ group: "locations", ids: locationIds, ignore: IGNORE_IN_ROW, onMove: (id, before) => moveLocation(locationIds, id, before) });
+  const recentIds = shownRecents.map((r) => canonicalKey(r.path));
+  const allRecentIds = history.map((r) => canonicalKey(r.path));
+  const recentDnd = useReorder({
+    group: "recents", ids: recentIds, ignore: IGNORE_IN_ROW,
+    // Soltar al final de lo visible deja el elemento delante de los que siguen ocultos tras «Mostrar más».
+    onMove: (id, before) => moveRecent(id, before ?? allRecentIds.find((k) => !recentIds.includes(k)) ?? null),
+  });
+  const driveIds = orderedDrives.map((d) => canonicalKey(d.path));
+  const driveDnd = useReorder({ group: "drives", ids: driveIds, ignore: IGNORE_IN_ROW, onMove: (id, before) => setLayout({ drives: moveKey(driveIds, id, before) }) });
+
+  const sections: Record<string, { title: string; action?: ReactNode; body: ReactNode } | null> = {
+    locations: {
+      title: "Ubicaciones",
+      body: (
+        <>
+          {favorites.length === 0 && <div className="side-hint">Haz clic derecho en una carpeta y elige «Fijar en Ubicaciones».</div>}
+          {locationIds.map((key, i) => {
+            const dnd = { attrs: locationDnd.attrs(key), handle: locationDnd.handle(key) };
+            const f = pinByKey.get(key);
+            if (f) {
+              return (
+                <Item
+                  key={key} label={f.label} path={f.path} Icon={Pin} active={samePath(cur, f.path)} onOpen={navigate}
+                  onRemove={() => toggleFavorite(f.path, f.label)} removeLabel="Quitar de Ubicaciones" state={health[key]} onMenu={pinMenu(f, i, locationIds)}
+                  dnd={dnd} editing={editing === key}
+                  onEdited={(v) => (setEditing(null), v !== null && renameFavorite(f.path, v))}
+                />
+              );
+            }
+            const p = placeByKey.get(key)!;
+            return <Item key={key} label={p.label} path={p.path} Icon={ICONS[p.kind]} active={samePath(cur, p.path)} onOpen={navigate} onMenu={menu(p.path, p.label)} dnd={dnd} />;
+          })}
+        </>
+      ),
+    },
+    recents: history.length === 0 ? null : {
+      title: "Recientes",
+      action: <button className="side-clear" title="Limpiar el historial" onClick={clearRecents}>Limpiar</button>,
+      body: (
+        <>
+          {shownRecents.map((r) => {
+            const label = basename(r.path) || r.path;
+            const key = canonicalKey(r.path);
+            return (
+              <Item
+                key={key} label={label} path={r.path} Icon={Clock} active={samePath(cur, r.path)} onOpen={navigate} state={health[key]}
+                onRemove={() => forgetRecent(r.path)} removeLabel="Quitar del historial"
+                onMenu={menu(r.path, label, { forget: () => forgetRecent(r.path), clearAll: clearRecents })}
+                dnd={{ attrs: recentDnd.attrs(key), handle: recentDnd.handle(key) }}
+              />
+            );
+          })}
+          {history.length > VISIBLE_RECENTS && (
+            <button className="side-more" onClick={() => setAllRecents(!allRecents)}>{allRecents ? "Mostrar menos" : `Mostrar ${history.length - VISIBLE_RECENTS} más`}</button>
+          )}
+        </>
+      ),
+    },
+    computer: {
+      title: "Mi equipo",
+      body: (
+        <>
+          <Item label="Todas las unidades" path={COMPUTER} Icon={Monitor} active={cur === COMPUTER} onOpen={navigate} />
+          {orderedDrives.map((p) => {
+            const u = usage[p.path];
+            const kind = u?.kind ?? p.driveKind;
+            const label = driveLabel(p.path[0] ?? "", u ?? { label: null, kind: kind ?? "unknown" });
+            const key = canonicalKey(p.path);
+            return <Item key={p.id} label={label} path={p.path} Icon={driveIcon(kind)} active={samePath(cur, p.path)} onOpen={navigate} usage={u} onMenu={(ev) => openDriveMenu(ev, p, label)} dnd={{ attrs: driveDnd.attrs(key), handle: driveDnd.handle(key) }} />;
+          })}
+        </>
+      ),
+    },
+    storage: { title: "Almacenamiento", body: <Item label="Analizador de almacenamiento" path={STORAGE} Icon={ChartPie} active={isStorage(cur)} onOpen={navigate} busy={analyzing} /> },
+  };
+  const allSections = sectionOrder(layout);
+  const visibleSections = allSections.filter((id) => sections[id]);
+  const sectionDnd = useReorder({ group: "sections", ids: visibleSections, ignore: "button", onMove: (id, before) => setLayout({ sections: moveKey(allSections, id, before) }) });
 
   return (
-    <nav className="sidebar" aria-label="Ubicaciones">
+    <nav className="sidebar" aria-label="Ubicaciones" data-customizing={customizing || undefined}>
       <div className="side-scroll">
-        <div className="side-title">Ubicaciones</div>
-        {favorites.length === 0 && <div className="side-hint">Haz clic derecho en una carpeta y elige «Fijar en Ubicaciones».</div>}
-        {favorites.map((f, i) => {
-          const key = canonicalKey(f.path);
+        {visibleSections.map((id) => {
+          const sec = sections[id]!;
           return (
-            <Item
-              key={key} label={f.label} path={f.path} Icon={Pin} active={samePath(cur, f.path)} onOpen={navigate}
-              onRemove={() => toggleFavorite(f.path, f.label)} removeLabel="Quitar de Ubicaciones" state={health[key]} onMenu={pinMenu(f, i)}
-              reorder={{ ...reorderBase, id: key, index: i, dragging: dragging === key }} editing={editing === key}
-              onEdited={(v) => (setEditing(null), v !== null && renameFavorite(f.path, v))}
-            />
+            <section key={id} className="side-section" aria-label={sec.title} {...sectionDnd.attrs(id)}>
+              <div className="side-title" data-action={sec.action ? true : undefined} data-movable title="Arrastra para mover la sección" {...sectionDnd.handle(id)}>
+                {sec.title}{sec.action}
+              </div>
+              {sec.body}
+            </section>
           );
-        })}
-        {known.map((p) => (
-          <Item key={p.id} label={p.label} path={p.path} Icon={ICONS[p.kind]} active={samePath(cur, p.path)} onOpen={navigate} onMenu={menu(p.path, p.label)} />
-        ))}
-
-        {history.length > 0 && (
-          <div className="side-title" data-action>
-            Recientes
-            <button className="side-clear" title="Limpiar el historial" onClick={clearRecents}>Limpiar</button>
-          </div>
-        )}
-        {shownRecents.map((r) => {
-          const label = basename(r.path) || r.path;
-          return (
-            <Item
-              key={canonicalKey(r.path)} label={label} path={r.path} Icon={Clock} active={samePath(cur, r.path)} onOpen={navigate} state={health[canonicalKey(r.path)]}
-              onRemove={() => forgetRecent(r.path)} removeLabel="Quitar del historial"
-              onMenu={menu(r.path, label, { forget: () => forgetRecent(r.path), clearAll: clearRecents })}
-            />
-          );
-        })}
-        {history.length > VISIBLE_RECENTS && (
-          <button className="side-more" onClick={() => setAllRecents(!allRecents)}>{allRecents ? "Mostrar menos" : `Mostrar ${history.length - VISIBLE_RECENTS} más`}</button>
-        )}
-
-        <div className="side-title">Mi equipo</div>
-        <Item label="Todas las unidades" path={COMPUTER} Icon={Monitor} active={cur === COMPUTER} onOpen={navigate} />
-        {drives.map((p) => {
-          const u = usage[p.path];
-          const kind = u?.kind ?? p.driveKind;
-          const label = driveLabel(p.path[0] ?? "", u ?? { label: null, kind: kind ?? "unknown" });
-          return <Item key={p.id} label={label} path={p.path} Icon={driveIcon(kind)} active={samePath(cur, p.path)} onOpen={navigate} usage={u} onMenu={(ev) => openDriveMenu(ev, p, label)} />;
         })}
       </div>
       <div className="side-foot">
+        <button className="side-theme" aria-pressed={customizing} title="Personalizar interfaz: reorganizar y ocultar elementos" aria-label="Personalizar interfaz" onClick={() => (customizing ? useCustomize.getState().exit() : useCustomize.getState().enter())}>
+          <SlidersHorizontal />
+          <span className="side-label">Personalizar interfaz</span>
+        </button>
         <button className="side-theme" title={`Tema: ${th.label} (clic para cambiar)`} onClick={pickTheme}>
           <Palette />
           <span className="side-label">Tema: {th.label}</span>

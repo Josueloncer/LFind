@@ -72,6 +72,19 @@ export interface RecentFolder {
   at: number;
 }
 
+/** Distribución personalizada. Identificadores estables; listas vacías: la distribución original. */
+export interface Layout {
+  sections: string[];
+  /** Ubicaciones del sistema y OneDrive, por ruta normalizada. */
+  places: string[];
+  /** Unidades, por ruta normalizada. */
+  drives: string[];
+  toolbar: string[];
+  hiddenTools: string[];
+}
+
+export const DEFAULT_LAYOUT: Layout = { sections: [], places: [], drives: [], toolbar: [], hiddenTools: [] };
+
 export interface Prefs {
   theme: Theme;
   viewMode: ViewMode;
@@ -92,6 +105,7 @@ export interface Prefs {
   previewWidth: number;
   autoUpdateCheck: boolean;
   lastUpdateCheck: number;
+  layout: Layout;
   version: number;
 }
 
@@ -114,6 +128,7 @@ export const DEFAULT_PREFS: Prefs = {
   previewWidth: 320,
   autoUpdateCheck: true,
   lastUpdateCheck: 0,
+  layout: DEFAULT_LAYOUT,
   version: 3,
 };
 
@@ -356,6 +371,38 @@ export interface IndexSettings {
   reconcileMinutes: number;
 }
 
+// ───────── Analizador de almacenamiento ─────────
+export interface CatStat { cat: string; files: number; bytes: number }
+export interface AnalyzeProgress {
+  files: number; dirs: number; bytes: number; cloudBytes: number; cloudFiles: number; links: number; errors: number; cloudDirs: number;
+  elapsedMs: number; paused: boolean; current: string;
+  categories: CatStat[];
+  topDirs: { name: string; files: number; bytes: number }[];
+  topFiles: { size: number; path: string; modified: number | null }[];
+}
+export interface ReportInfo {
+  key: string; root: string; rootKey: string; startedAt: number; finishedAt: number; durationMs: number;
+  files: number; dirs: number; bytes: number; cloudBytes: number; cloudFiles: number; links: number; errors: number; cloudDirs: number;
+  volumeSerial: number | null; dbBytes: number;
+  /** `ok`, `missing` (ya no existe), `otherVolume` (otro disco en esa letra) o `unchecked`. */
+  state: string;
+}
+export type AnalyzeEvent =
+  | ({ type: "progress" } & AnalyzeProgress)
+  | { type: "finishing" }
+  | { type: "done"; outcome: "completed" | "cancelled" | "failed"; message: string | null; report: ReportInfo | null };
+export interface DirHit {
+  id: number; parent: number; name: string; path: string; bytes: number; cloudBytes: number; files: number; dirs: number;
+  ownFiles: number; ownBytes: number; modified: number | null; cloudPending: boolean; unreadable: boolean;
+}
+export interface FileHit { name: string; path: string; size: number; ext: string; cat: string; modified: number | null; cloud: boolean }
+export interface ExtStat { ext: string; cat: string; files: number; bytes: number }
+export interface TreeNode { id: number; name: string; bytes: number; files: number; kids: TreeNode[] }
+export interface Issue { path: string; message: string }
+export interface Page<T> { items: T[]; more: boolean }
+export interface FilesQuery { dir: number; cat?: string; exts?: string[]; min?: number; max?: number; offset?: number; limit?: number }
+export interface DirsQuery { dir: number; tree: boolean; sort: "size" | "name" | "files"; desc: boolean; min?: number; max?: number; offset?: number; limit?: number }
+
 export interface FsProvider {
   /** `false` fuera de la app de escritorio: no hay acceso a archivos reales. */
   readonly available: boolean;
@@ -441,6 +488,22 @@ export interface FsProvider {
   createFromTemplate(dir: string, id: string): Promise<string>;
   /** ¿Hay archivos en el portapapeles del sistema? (consulta barata, sin leer su contenido) */
   clipboardHasFiles(): Promise<boolean>;
+
+  // Analizador de almacenamiento. Un análisis a la vez; las consultas leen el informe guardado, nunca el disco analizado.
+  analyzerStart(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void>;
+  analyzerPause(): Promise<void>;
+  analyzerResume(): Promise<void>;
+  analyzerCancel(): Promise<void>;
+  analyzerReports(): Promise<ReportInfo[]>;
+  analyzerReport(root: string): Promise<ReportInfo | null>;
+  analyzerForget(root: string): Promise<void>;
+  analyzerNode(root: string, at: string): Promise<DirHit | null>;
+  analyzerDirs(root: string, query: DirsQuery): Promise<Page<DirHit>>;
+  analyzerFiles(root: string, query: FilesQuery): Promise<Page<FileHit>>;
+  analyzerCategories(root: string, dir: number): Promise<CatStat[]>;
+  analyzerExts(root: string, dir: number, offset: number, limit: number): Promise<Page<ExtStat>>;
+  analyzerTreemap(root: string, dir: number): Promise<TreeNode[]>;
+  analyzerIssues(root: string): Promise<Issue[]>;
 
   // Búsqueda global (índice persistente en Rust). Una búsqueda nueva cancela la anterior en el backend.
   indexSearch(query: SearchQuery): Promise<SearchPage>;

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ContextMenu } from "./components/ContextMenu";
+import { CustomizeBar } from "./components/CustomizeBar";
 import { Dialogs } from "./components/Dialogs";
 import { GlyphDefs } from "./components/Glyphs";
 import { Pane } from "./components/Pane";
@@ -11,6 +12,7 @@ import { canonicalKey } from "./lib/path";
 import { mark } from "./lib/perf";
 import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
+import { useCustomize } from "./stores/customize";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
 import { usePathHealth } from "./stores/pathHealth";
@@ -42,6 +44,7 @@ export default function App() {
   const loaded = usePrefs((s) => s.loaded);
   const theme = usePrefs((s) => s.theme);
   const sidebarCollapsed = usePrefs((s) => s.sidebarCollapsed);
+  const customizing = useCustomize((s) => s.active);
   const load = usePrefs((s) => s.load);
   const update = usePrefs((s) => s.update);
 
@@ -49,6 +52,8 @@ export default function App() {
     mark("app-mounted");
     void load();
     void boot();
+    // Si la interfaz se recargó, un análisis anterior ya no tiene quien lo escuche.
+    void fs.analyzerCancel().catch(() => {});
   }, [load, boot]);
 
   // Actualizaciones: bastante después del arranque, para no competir con la primera carpeta. Nunca descarga nada por su cuenta.
@@ -176,7 +181,7 @@ export default function App() {
   }, [update]);
 
   return (
-    <div className="app" data-rail={sidebarCollapsed} data-booting={!(ready && loaded)}>
+    <div className="app" data-rail={sidebarCollapsed && !customizing} data-booting={!(ready && loaded)}>
       <GlyphDefs />
       <TitleBar />
       <div className="body">
@@ -186,6 +191,7 @@ export default function App() {
       <ContextMenu />
       <Dialogs />
       <Overlays />
+      <CustomizeBar />
     </div>
   );
 }

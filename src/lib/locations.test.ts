@@ -1,3 +1,4 @@
+import { insertionFromY } from "./locations";
 import { describe, expect, it } from "vitest";
 import type { DriveUsage, Place } from "./fs/types";
 import { MAX_CLOUD_QUERY, MAX_RECENTS, PASS_THROUGH_MS, applyCloudResults, canMovePin, cloudCandidates, driveKindLabel, dropMissingRecents, groupDrives, isPinned, movePin, recordVisit, removeRecent, renamePin, togglePin, usedPercent, visibleRecents } from "./locations";
@@ -144,5 +145,18 @@ describe("unidades", () => {
     expect(usedPercent({ total: 200, used: 50 })).toBe(25);
     expect(usedPercent({ total: 0, used: 0 })).toBeNull();
     expect(usedPercent(undefined)).toBeNull();
+  });
+});
+
+describe("insertionFromY", () => {
+  const centers = [10, 40, 70];
+  it("inserta delante de la primera fila cuyo centro queda debajo", () => {
+    expect(insertionFromY(centers, 0)).toBe(0);
+    expect(insertionFromY(centers, 25)).toBe(1);
+    expect(insertionFromY(centers, 69)).toBe(2);
+  });
+  it("por debajo de todas inserta al final y sin filas devuelve 0", () => {
+    expect(insertionFromY(centers, 500)).toBe(3);
+    expect(insertionFromY([], 5)).toBe(0);
   });
 });

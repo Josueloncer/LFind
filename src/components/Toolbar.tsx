@@ -1,27 +1,32 @@
-import { useEffect, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { errMsg, fs } from "../lib/fs";
 import { formatBytes } from "../lib/format";
 import { iconService } from "../lib/iconService";
 import { thumbService } from "../lib/thumbService";
-import { newMenu, sortMenu, viewMenu } from "../lib/menus";
+import { newMenu, sortDescription, sortMenu, viewMenu } from "../lib/menus";
 import { crumbsFor, outcomeFor } from "../lib/addressBar";
 import type { Crumb as CrumbModel } from "../lib/addressBar";
 import { pinLabel } from "../lib/contextMenu";
 import { isPinned } from "../lib/locations";
-import { COMPUTER, basename, upOf } from "../lib/path";
+import { COMPUTER, basename, isStorage, isVirtual, upOf } from "../lib/path";
 import { VIEW_LABEL } from "../lib/view";
 import type { EffectiveView } from "../lib/viewState";
 import { useDropTarget } from "../hooks/useDropTarget";
+import { useReorder } from "../hooks/useReorder";
+import { moveKey } from "../lib/reorder";
+import { needsSeparator, toggleTool, toolDef, toolOrder, toolZones } from "../lib/uiLayout";
+import { useCustomize } from "../stores/customize";
 import type { Column } from "../lib/fs";
 import { useApp } from "../stores/app";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
 import { useSearch } from "../stores/search";
+import { storageCrumbMenu } from "../stores/storage";
 import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import {
-  ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Pin, Plus, RotateCw, Rows3, Search, Table2,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Pin, Plus, RotateCw, Rows3, Search, Table2,
 } from "./icons";
 
 const MODE_ICON = { details: Table2, list: List, tiles: LayoutGrid, content: Rows3, icons: Grid2x2 } as const;
@@ -93,10 +98,18 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const focusTick = useSearch((s) => s.focusTick);
   const setSearchText = useSearch((s) => s.setText);
   const global = scope === "global";
+  const customizing = useCustomize((s) => s.active);
+  const enterCustomize = useCustomize((s) => s.enter);
+  const exitCustomize = useCustomize((s) => s.exit);
+  const layout = usePrefs((s) => s.layout);
+  const setLayout = usePrefs((s) => s.setLayout);
+  const toolIds = toolOrder(layout);
+  // En el modo de personalización se ven también las ocultas, atenuadas, para poder recuperarlas.
+  const shownTools = customizing ? toolIds : toolIds.filter((id) => !layout.hiddenTools.includes(id));
 
   const path = tab?.path ?? "";
   // Las acciones sobre carpetas no existen en «Mi equipo», que no es una carpeta.
-  const folder = path === COMPUTER ? "" : path;
+  const folder = isVirtual(path) ? "" : path;
   const crumbs: CrumbModel[] = path ? crumbsFor(path, usage) : [];
   const startEdit = () => {
     if (!path) return;
@@ -161,6 +174,11 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         : [{ kind: "header", label: "Sin unidades" }]);
       return;
     }
+    if (isStorage(p)) {
+      const items = await storageCrumbMenu(p);
+      openMenu(r.left, r.bottom + 4, items.length ? items : [{ kind: "header", label: "Sin subcarpetas" }]);
+      return;
+    }
     const names = await listSubfolders(p);
     const sep = p.includes("\\") ? "\\" : "/";
     openMenu(r.left, r.bottom + 4, names.length
@@ -186,59 +204,40 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
     el?.focus();
     el?.select();
   }, [focusTick]);
-  return (
-    <div className="toolbar">
-      <div className="tb-group">
-        <button className="ibtn" aria-pressed={!sidebarCollapsed} title="Mostrar u ocultar el panel lateral (Ctrl+B)" aria-label="Panel lateral" onClick={() => update({ sidebarCollapsed: !sidebarCollapsed })}><PanelLeft /></button>
-        <span className="tb-sep" />
-        <button className="ibtn" disabled={!tab?.back.length} title="Atrás (Alt+←) · clic derecho: historial" aria-label="Atrás" onClick={goBack} onContextMenu={(e) => history(e, "back")}><ArrowLeft /></button>
-        <button className="ibtn" disabled={!tab?.forward.length} title="Adelante (Alt+→) · clic derecho: historial" aria-label="Adelante" onClick={goForward} onContextMenu={(e) => history(e, "forward")}><ArrowRight /></button>
-        <button className="ibtn" disabled={!path || !upOf(path)} title="Subir un nivel (Alt+↑)" aria-label="Subir un nivel" onClick={goUp}><ArrowUp /></button>
-      </div>
+  const dnd = useReorder({
+    group: "tools", axis: "x", ids: shownTools, ignore: customizing ? ".tb-tool-eye" : ".tb-tool-eye,input",
+    // Fuera del modo de personalización hace falta Alt: un clic con algo de movimiento nunca desplaza un botón.
+    accept: (e) => customizing || e.altKey,
+    onMove: (id, before) => setLayout({ toolbar: moveKey(toolIds, id, before) }),
+  });
 
-      <div className="crumbs">
-        {editing ? (
-          <input
-            ref={input} className="path-input" value={draft} spellCheck={false} autoFocus aria-label="Ruta" aria-invalid={invalid || undefined}
-            data-invalid={invalid || undefined} data-busy={busy || undefined} title={busy ? "Comprobando la ruta…" : undefined}
-            onChange={(e) => (setDraft(e.target.value), setInvalid(false))} onBlur={() => !busy && stopEdit()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") return e.preventDefault(), busy || commit();
-              if (e.key === "Escape") return e.preventDefault(), e.stopPropagation(), stopEdit();
-            }}
-          />
-        ) : (
-          <>
-            <div className="crumb-track" onClick={(e) => e.target === e.currentTarget && startEdit()} title={path ? "Clic en el espacio vacío para escribir una ruta (Ctrl+L)" : undefined}>
-              {crumbs.map((c, i) => <Crumb key={c.path ?? "pc"} label={c.label} path={c.path} last={i === crumbs.length - 1} onGo={navigate} onMenu={subfolderMenu} />)}
-              {path && <span className="crumb-fill" onClick={startEdit} />}
-            </div>
-            <button className="ibtn" disabled={!path} title="Actualizar (F5)" aria-label="Actualizar" onClick={onReload}><RotateCw /></button>
-          </>
-        )}
-      </div>
-
-      <div className="tb-group">
-        <button className="tbtn" disabled={!folder} title="Crear una carpeta o un archivo nuevo" onClick={(e) => below(e, newMenu({ newFolder, newFile }))}><Plus /><span className="tb-label">Nuevo</span></button>
-        <button className="tbtn" disabled={!folder} title="Ordenar y agrupar" onClick={(e) => below(e, sortMenu(view, { setView }))}><ArrowUpDown /><span className="tb-label">Ordenar</span></button>
-        <button className="tbtn" disabled={!folder} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll, pinned, togglePin }, {
-          thumbnails,
-          toggleThumbnails: () => update({ thumbnails: !thumbnails }),
-          systemIcons,
-          toggleSystemIcons: () => update({ systemIcons: !systemIcons }),
-          clearThumbCache: () => void fs.clearThumbCache()
-            .then((b) => (thumbService.clear(), iconService.clear(), toast(`Caché de miniaturas e iconos vaciada (${formatBytes(b)}).`, "success")))
-            .catch((e) => toast(errMsg(e), "error")),
-        }))}><ModeIcon /><span className="tb-label">Ver</span></button>
-        <span className="tb-sep tb-hide-narrow" />
-        <button className="ibtn tb-hide-narrow" aria-pressed={showHidden} title={showHidden ? "Ocultar elementos ocultos" : "Mostrar elementos ocultos"} aria-label="Elementos ocultos" onClick={() => update({ showHidden: !showHidden })}>{showHidden ? <Eye /> : <EyeOff />}</button>
-        <button className="ibtn tb-hide-narrow" disabled={!folder} aria-pressed={isFav} title={pinLabel(isFav)} aria-label={pinLabel(isFav)} onClick={() => toggleFavorite(folder, basename(folder))}><Pin fill={isFav ? "currentColor" : "none"} /></button>
-        <button className="ibtn tb-hide-narrow" aria-pressed={previewPane} title="Panel de vista previa (Alt+P)" aria-label="Panel de vista previa" onClick={() => update({ previewPane: !previewPane })}><PanelRight /></button>
-        <span className="tb-sep" />
+  const toolNode = (id: string): ReactNode => {
+    switch (id) {
+      case "panel": return <button className="ibtn" aria-pressed={!sidebarCollapsed} title="Mostrar u ocultar el panel lateral (Ctrl+B)" aria-label="Panel lateral" onClick={() => update({ sidebarCollapsed: !sidebarCollapsed })}><PanelLeft /></button>;
+      case "back": return <button className="ibtn" disabled={!tab?.back.length} title="Atrás (Alt+←) · clic derecho: historial" aria-label="Atrás" onClick={goBack} onContextMenu={(e) => history(e, "back")}><ArrowLeft /></button>;
+      case "forward": return <button className="ibtn" disabled={!tab?.forward.length} title="Adelante (Alt+→) · clic derecho: historial" aria-label="Adelante" onClick={goForward} onContextMenu={(e) => history(e, "forward")}><ArrowRight /></button>;
+      case "up": return <button className="ibtn" disabled={!path || !upOf(path)} title="Subir un nivel (Alt+↑)" aria-label="Subir un nivel" onClick={goUp}><ArrowUp /></button>;
+      case "new": return <button className="tbtn" disabled={!folder} title="Crear una carpeta o un archivo nuevo" onClick={(e) => below(e, newMenu({ newFolder, newFile }))}><Plus /><span className="tb-label">Nuevo</span></button>;
+      case "sort": return <button className="tbtn" disabled={!folder} title={folder ? `Ordenar y agrupar · ${sortDescription(view)}` : "Ordenar y agrupar"} onClick={(e) => below(e, sortMenu(view, { setView }))}>{folder ? (view.sortDir === "asc" ? <ArrowUp /> : <ArrowDown />) : <ArrowUpDown />}<span className="tb-label">Ordenar</span></button>;
+      case "view": return <button className="tbtn" disabled={!folder} title={`Vista: ${VIEW_LABEL[view.viewMode]} · Ctrl+rueda cambia el tamaño`} onClick={(e) => below(e, viewMenu(view, columns, { setView, setColumns, applyAll, pinned, togglePin }, {
+        thumbnails,
+        toggleThumbnails: () => update({ thumbnails: !thumbnails }),
+        systemIcons,
+        toggleSystemIcons: () => update({ systemIcons: !systemIcons }),
+        clearThumbCache: () => void fs.clearThumbCache()
+          .then((b) => (thumbService.clear(), iconService.clear(), toast(`Caché de miniaturas e iconos vaciada (${formatBytes(b)}).`, "success")))
+          .catch((e) => toast(errMsg(e), "error")),
+      }))}><ModeIcon /><span className="tb-label">Ver</span></button>;
+      case "hidden": return <button className="ibtn" aria-pressed={showHidden} title={showHidden ? "Ocultar elementos ocultos" : "Mostrar elementos ocultos"} aria-label="Elementos ocultos" onClick={() => update({ showHidden: !showHidden })}>{showHidden ? <Eye /> : <EyeOff />}</button>;
+      case "pin": return <button className="ibtn" disabled={!folder} aria-pressed={isFav} title={pinLabel(isFav)} aria-label={pinLabel(isFav)} onClick={() => toggleFavorite(folder, basename(folder))}><Pin fill={isFav ? "currentColor" : "none"} /></button>;
+      case "preview": return <button className="ibtn" aria-pressed={previewPane} title="Panel de vista previa (Alt+P)" aria-label="Panel de vista previa" onClick={() => update({ previewPane: !previewPane })}><PanelRight /></button>;
+      case "global": return (
         <button
           type="button" className="tbtn tb-global" aria-pressed={global} aria-label="Buscar en todos los archivos"
           title="Buscar en todos los archivos (todas las unidades indexadas) · Ctrl+Mayús+F" onClick={openGlobal}
         ><Search /><span className="tb-label">Buscar en todos los archivos</span></button>
+      );
+      case "filter": return (
         <label className="filter" data-global={global || undefined}>
           <Search />
           <input
@@ -260,7 +259,69 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
             onClick={() => (global ? (setScope("folder"), document.getElementById("nova-filter")?.focus()) : openGlobal())}
           ><Globe /></button>
         </label>
+      );
+      default: return null;
+    }
+  };
+
+  const zone = (list: string[]) => list.length > 0 && (
+    <div className="tb-group">
+      {list.map((id, i) => {
+        const def = toolDef(id);
+        const off = layout.hiddenTools.includes(id);
+        return (
+          <Fragment key={id}>
+            {i > 0 && needsSeparator(list[i - 1], id) && <span className={def?.narrow ? "tb-sep tb-hide-narrow" : "tb-sep"} />}
+            <span className={def?.narrow ? "tb-tool tb-hide-narrow" : "tb-tool"} data-off={off || undefined} {...dnd.attrs(id)} {...dnd.handle(id)}>
+              {toolNode(id)}
+              {customizing && def?.hideable && (
+                <button className="tb-tool-eye" aria-pressed={!off} title={off ? `Mostrar: ${def.label}` : `Ocultar: ${def.label}`} aria-label={off ? `Mostrar ${def.label}` : `Ocultar ${def.label}`} onClick={() => update({ layout: toggleTool(layout, id) })}>{off ? <EyeOff /> : <Eye />}</button>
+              )}
+            </span>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+  const { left, right } = toolZones(shownTools);
+
+  return (
+    <div
+      className="toolbar" data-customizing={customizing || undefined}
+      onContextMenu={(ev) => {
+        if (ev.defaultPrevented || (ev.target as Element).closest(".crumbs,input")) return;
+        ev.preventDefault();
+        openMenu(ev.clientX, ev.clientY, [
+          { kind: "item", label: customizing ? "Salir de Personalizar interfaz" : "Personalizar interfaz", run: customizing ? exitCustomize : enterCustomize },
+          { kind: "item", label: "Restaurar distribución predeterminada", run: () => usePrefs.getState().resetLayout() },
+        ]);
+      }}
+    >
+      {zone(left)}
+
+      <div className="crumbs" {...dnd.attrs("address")}>
+        {editing ? (
+          <input
+            ref={input} className="path-input" value={draft} spellCheck={false} autoFocus aria-label="Ruta" aria-invalid={invalid || undefined}
+            data-invalid={invalid || undefined} data-busy={busy || undefined} title={busy ? "Comprobando la ruta…" : undefined}
+            onChange={(e) => (setDraft(e.target.value), setInvalid(false))} onBlur={() => !busy && stopEdit()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") return e.preventDefault(), busy || commit();
+              if (e.key === "Escape") return e.preventDefault(), e.stopPropagation(), stopEdit();
+            }}
+          />
+        ) : (
+          <>
+            <div className="crumb-track" onClick={(e) => e.target === e.currentTarget && startEdit()} title={path ? "Clic en el espacio vacío para escribir una ruta (Ctrl+L)" : undefined}>
+              {crumbs.map((c, i) => <Crumb key={c.path ?? "pc"} label={c.label} path={c.path} last={i === crumbs.length - 1} onGo={navigate} onMenu={subfolderMenu} />)}
+              {path && <span className="crumb-fill" onClick={startEdit} />}
+            </div>
+            <button className="ibtn" disabled={!path} title="Actualizar (F5)" aria-label="Actualizar" onClick={onReload}><RotateCw /></button>
+          </>
+        )}
       </div>
+
+      {zone(right)}
     </div>
   );
 }

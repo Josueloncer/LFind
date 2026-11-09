@@ -1,5 +1,8 @@
 // Importación directa de iconos: en desarrollo, Vite no tiene que cargar el paquete completo de lucide-react (~1,1 MB, ~1 500 iconos).
 // Para añadir un icono: una línea nueva aquí (nombre de archivo en node_modules/lucide-react/dist/esm/icons).
+export { default as ChartPie } from "lucide-react/dist/esm/icons/chart-pie.js";
+export { default as RefreshCw } from "lucide-react/dist/esm/icons/refresh-cw.js";
+export { default as Square } from "lucide-react/dist/esm/icons/square.js";
 export { default as ArrowDown } from "lucide-react/dist/esm/icons/arrow-down.js";
 export { default as ArrowLeft } from "lucide-react/dist/esm/icons/arrow-left.js";
 export { default as ArrowRight } from "lucide-react/dist/esm/icons/arrow-right.js";

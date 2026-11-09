@@ -1,6 +1,5 @@
-import { sortDescription, sortMenu } from "./menus";
 import { describe, expect, it, vi } from "vitest";
-import { sortMenu, viewMenu } from "./menus";
+import { sortDescription, sortMenu, viewMenu } from "./menus";
 import type { MenuItem } from "../stores/ui";
 
 const items = (m: MenuItem[]) => m.filter((i): i is Extract<MenuItem, { kind: "item" }> => i.kind === "item");

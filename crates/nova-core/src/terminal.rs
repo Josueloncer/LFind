@@ -458,8 +458,10 @@ mod tests {
 
     #[test]
     fn both_shells_report_their_folder_invisibly() {
-        let dir = std::env::temp_dir();
-        let folder = dir.to_string_lossy().trim_end_matches('\\').to_string();
+        // PowerShell informa la ruta larga: en los equipos de CI la carpeta temporal llega con nombres cortos (`RUNNER~1`).
+        let real = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        let folder = real.to_string_lossy().trim_start_matches(r"\\?\").trim_end_matches('\\').to_string();
+        let dir = std::path::PathBuf::from(&folder);
         for shell in [Shell::Cmd, Shell::Powershell] {
             let t = open(Some(&shell.command_line()), &dir);
             assert!(wait(&t, &format!("]9;9;{folder}")), "{shell:?}: {}", t.text.lock().unwrap());

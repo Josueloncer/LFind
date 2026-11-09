@@ -672,7 +672,41 @@ mod tests {
         fs::remove_dir_all(r).unwrap();
     }
 
-    /// Una carpeta sin permiso se anota y el análisis sigue con las demás.
+    /// Destino que borra una carpeta en mitad del análisis: la enumeración de esa carpeta falla igual que una sin permiso.
+    struct DeleteDuringWalk {
+        inner: Mem,
+        target: PathBuf,
+    }
+    impl Sink for DeleteDuringWalk {
+        fn file(&mut self, f: &FileRow) -> Result<(), String> {
+            if f.name == "a.png" {
+                fs::remove_dir_all(&self.target).map_err(|e| e.to_string())?;
+            }
+            self.inner.file(f)
+        }
+        fn dir(&mut self, d: &DirRow) -> Result<(), String> {
+            self.inner.dir(d)
+        }
+        fn issue(&mut self, path: &str, m: &str) -> Result<(), String> {
+            self.inner.issue(path, m)
+        }
+    }
+
+    /// Una carpeta ilegible se anota y el análisis sigue con las demás, en cualquier equipo y con cualquier privilegio.
+    #[test]
+    fn unreadable_folder_is_reported_and_skipped() {
+        let r = tree();
+        let mut sink = DeleteDuringWalk { inner: Mem::default(), target: r.join("x") };
+        let o = walk(&r, &mut sink, &Ctl::default(), FAST, &mut |_| {}).unwrap();
+        assert_eq!(o.progress.errors, 1);
+        assert!(sink.inner.issues[0].ends_with('x'));
+        assert!(sink.inner.dirs.iter().find(|d| d.name == "x").unwrap().flags & DIR_UNREADABLE != 0);
+        assert_eq!((o.progress.files, o.progress.bytes), (2, 1100), "lo legible sigue contando");
+        fs::remove_dir_all(r).unwrap();
+    }
+
+    /// Lo mismo con un permiso denegado de verdad. En algunos equipos (el de GitHub Actions, por ejemplo) la carpeta se puede
+    /// leer pese a la denegación; ahí no hay nada que comprobar.
     #[cfg(windows)]
     #[test]
     fn denied_folder_is_reported_and_skipped() {
@@ -681,8 +715,13 @@ mod tests {
         let who = std::env::var("USERNAME").unwrap();
         let deny = format!("{who}:(OI)(CI)(RD)");
         assert!(std::process::Command::new("icacls").args([p.to_str().unwrap(), "/deny", &deny]).output().unwrap().status.success());
+        let enforced = fs::read_dir(&p).is_err();
         let (m, o) = run(&r);
         std::process::Command::new("icacls").args([p.to_str().unwrap(), "/remove:d", &who]).output().unwrap();
+        if !enforced {
+            fs::remove_dir_all(r).unwrap();
+            return;
+        }
         assert_eq!(o.progress.errors, 1);
         assert!(m.issues[0].ends_with('x'));
         assert!(m.dirs.iter().find(|d| d.name == "x").unwrap().flags & DIR_UNREADABLE != 0);

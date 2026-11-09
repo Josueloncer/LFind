@@ -89,6 +89,9 @@ const VERB: Record<OpKind, [string, string]> = {
   delete: ["Eliminando", "Eliminado"],
 };
 
+/** Tarjetas que se muestran: lo terminado sin problemas ya lo cuenta su aviso. */
+export const visibleJobs = (jobs: readonly Job[]): Job[] => jobs.filter((j) => jobState(j) !== "completed");
+
 const plural = (n: number) => `${n} elemento${n === 1 ? "" : "s"}`;
 let seq = 0;
 
@@ -105,7 +108,7 @@ export const useOps = create<OpsState>((set, get) => {
 
   const finish = (key: number, r: DoneInfo) => {
     const job = get().jobs.find((j) => j.key === key);
-    if (!job) return;
+    if (!job || job.status === "done") return; // un segundo «terminado» no debe repetir el aviso ni la recarga
     patch(key, (j) => ({ ...j, status: "done", conflict: null, result: r }));
     if (job.kind === "trash" || job.kind === "delete") {
       // Lo que falló (o se canceló) vuelve a verse YA; lo que salió bien sigue oculto hasta que la recarga lo confirme.

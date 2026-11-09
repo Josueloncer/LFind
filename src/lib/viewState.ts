@@ -59,19 +59,41 @@ export function splitViewPatch(patch: Partial<EffectiveView>): { look: Partial<P
   return { look, order };
 }
 
-/** Aplica un cambio de vista según la regla A: modo/tamaño → global (o la carpeta, si está fijada); orden → carpeta. */
-export function applyViewChange(p: ViewPrefs, path: string, patch: Partial<EffectiveView>): Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews" | "sortKey" | "sortDir">> {
+/** Aplica un cambio de vista según la regla A: modo/tamaño → global (o la carpeta, si está fijada); orden → carpeta. Con `folderOnly`, el orden no pasa a ser el general. */
+export function applyViewChange(p: ViewPrefs, path: string, patch: Partial<EffectiveView>, folderOnly = false): Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews" | "sortKey" | "sortDir">> {
   const { look, order } = splitViewPatch(patch);
   if (isPinned(p, path)) return { folderViews: withFolderView(p, path, patch) };
   const out: Partial<Pick<Prefs, "viewMode" | "iconSize" | "folderViews" | "sortKey" | "sortDir">> = { ...look };
   if (Object.keys(order).length > 0) out.folderViews = withFolderView(p, path, order);
   // El orden elegido también pasa a ser el de las carpetas que aún no tienen uno propio: así se mantiene al navegar.
-  if (order.sortKey !== undefined || order.sortDir !== undefined) {
+  if (!folderOnly && (order.sortKey !== undefined || order.sortDir !== undefined)) {
     const next = { ...effectiveView(p, path), ...order };
     out.sortKey = next.sortKey;
     out.sortDir = next.sortDir;
   }
   return out;
+}
+
+// ───────── orden propio de un panel ─────────
+
+export type PaneOrder = Pick<EffectiveView, "sortKey" | "sortDir" | "groupBy">;
+export type PaneOrders = Record<string, PaneOrder>;
+export const MAX_PANE_ORDERS = 32;
+
+/** La vista de un panel: la de la carpeta con el orden propio de ese panel, si lo tiene. */
+export const paneView = (view: EffectiveView, orders: PaneOrders | undefined, path: string): EffectiveView => {
+  const own = orders?.[folderKey(path)];
+  return own ? { ...view, ...own } : view;
+};
+
+/** Un panel guarda su propio orden cuando el otro enseña la misma carpeta o cuando ya lo tenía: así ninguno altera al otro. */
+export const keepsPaneOrder = (dual: boolean, path: string, otherPath: string | null | undefined, orders: PaneOrders | undefined): boolean =>
+  dual && (!!orders?.[folderKey(path)] || (!!otherPath && folderKey(otherPath) === folderKey(path)));
+
+export function withPaneOrder(orders: PaneOrders | undefined, path: string, order: PaneOrder): PaneOrders {
+  const k = folderKey(path);
+  const rest = Object.entries(orders ?? {}).filter(([key]) => key !== k).slice(-(MAX_PANE_ORDERS - 1));
+  return { ...Object.fromEntries(rest), [k]: order };
 }
 
 /** Fija (o suelta) el modo y el tamaño de esta carpeta. Al fijar se congela la vista que se está viendo. */

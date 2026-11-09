@@ -109,6 +109,8 @@ const COINIT_DISABLE_OLE1DDE: u32 = 0x4;
 const SIIGBF_BIGGERSIZEOK: u32 = 0x1;
 /// Solo miniaturas reales: sin esto, Windows devolvería el icono genérico del tipo de archivo.
 const SIIGBF_THUMBNAILONLY: u32 = 0x8;
+/// Solo lo que Windows ya tiene en su caché: no se ejecuta ningún extractor, así que no se abre el archivo ni se descarga de la nube.
+const SIIGBF_INCACHEONLY: u32 = 0x10;
 
 const E_FILE_NOT_FOUND: u32 = 0x8007_0002;
 const E_PATH_NOT_FOUND: u32 = 0x8007_0003;
@@ -125,16 +127,16 @@ fn hr_error(hr: i32) -> ThumbError {
     }
 }
 
-unsafe fn extract(path: &Path, px: u32) -> Result<RgbaImage, ThumbError> {
+unsafe fn extract(path: &Path, px: u32, flags: u32) -> Result<RgbaImage, ThumbError> {
     let com = CoInitializeEx(null_mut(), COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) >= 0;
-    let r = extract_inner(path, px);
+    let r = extract_inner(path, px, flags);
     if com {
         CoUninitialize();
     }
     r
 }
 
-unsafe fn extract_inner(path: &Path, px: u32) -> Result<RgbaImage, ThumbError> {
+unsafe fn extract_inner(path: &Path, px: u32, flags: u32) -> Result<RgbaImage, ThumbError> {
     let wide: Vec<u16> = path.to_string_lossy().encode_utf16().chain(Some(0)).collect();
     let mut factory: *mut c_void = null_mut();
     let hr = SHCreateItemFromParsingName(wide.as_ptr(), null_mut(), &IID_ISHELLITEMIMAGEFACTORY, &mut factory);
@@ -144,7 +146,7 @@ unsafe fn extract_inner(path: &Path, px: u32) -> Result<RgbaImage, ThumbError> {
     let obj = factory as *mut ImageFactory;
     let mut hbmp: isize = 0;
     let side = px.min(1024) as i32;
-    let hr = ((*(*obj).vtbl).get_image)(factory, Size { cx: side, cy: side }, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK, &mut hbmp);
+    let hr = ((*(*obj).vtbl).get_image)(factory, Size { cx: side, cy: side }, flags, &mut hbmp);
     ((*(*obj).vtbl).release)(factory);
     if hr < 0 || hbmp == 0 {
         return Err(hr_error(hr));
@@ -178,12 +180,21 @@ unsafe fn extract_inner(path: &Path, px: u32) -> Result<RgbaImage, ThumbError> {
 
 /// Pide a Windows la miniatura de `path`, con tiempo límite.
 pub fn shell_thumbnail(path: &Path, px: u32, timeout: Duration) -> Result<RgbaImage, ThumbError> {
+    run_extract(path, px, timeout, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK)
+}
+
+/// La miniatura que Windows ya tenga guardada, si existe. Es la única vía segura para archivos que solo están en la nube.
+pub fn cached_shell_thumbnail(path: &Path, px: u32, timeout: Duration) -> Result<RgbaImage, ThumbError> {
+    run_extract(path, px, timeout, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK | SIIGBF_INCACHEONLY)
+}
+
+fn run_extract(path: &Path, px: u32, timeout: Duration, flags: u32) -> Result<RgbaImage, ThumbError> {
     let (tx, rx) = std::sync::mpsc::channel();
     let p = path.to_path_buf();
     std::thread::Builder::new()
         .name("nova-shell-thumb".into())
         .spawn(move || {
-            let _ = tx.send(unsafe { extract(&p, px) });
+            let _ = tx.send(unsafe { extract(&p, px, flags) });
         })
         .map_err(|e| ThumbError::Failed(format!("No se pudo crear el hilo de miniaturas: {e}")))?;
     match rx.recv_timeout(timeout) {

@@ -1,3 +1,6 @@
+import { fitColumns } from "../lib/view";
+import { rowDelta } from "../lib/appearance";
+import { usePrefs } from "../stores/prefs";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -230,7 +233,7 @@ export function FileView(props: FileViewProps) {
   // El tamaño del área solo importa en los modos que reparten por columnas o filas.
   useLayoutEffect(() => {
     const el = scroller.current;
-    if (!el || mode === "details" || mode === "content") return;
+    if (!el || mode === "content") return;
     const upd = () => setDim((d) => (d.w === el.clientWidth && d.h === el.clientHeight ? d : { w: el.clientWidth, h: el.clientHeight }));
     upd();
     const ro = new ResizeObserver(upd);
@@ -241,8 +244,10 @@ export function FileView(props: FileViewProps) {
   const geo = iconGeometry(iconSize);
   const variant: Variant = mode === "details" ? "details" : mode === "content" ? "content" : mode === "tiles" ? "tile" : mode === "list" ? "list" : geo.inline ? "small" : "icon";
   const perRow = mode === "tiles" ? Math.max(1, Math.floor((dim.w - 16) / TILE.w)) : mode === "icons" ? Math.max(1, Math.floor((dim.w - 16) / geo.cellW)) : 1;
-  const itemH = mode === "details" ? DETAILS_H : mode === "content" ? CONTENT_H : mode === "tiles" ? TILE.h : mode === "icons" ? geo.cellH : LIST.h;
-  const cols = useMemo(() => orderColumns(columns), [columns]);
+  const rowExtra = usePrefs((s) => rowDelta(s.appearance.density));
+  const itemH = mode === "details" ? DETAILS_H + rowExtra : mode === "content" ? CONTENT_H : mode === "tiles" ? TILE.h : mode === "icons" ? geo.cellH : LIST.h;
+  // En un panel estrecho se retiran las últimas columnas: el nombre siempre se puede leer.
+  const cols = useMemo(() => fitColumns(orderColumns(columns), (c) => COL_W[c], dim.w), [columns, dim.w]);
   const tpl = useMemo(() => `minmax(0,1fr) ${cols.map((c) => `${COL_W[c]}px`).join(" ")}`.trim(), [cols]);
 
   const layout = useMemo(

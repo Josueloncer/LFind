@@ -1,6 +1,6 @@
 # LFind · PROJECT_CONTEXT
 
-> **Fuente principal de contexto técnico.** Última auditoría: **Fase 0 — 2026-11-08**, sobre el código de la rama `main` con cambios sin commitear (Update 05 + 05.1). Actualizado con **Update 06.0** (estabilidad; [UPDATE06_PROGRESS.md](UPDATE06_PROGRESS.md)) , **Update 07** (visor inteligente; [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md)) y **Update 08** (actualizaciones; [UPDATE08_PROGRESS.md](UPDATE08_PROGRESS.md)).
+> **Fuente principal de contexto técnico.** Última auditoría: **Fase 0 — 2026-11-08**, sobre el código de la rama `main` con cambios sin commitear (Update 05 + 05.1). Actualizado con **Update 06.0** (estabilidad; [docs/history/UPDATE06_PROGRESS.md](docs/history/UPDATE06_PROGRESS.md)) , **Update 07** (visor inteligente; [docs/history/UPDATE07_PROGRESS.md](docs/history/UPDATE07_PROGRESS.md)) y **Update 08** (actualizaciones; [docs/history/UPDATE08_PROGRESS.md](docs/history/UPDATE08_PROGRESS.md)).
 > Documentos hermanos: [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md) (módulos y flujos) · [PROJECT_STATUS.md](PROJECT_STATUS.md) (inventario, problemas y riesgos) · [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) (instalar, probar, compilar).
 > El historial anterior, intacto: [docs/history/PROJECT_CONTEXT_hasta-05.1.md](docs/history/PROJECT_CONTEXT_hasta-05.1.md) y [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
@@ -24,6 +24,7 @@
 - Etiquetar siempre lo afirmado: *ejecutado*, *evidencia indirecta* o *solo leído en código*. Nunca dar por hecho que algo funciona porque el código existe.
 - Antes de instalar dependencias, explicar por qué y pedir confirmación.
 - Al cerrar cada actualización, actualizar `PROJECT_STATUS.md`, y también este archivo y `PROJECT_ARCHITECTURE.md` si cambió la arquitectura.
+- No crear un documento por actualización ni por corrección: el estado va en `PROJECT_STATUS.md` y el contexto técnico aquí. Los informes antiguos están en `docs/history/`.
 
 ## 1. Qué es LFind
 
@@ -75,7 +76,7 @@ src/                     Interfaz
   styles/                tokens.css themes.css app.css
 public/boot.js           Aplica tema/Mica antes del primer pintado
 scripts/                 Banco y validación SQL, iconos, limpieza de obsoletos
-docs/                    CONTEXT_MENU.md, UPDATE_04.3_REPORT.md, history/
+docs/                    CONTEXT_MENU.md, history/ (informes de cada actualización)
 ```
 
 ## 4. Dependencias
@@ -176,7 +177,7 @@ Dos servicios y dos cachés. Frontend: colas con concurrencia limitada, época p
 Texto: los primeros 8 KiB, como antes.
 
 ### 7.4 ter Actualizaciones (Update 08)
-`stores/update.ts` lleva el estado; `UpdateDialog` lo muestra; `src-tauri/src/update_cmd.rs` usa el plugin oficial. Publicación en `.github/workflows/release.yml` con la lógica en `scripts/release/`. Detalle: `UPDATE08_PROGRESS.md`.
+`stores/update.ts` lleva el estado; `UpdateDialog` lo muestra; `src-tauri/src/update_cmd.rs` usa el plugin oficial. Publicación en `.github/workflows/release.yml` con la lógica en `scripts/release/`. Detalle: `docs/history/UPDATE08_PROGRESS.md`.
 
 ### 7.5 Persistencia
 | Dato | Dónde |
@@ -194,10 +195,19 @@ Las rutas guardadas se comparan siempre con `canonicalKey`. «Mi equipo» es la 
 ### Analizador de almacenamiento (Update 10)
 Módulo `nova_core::analyzer`, separado del índice de búsqueda: `walk` recorre solo metadatos en un hilo de prioridad baja y `report` guarda cada análisis en `%LOCALAPPDATA%\app.nova.explorer\analyzer\<hash>.db`. Los archivos se guardan en orden de recorrido, de modo que una carpeta es un intervalo de identificadores. Un análisis a la vez; pausar, reanudar y cancelar; cancelar o fallar conserva el informe anterior. La interfaz solo recibe instantáneas de tamaño fijo y páginas. No sigue enlaces ni uniones y no provoca descargas de la nube. Rutas virtuales `lfind://storage` y `lfind://storage?root=…&at=…`. No lee ni escribe el índice ni cambia preferencias.
 
-Orden: las fechas mezclan carpetas y archivos (`mixesFolders`); nombre, tamaño y tipo dejan las carpetas delante; `nextSort` alterna el sentido al repetir un criterio. Ubicaciones: el contenedor `.side-pins` resuelve la posición de inserción y la identidad es la ruta normalizada. Detalle en [UPDATE10_PROGRESS.md](UPDATE10_PROGRESS.md).
+Orden: las fechas mezclan carpetas y archivos (`mixesFolders`); nombre, tamaño y tipo dejan las carpetas delante; `nextSort` alterna el sentido al repetir un criterio. Ubicaciones: el contenedor `.side-pins` resuelve la posición de inserción y la identidad es la ruta normalizada. Detalle en [docs/history/UPDATE10_PROGRESS.md](docs/history/UPDATE10_PROGRESS.md).
 
 ### Personalización de la interfaz (Update 11)
-`useReorder` es el único motor de arrastre para reordenar (secciones, filas, herramientas y pestañas), con eventos de puntero; el arrastre HTML5 queda para mover archivos. La distribución vive en `Prefs.layout` (sigue la versión 3, campo con valor por defecto y lectura tolerante en `prefs.rs`): listas de identificadores estables, vacías por defecto. `lib/uiLayout.ts` define secciones y herramientas; una herramienta o sección nueva se añade ahí. El modo «Personalizar interfaz» (`stores/customize.ts`) no se guarda. Detalle en [UPDATE11_PROGRESS.md](UPDATE11_PROGRESS.md).
+`useReorder` es el único motor de arrastre para reordenar (secciones, filas, herramientas y pestañas), con eventos de puntero; el arrastre HTML5 queda para mover archivos. La distribución vive en `Prefs.layout` (sigue la versión 3, campo con valor por defecto y lectura tolerante en `prefs.rs`): listas de identificadores estables, vacías por defecto. `lib/uiLayout.ts` define secciones y herramientas; una herramienta o sección nueva se añade ahí. El modo «Personalizar interfaz» (`stores/customize.ts`) no se guarda. Detalle en [docs/history/UPDATE11_PROGRESS.md](docs/history/UPDATE11_PROGRESS.md).
+
+### Actualización de informes del analizador (Update 12)
+Un informe no se modifica en su sitio: `Analyzer::update` escribe uno nuevo copiando del anterior (base adjunta) lo que no cambió y releyendo solo las carpetas afectadas, para conservar los intervalos contiguos de identificadores; la sustitución sigue siendo atómica. `Sink` tiene métodos opcionales para ello (`visit`, `copy_subtree`, `keep_files`). Hay dos fuentes de cambios: la lista exacta de `analyzer::watch` (`ReadDirectoryChangesW`, una ubicación, memoria acotada) y la comparación de fechas de las carpetas guardadas, que marca el informe como parcial. La fecha de cada carpeta se lee de la propia carpeta: la que da la enumeración de la madre puede ir retrasada. Antes de reescribir, los avisos de la vigilancia se comparan con el informe (`really_changed`) y los archivos avisados se leen directamente, porque la enumeración da tamaños retrasados si siguen abiertos. Modo en `Prefs.analyzerRefresh`.
+
+### Doble panel (Update 12)
+`useNav` mantiene `tabs` y `activeId` siempre del panel activo; el otro vive en `other` y `side` indica su lado. Todo lo que ya actuaba sobre «la pestaña activa» funciona sin cambios y `focusSide` intercambia ambos grupos. `Pane` y `Toolbar` reciben `side` y usan `selectPaneTab(side)`; los atajos, el visor y la búsqueda solo se enlazan en el panel activo. `id="nova-filter"` solo existe en el panel activo. Arrastrar entre paneles reutiliza `beginDrag` y `dropInto`. El orden propio de un panel vive en `Tab.orders`, por lo que viaja con la pestaña al intercambiar paneles; solo se usa si comparten carpeta o si ya lo tenía.
+
+### Personalización visual (Update 12)
+`Prefs.appearance` y `customThemes` se guardan como JSON y los valida `normalizeAppearance`, campo por campo. `appearanceVars` escribe variables sobre las del tema, solo las que difieren del original; al cambiar de tema se miden de nuevo. Las imágenes se reducen en la interfaz (máximo 1920 px) y las guarda `nova_core::backgrounds` con un identificador derivado del contenido; `prefs.json` solo guarda ese identificador. Las imágenes se eligen en el propio explorador (`useCustomize.picking`, `chooseBackground`); no hay `<input type="file">`. La CSP no cambia: se muestran como `data:`. El desenfoque y el contraste se aplican una vez con `bakeBackground`; el `filter` en vivo solo queda con `data-bg-filter`, si falla el lienzo. La opacidad de los paneles tiene un mínimo y la barra lateral siempre es más opaca. Usar `--bg-content`, no `--bg-chrome`, para velos: `--bg-chrome` es transparente con Mica.
 
 ## 8. Reglas de diseño
 

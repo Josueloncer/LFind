@@ -16,7 +16,7 @@ vi.mock("../lib/fs", () => ({
   },
 }));
 
-import { MAX_PARALLEL, failedSources, jobState, pathKey, signature, useOps } from "./ops";
+import { MAX_PARALLEL, failedSources, jobState, pathKey, signature, useOps, visibleJobs } from "./ops";
 import { useUi } from "./ui";
 
 const req = (name: string, o: Partial<OpRequest> = {}): OpRequest => ({ kind: "copy", sources: [`C:\\a\\${name}`], dest: "C:\\b", ...o });
@@ -206,5 +206,38 @@ describe("eliminación optimista", () => {
   });
   it("pathKey ignora mayúsculas, barras y barra final", () => {
     expect(pathKey("c:/A/B/")).toBe(pathKey("C:\\a\\b"));
+  });
+});
+
+describe("avisos de copiar y mover (Update 12)", () => {
+  const toasts = () => useUi.getState().toasts.map((t) => t.text);
+
+  it("un segundo «terminado» de la misma operación no repite el aviso ni la recarga", () => {
+    useOps.getState().start(req("a", { kind: "move" }));
+    started[0].emit(done());
+    const version = useOps.getState().version;
+    started[0].emit(done());
+    expect(toasts()).toEqual(["Movido 1 elemento"]);
+    expect(useOps.getState().version).toBe(version);
+  });
+
+  it("dos operaciones iguales seguidas dejan un solo aviso, y con otro texto se ven ambos", () => {
+    useOps.getState().start(req("a", { kind: "move" }));
+    started[0].emit(done());
+    useOps.getState().start(req("b", { kind: "move" }));
+    started[1].emit(done());
+    expect(toasts()).toEqual(["Movido 1 elemento"]);
+    useOps.getState().start(req("c"));
+    started[2].emit(done());
+    expect(toasts()).toEqual(["Movido 1 elemento", "Copiado 1 elemento"]);
+  });
+
+  it("lo terminado sin problemas no se anuncia también en una tarjeta; los errores y lo que sigue en marcha, sí", () => {
+    useOps.getState().start(req("ok"));
+    useOps.getState().start(req("mal"));
+    useOps.getState().start(req("sigue"));
+    started[0].emit(done());
+    started[1].emit(done({ completed: 0, errors: [{ path: "x", message: "m", kind: "other" }] }));
+    expect(visibleJobs(jobs()).map((j) => j.req.sources[0])).toEqual(["C:\\a\\mal", "C:\\a\\sigue"]);
   });
 });

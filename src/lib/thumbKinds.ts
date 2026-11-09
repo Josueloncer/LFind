@@ -16,9 +16,9 @@ export const SHELL = [
 
 const ALL = new Set([...RASTER, ...SVG, ...SHELL]);
 
-/** Archivos visibles con extensión conocida. Las carpetas, los ocultos y los que solo están en la nube no generan miniatura. */
-export function isThumbEligible(e: Pick<Entry, "kind" | "ext" | "hidden" | "size" | "cloud">): boolean {
-  return e.kind === "file" && !e.hidden && !e.cloud && e.size > 0 && !!e.ext && ALL.has(e.ext);
+/** Archivos visibles con extensión conocida. Los que solo están en la nube entran también: de ellos solo se consulta la caché de Windows, sin leerlos. */
+export function isThumbEligible(e: Pick<Entry, "kind" | "ext" | "hidden" | "size">): boolean {
+  return e.kind === "file" && !e.hidden && e.size > 0 && !!e.ext && ALL.has(e.ext);
 }
 
 /** Texto/código con vista previa textual en el panel de vista previa (coincide con nova-core::preview). */
@@ -39,3 +39,6 @@ export function thumbBucket(cssPx: number, dpr = 1): number {
   const need = Math.ceil(cssPx * Math.max(1, Math.min(dpr, 2)));
   return [64, 128, 256, 512].find((b) => b >= need) ?? 512;
 }
+
+/** Identifica una miniatura pedida. Un archivo que se descarga de la nube cambia de clave: su fallo anterior ya no cuenta. */
+export const thumbKey = (path: string, px: number, e: Pick<Entry, "modified" | "size" | "cloud">): string => `${path}|${px}|${e.modified ?? 0}|${e.size}${e.cloud ? "|nube" : ""}`;

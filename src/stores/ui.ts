@@ -42,7 +42,8 @@ export const useUi = create<UiState>((set, get) => ({
 
   toast(text, tone = "info", action, ms) {
     const id = ++seq;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, text, tone, action }] }));
+    // El mismo aviso no se apila: sustituye al anterior y vuelve a contar su tiempo.
+    set((s) => ({ toasts: [...s.toasts.filter((t) => t.text !== text || t.tone !== tone).slice(-3), { id, text, tone, action }] }));
     // Los errores y los avisos con acción duran más para dar tiempo a leerlos o pulsar «Deshacer».
     setTimeout(() => get().dismissToast(id), ms ?? (tone === "error" ? 9000 : action ? 8000 : 4500));
   },

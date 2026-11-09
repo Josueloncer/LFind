@@ -108,6 +108,13 @@ export class BrowserProvider implements FsProvider {
 
   // El analizador recorre el disco desde Rust: en el navegador la vista explica que hace falta la aplicación.
   analyzerStart = NA as FsProvider["analyzerStart"];
+  analyzerUpdate = NA as FsProvider["analyzerUpdate"];
+  analyzerWatch = NA as FsProvider["analyzerWatch"];
+  analyzerUnwatch = async () => {};
+  backgroundImport = NA as FsProvider["backgroundImport"];
+  listFonts = async (): Promise<string[]> => [];
+  backgroundLoad = async () => null;
+  backgroundRetain = async () => 0;
   analyzerPause = async () => {};
   analyzerResume = async () => {};
   analyzerCancel = async () => {};

@@ -73,6 +73,9 @@ export interface MenuActions {
   setView(patch: Partial<EffectiveView>): void;
   /** Abre el analizador de almacenamiento para esa carpeta (sin argumento: la que se está viendo). */
   analyze?(dir?: Entry): void;
+  /** Vista doble: copia o mueve al otro panel. Solo existe si el otro panel muestra una carpeta. */
+  copyToOther?(l: Entry[]): void;
+  moveToOther?(l: Entry[]): void;
 }
 
 const sep: MenuItem = { kind: "sep" };
@@ -148,6 +151,8 @@ function itemMenu(s: MenuState, a: MenuActions): MenuItem[] {
     sep,
     { kind: "item", label: "Cortar", icon: "cut", shortcut: "Ctrl+X", run: () => a.cut(list) },
     { kind: "item", label: "Copiar", icon: "copy", shortcut: "Ctrl+C", run: () => a.copy(list) },
+    ...(a.copyToOther ? [{ kind: "item", label: "Copiar al otro panel", icon: "copy", shortcut: "Ctrl+Mayús+C", run: () => a.copyToOther?.(list) } as MenuItem] : []),
+    ...(a.moveToOther ? [{ kind: "item", label: "Mover al otro panel", icon: "cut", shortcut: "Ctrl+Mayús+M", run: () => a.moveToOther?.(list) } as MenuItem] : []),
     ...(dirOne ? [{ kind: "item", label: "Pegar en la carpeta", icon: "paste", disabled: !s.canPaste, run: () => a.paste(e) } as MenuItem] : []),
     sep,
     { kind: "item", label: one ? "Copiar ruta de acceso" : "Copiar rutas", icon: "path", run: () => a.copyPaths(list) },

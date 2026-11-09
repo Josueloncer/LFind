@@ -67,3 +67,14 @@ export const VIEW_LABEL: Record<ViewMode, string> = {
   content: "Contenido",
   icons: "Iconos",
 };
+
+/** Anchura mínima del nombre en la vista de detalles. */
+export const NAME_MIN_W = 180;
+
+/** Columnas que caben dejando sitio al nombre; se retiran las últimas. Sin anchura conocida, todas. */
+export function fitColumns<T>(cols: readonly T[], widthOf: (c: T) => number, available: number): T[] {
+  const out = [...cols];
+  if (available <= 0) return out;
+  while (out.length && available - out.reduce((a, c) => a + widthOf(c), 0) < NAME_MIN_W) out.pop();
+  return out;
+}

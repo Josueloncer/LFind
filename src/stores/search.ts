@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { fs } from "../lib/fs";
+import { useNav } from "./nav";
 import { EMPTY_SNAPSHOT, SearchController } from "../lib/searchController";
 import type { SearchSnapshot } from "../lib/searchController";
 import { DEFAULT_FILTERS, buildQuery, hasCriteria } from "../lib/searchQuery";
@@ -14,6 +15,8 @@ export type Scope = "folder" | "global";
 
 interface SearchState {
   scope: Scope;
+  /** Panel en el que se muestran los resultados de la búsqueda global. */
+  side: 0 | 1;
   text: string;
   filters: SearchFilters;
   filtersOpen: boolean;
@@ -59,6 +62,7 @@ function sync(s: Pick<SearchState, "scope" | "text" | "filters">, immediate = fa
 
 export const useSearch = create<SearchState>((set, get) => ({
   scope: "folder",
+  side: 0,
   text: "",
   filters: DEFAULT_FILTERS,
   filtersOpen: false,
@@ -72,7 +76,7 @@ export const useSearch = create<SearchState>((set, get) => ({
     set((s) => ({ focusTick: s.focusTick + 1 }));
   },
   setScope(scope) {
-    set({ scope, selected: null });
+    set({ scope, selected: null, ...(scope === "global" ? { side: useNav.getState().side } : {}) });
     sync(get());
   },
   setText(text) {

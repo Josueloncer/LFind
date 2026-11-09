@@ -462,6 +462,22 @@ pub struct ThumbService {
     epoch: AtomicU64,
     limiter: Limiter,
     inflight: Mutex<HashMap<String, Arc<Flight>>>,
+    /// Miniatura de un archivo que solo está en la nube. Nunca debe leer el archivo.
+    cloud_lookup: Box<dyn Fn(&Path, u32) -> Result<Thumb, ThumbError> + Send + Sync>,
+}
+
+/// La miniatura que Windows ya tenga guardada. Si no la tiene, no se pide: generarla obligaría a descargar el archivo.
+fn windows_cached_thumb(path: &Path, px: u32) -> Result<Thumb, ThumbError> {
+    #[cfg(windows)]
+    {
+        let img = crate::thumbs_win::cached_shell_thumbnail(path, px, Duration::from_secs(2))?;
+        encode_thumb(DynamicImage::ImageRgba8(img), px)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (path, px);
+        Err(ThumbError::Unsupported)
+    }
 }
 
 fn mtime_ms(m: &fs::Metadata) -> i64 {
@@ -476,6 +492,7 @@ impl ThumbService {
             epoch: AtomicU64::new(0),
             limiter: Limiter { used: Mutex::new(0), cv: Condvar::new(), max: cfg.parallel.max(1) },
             inflight: Mutex::new(HashMap::new()),
+            cloud_lookup: Box::new(windows_cached_thumb),
         }
     }
 
@@ -518,8 +535,12 @@ impl ThumbService {
             CacheHit::Miss => {}
         }
         // Generar la miniatura obligaría a descargar el archivo de la nube: una carpeta entera serían descargas masivas.
+        // Solo se aprovecha la que Windows ya tenga. Un fallo no se recuerda: el archivo puede descargarse luego con la misma fecha y tamaño.
         if crate::dir::is_cloud_only(&meta) {
-            return Err(ThumbError::Unsupported);
+            let _permit = self.limiter.acquire(&cancelled)?;
+            let thumb = (self.cloud_lookup)(path, px).map_err(|_| ThumbError::Unsupported)?;
+            self.cache.put(&key, &thumb);
+            return Ok(thumb);
         }
 
         for _attempt in 0..2 {
@@ -960,6 +981,68 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1, "no se reintenta un formato sin proveedor");
         assert_eq!(s.get(&d.join("b.xyz"), 64, None), Err(ThumbError::Unsupported), "extensión que nadie soporta");
         assert_eq!(s.get(&d.join("falta.png"), 64, None).unwrap_err().kind(), "failed");
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[cfg(windows)]
+    fn mark_cloud(p: &Path, on: bool) {
+        let flag = if on { "+O" } else { "-O" };
+        assert!(std::process::Command::new("attrib").arg(flag).arg(p).status().unwrap().success());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_cloud_only_file_is_never_read_and_a_miss_is_not_remembered() {
+        let d = tmp("nube");
+        let f = d.join("a.png");
+        fs::write(&f, b"x").unwrap();
+        mark_cloud(&f, true);
+        let fake = Fake::new(ok_thumb(), 0);
+        let calls = fake.calls.clone();
+        let mut s = svc(&d, 3, vec![Box::new(fake)]);
+        s.cloud_lookup = Box::new(|_, _| Err(ThumbError::Failed("no está en la caché".into())));
+        assert_eq!(s.get(&f, 64, None), Err(ThumbError::Unsupported));
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "ningún proveedor abre un archivo en la nube");
+        mark_cloud(&f, false);
+        assert!(s.get(&f, 64, None).is_ok(), "al descargarse, se genera aunque antes no hubiera miniatura");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_thumbnail_windows_already_has_is_used_for_cloud_files() {
+        let d = tmp("nube2");
+        let f = d.join("a.png");
+        fs::write(&f, b"x").unwrap();
+        mark_cloud(&f, true);
+        let fake = Fake::new(ok_thumb(), 0);
+        let calls = fake.calls.clone();
+        let mut s = svc(&d, 3, vec![Box::new(fake)]);
+        let looked = Arc::new(AtomicUsize::new(0));
+        let l = looked.clone();
+        s.cloud_lookup = Box::new(move |_, _| {
+            l.fetch_add(1, Ordering::SeqCst);
+            ok_thumb()
+        });
+        assert!(s.get(&f, 64, None).is_ok());
+        assert!(s.get(&f, 64, None).is_ok());
+        assert_eq!((looked.load(Ordering::SeqCst), calls.load(Ordering::SeqCst)), (1, 0), "la segunda vez sale de la caché propia");
+        mark_cloud(&f, false);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn asking_windows_only_for_its_cache_does_not_touch_the_file() {
+        let d = tmp("nube3");
+        let f = d.join("a.png");
+        fs::write(&f, b"x").unwrap();
+        mark_cloud(&f, true);
+        let before = fs::metadata(&f).unwrap().modified().unwrap();
+        assert!(windows_cached_thumb(&f, 64).is_err(), "este archivo nunca se ha visto: no hay nada en la caché");
+        assert_eq!(fs::metadata(&f).unwrap().modified().unwrap(), before);
+        mark_cloud(&f, false);
         let _ = fs::remove_dir_all(d);
     }
 

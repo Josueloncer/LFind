@@ -135,6 +135,21 @@ export class TauriProvider implements FsProvider {
     channel.onmessage = onEvent;
     return invoke<void>("analyzer_start", { root, onEvent: channel });
   }
+  analyzerUpdate(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void> {
+    const channel = new Channel<AnalyzeEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("analyzer_update", { root, onEvent: channel });
+  }
+  analyzerWatch(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void> {
+    const channel = new Channel<AnalyzeEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("analyzer_watch", { root, onEvent: channel });
+  }
+  analyzerUnwatch = () => invoke<void>("analyzer_unwatch");
+  backgroundImport = (path: string) => invoke<string>("background_import", { path });
+  listFonts = () => invoke<string[]>("list_fonts");
+  backgroundLoad = (id: string) => invoke<string | null>("background_load", { id });
+  backgroundRetain = (keep: string[]) => invoke<number>("background_retain", { keep });
   analyzerPause = () => invoke<void>("analyzer_pause");
   analyzerResume = () => invoke<void>("analyzer_resume");
   analyzerCancel = () => invoke<void>("analyzer_cancel");

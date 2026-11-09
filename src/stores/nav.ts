@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { withPaneOrder } from "../lib/viewState";
+import type { PaneOrder, PaneOrders } from "../lib/viewState";
 import { samePath, upOf } from "../lib/path";
 import { moveByKey } from "../lib/reorder";
 
@@ -9,6 +11,8 @@ export interface Tab {
   forward: string[];
   /** La abrió la aplicación al arrancar: mientras el usuario no navegue, no cuenta como visita. */
   auto?: boolean;
+  /** Orden propio de esta pestaña por carpeta, en la vista doble. */
+  orders?: PaneOrders;
 }
 
 interface NavState {
@@ -23,6 +27,15 @@ interface NavState {
   goBack(): void;
   goForward(): void;
   goUp(): void;
+  /** El otro panel de la vista doble. `tabs` y `activeId` son siempre los del panel activo. */
+  other: { tabs: Tab[]; activeId: string | null } | null;
+  /** Lado del panel activo: 0 izquierda, 1 derecha. */
+  side: 0 | 1;
+  toggleDual(): void;
+  focusSide(side: 0 | 1): void;
+  /** Intercambia el contenido de los dos paneles. */
+  swap(): void;
+  setPaneOrder(side: 0 | 1, path: string, order: PaneOrder): void;
   /** Salta `n` posiciones atrás/adelante en el historial de la pestaña activa (menú del botón Atrás/Adelante). */
   jump(n: number): void;
 }
@@ -37,6 +50,36 @@ const patchActive = (s: NavState, fn: (t: Tab) => Tab): Partial<NavState> => ({
 export const useNav = create<NavState>((set, get) => ({
   tabs: [],
   activeId: null,
+  other: null,
+  side: 0,
+
+  toggleDual() {
+    const { other, tabs, activeId } = get();
+    if (other) return set({ other: null, side: 0, tabs: tabs.map((t) => (t.orders ? { ...t, orders: undefined } : t)) });
+    const cur = tabs.find((t) => t.id === activeId);
+    if (!cur) return;
+    const t = mk(cur.path);
+    set({ other: { tabs: [t], activeId: t.id } });
+  },
+
+  focusSide(side) {
+    const { other, tabs, activeId, side: now } = get();
+    if (!other || side === now) return;
+    set({ tabs: other.tabs, activeId: other.activeId, other: { tabs, activeId }, side });
+  },
+
+  swap() {
+    const { other, tabs, activeId } = get();
+    if (other) set({ tabs: other.tabs, activeId: other.activeId, other: { tabs, activeId } });
+  },
+
+  setPaneOrder(side, path, order) {
+    set((s) => {
+      const write = (g: { tabs: Tab[]; activeId: string | null }) => g.tabs.map((t) => (t.id === g.activeId ? { ...t, orders: withPaneOrder(t.orders, path, order) } : t));
+      if (side === s.side) return { tabs: write(s) };
+      return s.other ? { other: { ...s.other, tabs: write(s.other) } } : s;
+    });
+  },
 
   init(path) {
     if (get().tabs.length) return;
@@ -117,5 +160,18 @@ export const useNav = create<NavState>((set, get) => ({
     if (up) get().navigate(up);
   },
 }));
+
+/** Pestaña visible en un lado concreto de la vista doble. */
+export const selectPaneTab = (side: 0 | 1) => (s: NavState): Tab | undefined => {
+  const group = s.side === side ? s : s.other;
+  return group?.tabs.find((t) => t.id === group.activeId);
+};
+
+/** Ruta del otro panel, si existe y es una carpeta real. */
+export const otherPanePath = (): string | null => {
+  const s = useNav.getState();
+  const t = s.other?.tabs.find((x) => x.id === s.other?.activeId);
+  return t && !t.path.startsWith("lfind://") ? t.path : null;
+};
 
 export const selectActiveTab = (s: NavState) => s.tabs.find((t) => t.id === s.activeId) ?? null;

@@ -75,6 +75,7 @@ pub const MAX_RECENTS: usize = 15;
 pub const MAX_FOLDER_VIEWS: usize = 300;
 pub const MAX_FAVORITES: usize = 100;
 pub const CURRENT_VERSION: u32 = 3;
+const MAX_APPEARANCE_JSON: usize = 128 * 1024;
 const MAX_LAYOUT_ITEMS: usize = 128;
 const MAX_LAYOUT_ID: usize = 1024;
 
@@ -168,12 +169,32 @@ pub struct Prefs {
     pub auto_update_check: bool,
     /// Última comprobación automática (milisegundos epoch), para no repetirla en cada arranque.
     pub last_update_check: i64,
+    /// Personalización visual. La valida la interfaz, campo por campo; un valor dañado no invalida el resto.
+    #[serde(deserialize_with = "any_json")]
+    pub appearance: serde_json::Value,
+    #[serde(deserialize_with = "any_json")]
+    pub custom_themes: serde_json::Value,
+    /// Vista de doble panel.
+    pub dual_pane: bool,
+    /// Posición del divisor, en milésimas de la anchura.
+    pub dual_split: u16,
+    /// Actualización de los informes del analizador: `auto`, `manual` u `off`.
+    #[serde(default = "manual_refresh")]
+    pub analyzer_refresh: String,
     /// Distribución de barras y secciones. Campo añadido sin cambiar la versión: un archivo sin él usa la distribución original.
     #[serde(deserialize_with = "lenient_layout")]
     pub layout: Layout,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
     #[serde(default = "zero")]
     pub version: u32,
+}
+
+fn any_json<'de, D: serde::Deserializer<'de>>(d: D) -> Result<serde_json::Value, D::Error> {
+    serde_json::Value::deserialize(d)
+}
+
+fn manual_refresh() -> String {
+    "manual".into()
 }
 
 fn zero() -> u32 {
@@ -206,7 +227,16 @@ impl Prefs {
         for f in &mut self.folder_views {
             f.icon_size = f.icon_size.clamp(16, 512);
         }
+        self.dual_split = self.dual_split.clamp(200, 800);
+        for v in [&mut self.appearance, &mut self.custom_themes] {
+            if v.to_string().len() > MAX_APPEARANCE_JSON {
+                *v = serde_json::Value::Null;
+            }
+        }
         self.layout.sanitize();
+        if !matches!(self.analyzer_refresh.as_str(), "auto" | "manual" | "off") {
+            self.analyzer_refresh = manual_refresh();
+        }
         let mut seen = vec![];
         self.columns.retain(|c| !seen.contains(c) && { seen.push(*c); true });
     }
@@ -256,6 +286,11 @@ impl Default for Prefs {
             preview_width: 320,
             auto_update_check: true,
             last_update_check: 0,
+            appearance: serde_json::Value::Null,
+            custom_themes: serde_json::Value::Null,
+            dual_pane: false,
+            dual_split: 500,
+            analyzer_refresh: manual_refresh(),
             layout: Layout::default(),
             version: CURRENT_VERSION,
         }
@@ -313,6 +348,23 @@ mod tests {
         let p = load(&f);
         assert_eq!(p.layout, Layout::default());
         assert_eq!((p.theme, p.favorites.len(), p.favorites[0].label.as_str(), p.version), (Theme::Hacker, 1, "Mi A", CURRENT_VERSION));
+    }
+
+    #[test]
+    fn new_fields_are_optional_and_tolerate_any_value() {
+        let d = dir("appearance");
+        let f = d.join("prefs.json");
+        fs::create_dir_all(&d).unwrap();
+        fs::write(&f, r#"{"version":3,"favorites":[{"path":"C:\\A","label":"Mi A"}]}"#).unwrap();
+        let p = load(&f);
+        assert_eq!((p.dual_pane, p.dual_split, p.analyzer_refresh.as_str(), p.appearance.is_null()), (false, 500, "manual", true));
+        fs::write(&f, r#"{"version":3,"favorites":[{"path":"C:\\A","label":"Mi A"}],"appearance":7,"customThemes":"x","analyzerRefresh":"raro","dualSplit":9000}"#).unwrap();
+        let q = load(&f);
+        assert_eq!((q.favorites.len(), q.analyzer_refresh.as_str(), q.dual_split, q.appearance.as_i64()), (1, "manual", 800, Some(7)));
+        let mut big = Prefs::default();
+        big.appearance = serde_json::Value::String("x".repeat(MAX_APPEARANCE_JSON + 1));
+        big.sanitize();
+        assert!(big.appearance.is_null(), "tamaño limitado");
     }
 
     #[test]

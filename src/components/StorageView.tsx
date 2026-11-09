@@ -5,12 +5,13 @@ import { driveLabel } from "../lib/addressBar";
 import { kindLabel } from "../lib/fileKinds";
 import { formatBytes, formatDate } from "../lib/format";
 import { errMsg, fs } from "../lib/fs";
-import type { AnalyzeProgress, CatStat, DirHit, DriveUsage, ExtStat, FileHit, Issue, Page, ReportInfo, SearchHit, TreeNode } from "../lib/fs";
+import type { AnalyzeProgress, CatStat, DirHit, DriveUsage, ExtStat, FileHit, Issue, Page, Prefs, ReportInfo, SearchHit, TreeNode } from "../lib/fs";
 import { usedPercent } from "../lib/locations";
 import { basename, isDriveRoot, relativeTo, rootOf, storageRoute } from "../lib/path";
 import { parseExts, parseSize } from "../lib/searchQuery";
 import { useApp } from "../stores/app";
 import { useNav } from "../stores/nav";
+import { usePrefs } from "../stores/prefs";
 import { useStorage } from "../stores/storage";
 import type { StorageJob } from "../stores/storage";
 import { useUi } from "../stores/ui";
@@ -20,7 +21,7 @@ import { driveIcon } from "./ComputerView";
 import { hitMenu, openLocation } from "./SearchView";
 import { StorageTreemap } from "./StorageTreemap";
 import type { TreeBlock } from "./StorageTreemap";
-import { ChartPie, Cloud, FolderOpen, Pause, Play, RefreshCw, Square, Trash2, TriangleAlert } from "./icons";
+import { ChartPie, Cloud, FolderOpen, Pause, Play, RefreshCw, RotateCw, Square, Trash2, TriangleAlert } from "./icons";
 
 const nf = new Intl.NumberFormat();
 const PAGE = 200;
@@ -339,9 +340,25 @@ function Overview({ root, at, node, version, cats, total, enter, openTab, pickCa
   );
 }
 
+const REFRESH_MODES: [Prefs["analyzerRefresh"], string][] = [["auto", "Automática"], ["manual", "Manual"], ["off", "Desactivada"]];
+
 function Actions({ job, onStart, root }: { job: StorageJob | null; onStart(): void; root: string }) {
   const mine = job?.root === root;
-  return <button className="btn" disabled={!!job} title={job && !mine ? `Hay un análisis en curso de ${job.root}` : "Volver a recorrer la ubicación"} onClick={onStart}><RefreshCw className="an-btn-ico" />Analizar de nuevo</button>;
+  const updating = useStorage((s) => s.updating);
+  const mode = usePrefs((s) => s.analyzerRefresh);
+  const busy = !!job || !!updating;
+  return (
+    <div className="an-actions">
+      <label className="an-mode" title="Automática: mientras LFind está abierto, actualiza en segundo plano lo que cambia. Manual: solo con el botón. Desactivada: el informe no cambia hasta un nuevo análisis.">
+        <span>Actualización</span>
+        <select value={mode} onChange={(e) => (usePrefs.getState().update({ analyzerRefresh: e.target.value as Prefs["analyzerRefresh"] }), useStorage.getState().syncWatch(root))}>
+          {REFRESH_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </label>
+      {mode !== "off" && <button className="btn" disabled={busy} title="Relee solo las carpetas que han cambiado" onClick={() => useStorage.getState().update(root)}><RotateCw className="an-btn-ico" />{updating ? "Actualizando…" : "Actualizar cambios"}</button>}
+      <button className="btn" disabled={busy} title={job && !mine ? `Hay un análisis en curso de ${job.root}` : "Vuelve a recorrer toda la ubicación"} onClick={onStart}><RefreshCw className="an-btn-ico" />Analizar de nuevo</button>
+    </div>
+  );
 }
 
 function Issues({ root, count }: { root: string; count: number }) {
@@ -375,11 +392,12 @@ function ReportBody({ root, at, report, version }: { root: string; at: string; r
       <div className="an-top">
         <div className="an-heading">
           <h1 className="an-title-main" title={node.path}>{isDriveRoot(node.path) ? node.path : basename(node.path)}</h1>
-          <p className="an-sub-main" title={node.path}>Último análisis: {formatDate(report.finishedAt)} · {formatDuration(report.durationMs)} · {node.path}</p>
+          <p className="an-sub-main" title={node.path}>{report.updatedDirs > 0 ? `Actualizado: ${formatDate(report.finishedAt)} · ${nf.format(report.updatedDirs)} carpetas releídas · Análisis completo: ${formatDate(report.fullScanAt)}` : `Último análisis: ${formatDate(report.finishedAt)} · ${formatDuration(report.durationMs)}`}{report.checkedAt > report.finishedAt ? ` · Comprobado: ${formatDate(report.checkedAt)}` : ""}</p>
         </div>
         <Actions job={job} root={report.root} onStart={() => start(report.root)} />
       </div>
       {stale && <div className="an-warn" role="status"><TriangleAlert className="an-btn-ico" />{stale}</div>}
+      {report.partial && <div className="an-partial" role="status" title="Un archivo que cambia de tamaño sin que cambie la fecha de su carpeta solo se detecta con la vigilancia automática o con un análisis completo.">Resultados parciales: actualizados según las fechas de las carpetas. «Analizar de nuevo» los deja exactos.</div>}
       {tab === "overview" && (
         <div className="an-summary">
           <Capacity root={report.root} analyzed={report.bytes - report.cloudBytes} />
@@ -467,12 +485,18 @@ function Report({ root, at }: { root: string; at: string }) {
   const version = useStorage((s) => s.version);
   const start = useStorage((s) => s.start);
   const [report, setReport] = useState<ReportInfo | null | undefined>(undefined);
+  // Al cambiar de ubicación se vacía; una actualización del mismo informe no interrumpe lo que se está viendo.
+  useEffect(() => setReport(undefined), [root]);
   useEffect(() => {
     let live = true;
-    setReport(undefined);
     fs.analyzerReport(root).then((r) => live && setReport(r)).catch((e) => live && (setReport(null), fail(e)));
     return () => { live = false; };
   }, [root, version]);
+  const hasReport = !!report;
+  useEffect(() => {
+    if (hasReport) useStorage.getState().syncWatch(root);
+    return () => useStorage.getState().syncWatch(null);
+  }, [root, hasReport]);
   const running = job && relativeTo(job.root, root) === "" && relativeTo(root, job.root) === "";
   if (running) return <Live job={job} />;
   if (report === undefined) return null;

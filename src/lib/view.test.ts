@@ -1,3 +1,4 @@
+import { fitColumns } from "./view";
 import { describe, expect, it } from "vitest";
 import { ICON_STEPS, iconGeometry, zoomStep } from "./view";
 
@@ -50,5 +51,20 @@ describe("escalera (control deslizante)", () => {
     for (let i = 0; i <= LADDER_MAX; i++) expect(ladderPos(ladderAt(i, 64))).toBe(i);
     expect(ladderAt(-5, 64).viewMode).toBe("details");
     expect(ladderAt(99, 64).iconSize).toBe(256);
+  });
+});
+
+describe("columnas en paneles estrechos", () => {
+  const w = (n: number) => n;
+  it("retira las últimas hasta dejar sitio al nombre", () => {
+    expect(fitColumns([100, 100, 100], w, 600)).toEqual([100, 100, 100]);
+    expect(fitColumns([100, 100, 100], w, 420)).toEqual([100, 100]);
+    expect(fitColumns([100, 100, 100], w, 200)).toEqual([]);
+  });
+  it("sin medir todavía no retira nada y no altera la entrada", () => {
+    const c = [100, 100];
+    expect(fitColumns(c, w, 0)).toEqual(c);
+    fitColumns(c, w, 10);
+    expect(c.length).toBe(2);
   });
 });

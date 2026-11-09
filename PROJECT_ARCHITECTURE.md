@@ -354,3 +354,13 @@ El plugin hace la red desde Rust, así que la CSP de la interfaz no cambia. Las 
 ## 11. Compilación para Windows
 
 `npm run tauri build` → `npm run build` (`tsc` + Vite, destino `chrome105`, a `dist/`) → compilación Rust en release (`opt-level=3`, LTO, `codegen-units=1`, `strip`, con desenrollado de pánicos) → NSIS en `src-tauri/target/release/bundle/nsis/`. SQLite se compila dentro del binario, por lo que requiere MSVC. Detalle: [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md).
+
+## 12. Actualización incremental, doble panel y personalización (Update 12)
+
+| Pieza | Archivos |
+|---|---|
+| Actualización de informes | `analyzer/report.rs` (`update`, `watch`), `analyzer/walk.rs` (`walk_update`), `analyzer/watch.rs` |
+| Doble panel | `stores/nav.ts` (`other`, `side`), `stores/dual.ts`, `components/Panes.tsx` |
+| Personalización | `lib/appearance.ts`, `lib/backgroundImage.ts`, `stores/backgrounds.ts`, `components/AppearancePanel.tsx`, `nova-core/backgrounds.rs` |
+
+Decisiones y reglas de uso: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).

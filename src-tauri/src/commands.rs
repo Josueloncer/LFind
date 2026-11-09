@@ -23,6 +23,12 @@ pub enum DirEvent {
 
 /// Inicia la lectura de `path` en un hilo del pool de bloqueo y devuelve un id cancelable.
 /// Los resultados llegan por `on_event`; esta llamada no espera a que termine la lectura.
+/// Familias tipográficas instaladas, para el selector de la personalización.
+#[tauri::command]
+pub async fn list_fonts() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(nova_core::fonts::installed).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn open_dir(path: String, on_event: Channel<DirEvent>, state: State<'_, AppState>) -> u64 {
     let jobs = state.jobs.clone();

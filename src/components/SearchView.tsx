@@ -1,4 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { chooseBackground } from "../stores/backgroundPick";
+import { useCustomize } from "../stores/customize";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { pinLabel } from "../lib/contextMenu";
@@ -37,7 +39,8 @@ function openHit(h: SearchHit) {
   if (h.isDir) {
     useNav.getState().navigate(h.path);
     useSearch.getState().leave();
-  } else fs.openPath(h.path).catch((e) => useUi.getState().toast(errMsg(e), "error"));
+  } else if (useCustomize.getState().picking) void chooseBackground(h.path);
+  else fs.openPath(h.path).catch((e) => useUi.getState().toast(errMsg(e), "error"));
 }
 
 /** «Abrir ubicación»: LFind abre la carpeta contenedora y selecciona el elemento. */

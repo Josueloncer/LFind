@@ -17,11 +17,11 @@ import { useShellData } from "../stores/shellData";
 import { VISIT_DWELL_MS } from "../lib/locations";
 import { COMPUTER, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
-import { effectiveView, isPinned, nextSort } from "../lib/viewState";
+import { effectiveView, isPinned, keepsPaneOrder, nextSort, paneView, splitViewPatch } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
 import { useClipboard } from "../stores/clipboard";
-import { selectActiveTab, useNav } from "../stores/nav";
+import { otherPanePath, selectPaneTab, useNav } from "../stores/nav";
 import { pathKey, useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
 import { useSearch } from "../stores/search";
@@ -39,8 +39,11 @@ import { StatusBar } from "./StatusBar";
 import { StorageStatusInfo, StorageView } from "./StorageView";
 import { Toolbar } from "./Toolbar";
 
-export function Pane() {
-  const tab = useNav(selectActiveTab);
+export function Pane({ side }: { side: 0 | 1 }) {
+  const tab = useNav(selectPaneTab(side));
+  const focused = useNav((s) => s.side === side);
+  const dualOn = useNav((s) => !!s.other);
+  const otherPath = useNav((s) => selectPaneTab(side === 0 ? 1 : 0)(s)?.path);
   const p = usePrefs(useShallow((s) => ({
     viewMode: s.viewMode, iconSize: s.iconSize, sortKey: s.sortKey, sortDir: s.sortDir, groupBy: s.groupBy, folderViews: s.folderViews,
     showHidden: s.showHidden, columns: s.columns, loaded: s.loaded, thumbnails: s.thumbnails, previewPane: s.previewPane,
@@ -53,8 +56,8 @@ export function Pane() {
   const clipPaths = useClipboard((s) => s.paths);
   const opsVersion = useOps((s) => s.version);
   const hidden = useOps((s) => s.hidden);
-  const global = useSearch((s) => s.scope === "global");
-  const pickedHit = useSearch((s) => (s.scope === "global" && s.selected ? s.snap.hits.find((h) => h.path === s.selected) ?? null : null));
+  const global = useSearch((s) => s.scope === "global" && s.side === side);
+  const pickedHit = useSearch((s) => (s.scope === "global" && s.side === side && s.selected ? s.snap.hits.find((h) => h.path === s.selected) ?? null : null));
   const revealReq = useSearch((s) => s.reveal);
   const viewerExpanded = useViewer((s) => s.expanded);
   const orderRef = useRef<Entry[]>([]); // orden real en pantalla (con agrupación): lo mantiene FileView
@@ -64,7 +67,8 @@ export function Pane() {
   // «Mi equipo» no es una carpeta: sin ruta no se lee nada del disco y las acciones de archivo no hacen nada.
   const storage = !!tab && isStorage(tab.path);
   const path = !tab || isVirtual(tab.path) ? null : tab.path;
-  const view = useMemo(() => effectiveView(p, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  const orders = dualOn ? tab?.orders : undefined;
+  const view = useMemo(() => paneView(effectiveView(p, path ?? ""), orders, path ?? ""), [p.viewMode, p.iconSize, p.sortKey, p.sortDir, p.groupBy, p.folderViews, path, orders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dir = useDirectory(path);
   const [filter, setFilter] = useState("");
@@ -151,7 +155,7 @@ export function Pane() {
 
   // «Abrir ubicación» desde la búsqueda global: al leerse la carpeta contenedora se selecciona el elemento y se muestra.
   useEffect(() => {
-    if (!revealReq || dir.status !== "ready" || !path) return;
+    if (!revealReq || !focused || dir.status !== "ready" || !path) return;
     if (Date.now() - revealReq.at > 15_000) return useSearch.getState().setReveal(null);
     const par = parent(revealReq.path);
     const name = basename(revealReq.path);
@@ -159,7 +163,7 @@ export function Pane() {
     useSearch.getState().setReveal(null);
     setSelected(new Set([name]));
     setReveal(name);
-  }, [revealReq, dir.status, path, visible]);
+  }, [revealReq, focused, dir.status, path, visible]);
 
   // Recientes: carpetas que el usuario abrió y en las que se detuvo. No cuentan la inicial, las recargas ni las de paso.
   const visited = useRef(new Map<string, string>());
@@ -180,7 +184,15 @@ export function Pane() {
   // ───────── vista ─────────
   // Modo y tamaño de icono → vista global (se conserva al navegar, al cambiar de unidad y al reiniciar);
   // orden y agrupación → carpeta. Si la carpeta está «fijada», todo se guarda para ella.
-  const setView = useCallback((patch: Partial<EffectiveView>) => path && setPrefsView(path, patch), [path, setPrefsView]);
+  // En la vista doble ningún panel cambia el orden del otro: si comparten carpeta, cada uno guarda el suyo.
+  const setView = useCallback((patch: Partial<EffectiveView>) => {
+    if (!path) return;
+    const { look, order } = splitViewPatch(patch);
+    if (!Object.keys(order).length || !keepsPaneOrder(dualOn, path, otherPath, orders)) return setPrefsView(path, patch, dualOn);
+    const cur = paneView(effectiveView(usePrefs.getState(), path), orders, path);
+    useNav.getState().setPaneOrder(side, path, { sortKey: cur.sortKey, sortDir: cur.sortDir, groupBy: cur.groupBy, ...order });
+    if (Object.keys(look).length) setPrefsView(path, look);
+  }, [path, setPrefsView, dualOn, otherPath, orders, side]);
   const pinned = useMemo(() => !!path && isPinned(p, path), [p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
   const onSort = (k: SortKey) => setView(nextSort(view, k));
@@ -196,6 +208,11 @@ export function Pane() {
     if (w.requestIdleCallback) w.requestIdleCallback(() => void useShellData.getState().load(), { timeout: 2000 });
     else window.setTimeout(() => void useShellData.getState().load(), 300);
   }, []);
+  const sendToOther = useCallback((kind: "copy" | "move", list: Entry[]) => {
+    const dest = otherPanePath();
+    if (!dest || !path || !list.length) return;
+    useOps.getState().start({ kind, sources: list.map((e) => join(path, e.name)), dest });
+  }, [path]);
   const onContext = (ev: ContextPoint, e: Entry | null) => {
     if (!path) return;
     const list = e ? (selected.has(e.name) ? A.sel : [e]) : [];
@@ -210,6 +227,7 @@ export function Pane() {
         openFolderInExplorer: () => void A.openFolderInExplorer(),
         reload: dir.reload,
         setView,
+        ...(dualOn && otherPanePath() ? { copyToOther: (l: Entry[]) => sendToOther("copy", l), moveToOther: (l: Entry[]) => sendToOther("move", l) } : {}),
         analyze: (t) => useStorage.getState().analyze(t ? join(path, t.name) : path),
       },
     );
@@ -231,6 +249,8 @@ export function Pane() {
   const viewerCtx = useRef({ A });
   viewerCtx.current = { A };
   useEffect(() => {
+    if (!focused) return;
+    const inSearch = () => useSearch.getState().scope === "global" && useSearch.getState().side === side;
     const isFile = (e: Entry) => e.kind === "file";
     const hitIsFile = (h: SearchHit) => !h.isDir;
     const folderIndex = () => {
@@ -242,16 +262,16 @@ export function Pane() {
       return { hits: s.snap.hits, at: s.selected ? s.snap.hits.findIndex((h) => h.path === s.selected) : -1 };
     };
     useViewer.getState().bindNav({
-      hasTarget: () => (useSearch.getState().scope === "global" ? searchState().at >= 0 : viewerCtx.current.A.sel.length === 1),
+      hasTarget: () => (inSearch() ? searchState().at >= 0 : viewerCtx.current.A.sel.length === 1),
       position() {
-        if (useSearch.getState().scope === "global") {
+        if (inSearch()) {
           const { hits, at } = searchState();
           return filePosition(hits, hitIsFile, at);
         }
         return filePosition(orderRef.current, isFile, folderIndex());
       },
       step(d) {
-        if (useSearch.getState().scope === "global") {
+        if (inSearch()) {
           const { hits, at } = searchState();
           const n = neighborIndex(hits, hitIsFile, at, d);
           if (n !== null) useSearch.getState().select(hits[n].path);
@@ -265,12 +285,13 @@ export function Pane() {
       },
     });
     return () => useViewer.getState().bindNav(null);
-  }, []);
+  }, [focused, side]);
 
   // ───────── atajos de archivo ─────────
-  const keys = useRef({ A, selected, view, reload });
-  keys.current = { A, selected, view, reload };
+  const keys = useRef({ A, selected, view, reload, sendToOther });
+  keys.current = { A, selected, view, reload, sendToOther };
   useEffect(() => {
+    if (!focused) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
@@ -282,11 +303,13 @@ export function Pane() {
         return useViewer.getState().expand();
       }
       // Con la búsqueda global en pantalla, la selección de la carpeta de fondo no se toca (Supr, Cortar, Renombrar…).
-      if (useSearch.getState().scope === "global" && e.key !== "F5") return;
+      if (useSearch.getState().scope === "global" && useSearch.getState().side === side && e.key !== "F5") return;
       const { A, selected } = keys.current;
       const ctrl = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       if (e.key === "F5") return e.preventDefault(), keys.current.reload();
+      if (ctrl && e.shiftKey && k === "c") return e.preventDefault(), keys.current.sendToOther("copy", A.sel);
+      if (ctrl && e.shiftKey && k === "m") return e.preventDefault(), keys.current.sendToOther("move", A.sel);
       if (ctrl && !e.shiftKey && k === "c") return e.preventDefault(), A.copy();
       if (ctrl && !e.shiftKey && k === "x") return e.preventDefault(), A.cut();
       if (ctrl && !e.shiftKey && k === "v") return e.preventDefault(), A.paste();
@@ -298,7 +321,7 @@ export function Pane() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [focused, side]);
 
   // ───────── contenido ─────────
   const starting = !appReady || !p.loaded || (!tab && hasStart);
@@ -342,8 +365,9 @@ export function Pane() {
   }
 
   return (
-    <main className="main">
+    <main className="main" data-focused={focused || undefined} onPointerDownCapture={() => useNav.getState().focusSide(side)} onFocusCapture={() => useNav.getState().focusSide(side)}>
       <Toolbar
+        side={side}
         filter={filter} onFilter={setFilter} onReload={reload}
         view={view} columns={p.columns} setView={setView} setColumns={setColumns} applyAll={() => path && applyViewToAll(path)} pinned={pinned} togglePin={togglePin}
         newFolder={() => void A.newFolder()} newFile={() => void A.newFile()}
@@ -353,7 +377,7 @@ export function Pane() {
         <div className="content-row">
           <div className="content-main"><ErrorBoundary scope="view" resetKey={`${tab?.id}|${tab?.path}|${global}|${view.viewMode}`}>{body}</ErrorBoundary></div>
           <ErrorBoundary scope="panel" resetKey={global ? pickedHit?.path : `${tab?.path}|${A.sel.length === 1 ? A.sel[0].name : ""}`}>
-            {(p.previewPane || viewerExpanded) && (global
+            {focused && (p.previewPane || viewerExpanded) && (global
               ? <PreviewPane entry={pickedHit ? hitToEntry(pickedHit) : null} basePath={pickedHit ? parent(pickedHit.path) ?? "" : ""} count={pickedHit ? 1 : 0} />
               : tab && path && <PreviewPane entry={A.sel.length === 1 ? A.sel[0] : null} basePath={tab.path} count={selCount} />)}
           </ErrorBoundary>

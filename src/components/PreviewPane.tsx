@@ -5,7 +5,7 @@ import { formatBytes, formatDate } from "../lib/format";
 import { errMsg, fs } from "../lib/fs";
 import type { Entry, TextPreview, ViewerFact, ViewerSource } from "../lib/fs";
 import { join } from "../lib/path";
-import { isThumbEligible, thumbBucket } from "../lib/thumbKinds";
+import { isThumbEligible, thumbBucket, thumbKey } from "../lib/thumbKinds";
 import { mergeFacts } from "../lib/viewerMath";
 import { useThumb } from "../hooks/useThumb";
 import { useViewerSource } from "../hooks/useViewerSource";
@@ -45,10 +45,13 @@ function TextBody({ path }: { path: string }) {
   );
 }
 
-function Fallback({ entry, message }: { entry: Entry; message: string }) {
+function Fallback({ entry, path, message }: { entry: Entry; path: string; message: string }) {
+  // Un archivo en la nube no se abre, pero puede que Windows ya tenga su miniatura.
+  const px = thumbBucket(LOADING_THUMB_CSS, window.devicePixelRatio || 1);
+  const { url } = useThumb(entry.cloud && isThumbEligible(entry) ? thumbKey(path, px, entry) : null, path, px, true);
   return (
     <div className="preview-fallback vw-center">
-      <EntryGlyph entry={entry} size={96} />
+      {url ? <img className="vw-progressive" src={url} alt="" draggable={false} /> : <EntryGlyph entry={entry} size={96} />}
       <p className="preview-note">{message}</p>
     </div>
   );
@@ -58,7 +61,7 @@ function Fallback({ entry, message }: { entry: Entry; message: string }) {
 function Loading({ entry, path }: { entry: Entry; path: string }) {
   const eligible = isThumbEligible(entry);
   const px = thumbBucket(LOADING_THUMB_CSS, window.devicePixelRatio || 1);
-  const { url } = useThumb(eligible ? `${path}|${px}|${entry.modified ?? 0}|${entry.size}` : null, path, px, true);
+  const { url } = useThumb(eligible ? thumbKey(path, px, entry) : null, path, px, true);
   return (
     <div className="preview-fallback vw-center" role="status" aria-label="Cargando vista previa">
       {url ? <img className="vw-progressive" src={url} alt="" draggable={false} /> : <EntryGlyph entry={entry} size={96} />}
@@ -71,7 +74,7 @@ function Loading({ entry, path }: { entry: Entry; path: string }) {
 function Content({ entry, path, source, onFacts }: { entry: Entry; path: string; source: ViewerSource; onFacts(f: ViewerFact[]): void }) {
   const [failed, setFailed] = useState<string | null>(null);
   const fail = useCallback((m: string) => setFailed(m), []);
-  if (failed) return <Fallback entry={entry} message={failed} />;
+  if (failed) return <Fallback entry={entry} path={path} message={failed} />;
   switch (source.kind) {
     case "image":
       return (
@@ -93,7 +96,7 @@ function Content({ entry, path, source, onFacts }: { entry: Entry; path: string;
     case "text":
       return <TextBody path={path} />;
     case "unsupported":
-      return <Fallback entry={entry} message={source.message} />;
+      return <Fallback entry={entry} path={path} message={source.message} />;
     case "cancelled":
       return null;
   }
@@ -216,8 +219,8 @@ export function PreviewPane({ entry, basePath, count }: { entry: Entry | null; b
   let body;
   if (!entry) body = <p className="preview-empty">{count > 1 ? `${count} elementos seleccionados` : "Selecciona un archivo para ver su vista previa."}</p>;
   else if (!isFile) body = <div className="preview-fallback vw-center"><EntryGlyph entry={entry} size={96} /></div>;
-  else if (!fs.available) body = <Fallback entry={entry} message="La vista previa solo está disponible en la aplicación de escritorio." />;
-  else if (load.status === "error") body = <Fallback entry={entry} message={load.message} />;
+  else if (!fs.available) body = <Fallback entry={entry} path={path ?? ""} message="La vista previa solo está disponible en la aplicación de escritorio." />;
+  else if (load.status === "error") body = <Fallback entry={entry} path={path ?? ""} message={load.message} />;
   else if (!source) body = <Loading entry={entry} path={path as string} />;
   else
     body = (

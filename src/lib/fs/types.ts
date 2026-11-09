@@ -1,3 +1,5 @@
+import { DEFAULT_APPEARANCE } from "../appearance";
+import type { Appearance, CustomTheme } from "../appearance";
 // Espejo de los tipos serializados por nova-core (Rust). Mantener sincronizados.
 
 export type EntryKind = "file" | "dir" | "other";
@@ -105,6 +107,15 @@ export interface Prefs {
   previewWidth: number;
   autoUpdateCheck: boolean;
   lastUpdateCheck: number;
+  /** Personalización visual. Se valida al cargar (`normalizeAppearance`). */
+  appearance: Appearance;
+  customThemes: CustomTheme[];
+  /** Vista de doble panel. */
+  dualPane: boolean;
+  /** Posición del divisor, en milésimas de la anchura. */
+  dualSplit: number;
+  /** Actualización de los informes del analizador. */
+  analyzerRefresh: "auto" | "manual" | "off";
   layout: Layout;
   version: number;
 }
@@ -128,6 +139,11 @@ export const DEFAULT_PREFS: Prefs = {
   previewWidth: 320,
   autoUpdateCheck: true,
   lastUpdateCheck: 0,
+  appearance: DEFAULT_APPEARANCE,
+  customThemes: [],
+  dualPane: false,
+  dualSplit: 500,
+  analyzerRefresh: "manual",
   layout: DEFAULT_LAYOUT,
   version: 3,
 };
@@ -386,11 +402,19 @@ export interface ReportInfo {
   volumeSerial: number | null; dbBytes: number;
   /** `ok`, `missing` (ya no existe), `otherVolume` (otro disco en esa letra) o `unchecked`. */
   state: string;
+  /** Última comprobación de cambios, aunque no hubiera ninguno. */
+  checkedAt: number;
+  /** Último recorrido completo. */
+  fullScanAt: number;
+  /** Carpetas releídas en la última actualización parcial; 0 si viene de un recorrido completo. */
+  updatedDirs: number;
+  /** Puede faltar algún cambio dentro de carpetas cuya fecha no se alteró. */
+  partial: boolean;
 }
 export type AnalyzeEvent =
   | ({ type: "progress" } & AnalyzeProgress)
   | { type: "finishing" }
-  | { type: "done"; outcome: "completed" | "cancelled" | "failed"; message: string | null; report: ReportInfo | null };
+  | { type: "done"; outcome: "completed" | "updated" | "unchanged" | "cancelled" | "failed"; message: string | null; report: ReportInfo | null };
 export interface DirHit {
   id: number; parent: number; name: string; path: string; bytes: number; cloudBytes: number; files: number; dirs: number;
   ownFiles: number; ownBytes: number; modified: number | null; cloudPending: boolean; unreadable: boolean;
@@ -491,6 +515,16 @@ export interface FsProvider {
 
   // Analizador de almacenamiento. Un análisis a la vez; las consultas leen el informe guardado, nunca el disco analizado.
   analyzerStart(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void>;
+  /** Actualiza el informe releyendo solo las carpetas que cambiaron. */
+  analyzerUpdate(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void>;
+  analyzerWatch(root: string, onEvent: (e: AnalyzeEvent) => void): Promise<void>;
+  analyzerUnwatch(): Promise<void>;
+  /** Guarda una imagen de fondo ya optimizada (base64) y devuelve su identificador. */
+  backgroundImport(path: string): Promise<string>;
+  listFonts(): Promise<string[]>;
+  backgroundLoad(id: string): Promise<string | null>;
+  /** Retira las imágenes que no estén en la lista. */
+  backgroundRetain(keep: string[]): Promise<number>;
   analyzerPause(): Promise<void>;
   analyzerResume(): Promise<void>;
   analyzerCancel(): Promise<void>;

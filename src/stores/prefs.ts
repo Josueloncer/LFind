@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { DEFAULT_LAYOUT, DEFAULT_PREFS, fs } from "../lib/fs";
 import type { Layout, Prefs } from "../lib/fs";
+import { BG_SLOTS, DEFAULT_APPEARANCE, normalizeAppearance, normalizeThemes } from "../lib/appearance";
+import type { Appearance } from "../lib/appearance";
 import { movePin, recordVisit, removeRecent, renamePin, togglePin } from "../lib/locations";
 import { applyOrder, moveByKey, moveKey } from "../lib/reorder";
 import { normalizeLayout } from "../lib/uiLayout";
@@ -23,10 +25,15 @@ interface PrefsState extends Prefs {
   /** Mueve un elemento de Ubicaciones. `ids` es el orden visible completo; las carpetas fijadas conservan ruta y nombre. */
   moveLocation(ids: readonly string[], id: string, before: string | null): void;
   setLayout(patch: Partial<Layout>): void;
+  setAppearance(patch: Partial<Appearance>): void;
+  /** Vuelve a la apariencia original. No toca temas guardados, distribución ni ubicaciones. */
+  resetAppearance(): void;
+  saveTheme(name: string): void;
+  deleteTheme(id: string): void;
   /** Vuelve a la distribución original. No toca ubicaciones fijadas, recientes ni vistas. */
   resetLayout(): void;
   /** Cambia la vista: modo y tamaño → vista global (o la de la carpeta si está fijada); orden y agrupación → carpeta. */
-  setView(path: string, patch: Partial<EffectiveView>): void;
+  setView(path: string, patch: Partial<EffectiveView>, folderOnly?: boolean): void;
   /** Recuerda (o deja de recordar) el modo y el tamaño de icono de esa carpeta. */
   setPinned(path: string, pinned: boolean): void;
   /** Guarda ya las preferencias pendientes (al cerrar la ventana). */
@@ -53,6 +60,17 @@ const scheduleSave = (get: () => Prefs) => {
   }, 400);
 };
 
+let pruneTimer: ReturnType<typeof setTimeout> | undefined;
+/** Retira del disco las imágenes que ya no usa nada, cuando los cambios se han calmado. */
+function pruneImages(get: () => Prefs) {
+  clearTimeout(pruneTimer);
+  pruneTimer = setTimeout(() => {
+    const { appearance, customThemes } = get();
+    const used = [appearance, ...customThemes.map((t) => t.appearance)].flatMap((a) => BG_SLOTS.flatMap((s) => a.backgrounds[s] ?? []));
+    if (fs.available) void fs.backgroundRetain([...new Set(used)]).catch(() => {});
+  }, 3000);
+}
+
 export const usePrefs = create<PrefsState>((set, get) => ({
   ...DEFAULT_PREFS,
   loaded: false,
@@ -62,7 +80,7 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     return (loading ??= (async () => {
       try {
         const p = await fs.loadPrefs();
-        set({ ...p, theme: normalizeTheme(p.theme), layout: normalizeLayout(p.layout), loaded: true });
+        set({ ...p, theme: normalizeTheme(p.theme), layout: normalizeLayout(p.layout), appearance: normalizeAppearance(p.appearance), customThemes: normalizeThemes(p.customThemes), loaded: true });
       } catch {
         set({ loaded: true });
       }
@@ -102,6 +120,26 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     get().update({ layout: { ...get().layout, places }, favorites: applyOrder(get().favorites, (f) => canonicalKey(f.path), places) });
   },
 
+  setAppearance(patch) {
+    get().update({ appearance: normalizeAppearance({ ...get().appearance, ...patch }) });
+    pruneImages(get);
+  },
+
+  resetAppearance() {
+    get().update({ appearance: DEFAULT_APPEARANCE });
+    pruneImages(get);
+  },
+
+  saveTheme(name) {
+    const id = `t${Date.now().toString(36)}`;
+    get().update({ customThemes: normalizeThemes([...get().customThemes, { id, name, appearance: get().appearance }]) });
+  },
+
+  deleteTheme(id) {
+    get().update({ customThemes: get().customThemes.filter((t) => t.id !== id) });
+    pruneImages(get);
+  },
+
   setLayout(patch) {
     get().update({ layout: { ...get().layout, ...patch } });
   },
@@ -110,8 +148,8 @@ export const usePrefs = create<PrefsState>((set, get) => ({
     get().update({ layout: DEFAULT_LAYOUT });
   },
 
-  setView(path, patch) {
-    get().update(applyViewChange(get(), path, patch));
+  setView(path, patch, folderOnly) {
+    get().update(applyViewChange(get(), path, patch, folderOnly));
   },
 
   setPinned(path, pinned) {

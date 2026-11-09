@@ -1,5 +1,5 @@
 # LFind · Update 08 · verificación (actualizaciones)
-**Ya comprobado con una instalación aislada y servidor local:** ver `UPDATE08_PROGRESS.md`.
+**Ya comprobado con una instalación aislada y servidor local:** ver `docs/history/UPDATE08_PROGRESS.md`.
 **Falta, con GitHub y la configuración activada:**
 1. Configura los secrets y confirma que las descargas son públicas (`DEVELOPMENT_GUIDE.md`).
 2. Haz push a `main` y revisa que el workflow termine y publique una release con 3 archivos.
@@ -11,7 +11,7 @@
 ---
 
 # LFind · Update 07 · verificación en Windows (visor)
-**Ya comprobado en la app empaquetada** (37 archivos, batería automatizada): formatos de `UPDATE07_PROGRESS.md`, Espacio, ←, →, Esc, búsqueda global, zoom, rotación, SVG hostil, cierre sin Workers.
+**Ya comprobado en la app empaquetada** (37 archivos, batería automatizada): formatos de `docs/history/UPDATE07_PROGRESS.md`, Espacio, ←, →, Esc, búsqueda global, zoom, rotación, SVG hostil, cierre sin Workers.
 **Falta comprobar a mano:**
 1. Instala `LFind_0.1.0_x64-setup.exe`. Abre el panel con Alt+P y arrastra su borde izquierdo: la anchura cambia y se recuerda al reiniciar.
 2. Doble clic e Intro abren con la aplicación predeterminada, también dentro de la vista ampliada.
@@ -61,7 +61,7 @@ Lista de comprobación:
 7. Exclusiones: `Windows`, `ProgramData`, `$Recycle.Bin`, `System Volume Information` no aparecen; añadir una carpeta/extensión excluida y comprobar que sale del índice tras reindexar.
 8. Unidad USB/de red conectada y desconectada: sus resultados desaparecen al desconectar y vuelven al reconectar (sin reindexar si estaba completa).
 9. Carpetas sin permiso: el indexado sigue y el error queda registrado; LFind no pide administrador.
-10. Mide en TU equipo: tiempo del indexado inicial, tamaño de `%LOCALAPPDATA%\app.nova.explorer\index\lfind-index.db`, y tiempo de búsquedas comunes; compáralas con las cifras de `UPDATE05_PROGRESS.md` (son de Linux).
+10. Mide en TU equipo: tiempo del indexado inicial, tamaño de `%LOCALAPPDATA%\app.nova.explorer\index\lfind-index.db`, y tiempo de búsquedas comunes; compáralas con las cifras de `docs/history/UPDATE05_PROGRESS.md` (son de Linux).
 11. **No regresiones:** navegación, temas (6), vistas, miniaturas, previsualización, operaciones, menú contextual, preferencias.
 **No existe aún:** actualización en tiempo real de archivos nuevos (Fase 2); un archivo creado ahora aparecerá tras la siguiente reconciliación.
 
@@ -224,7 +224,7 @@ Si algo falla, lo más probable (en orden):
 - [ ] Selección por rectángulo, miniaturas de imágenes, panel de vista previa (Alt+P), cola de operaciones, atajos Ctrl+L / Ctrl+F.
 
 ## Update 09: comprobación pendiente con hardware real
-Ya verificado en Windows 11 con una instalación aislada (ver [UPDATE09_PROGRESS.md](UPDATE09_PROGRESS.md)). Falta comprobar:
+Ya verificado en Windows 11 con una instalación aislada (ver [docs/history/UPDATE09_PROGRESS.md](docs/history/UPDATE09_PROGRESS.md)). Falta comprobar:
 - Una cuenta de OneDrive de empresa.
 - Un USB al conectarlo y retirarlo, y un lector sin medio.
 - Una unidad de red desconectada.

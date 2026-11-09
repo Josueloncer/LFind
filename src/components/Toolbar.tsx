@@ -19,19 +19,21 @@ import { needsSeparator, toggleTool, toolDef, toolOrder, toolZones } from "../li
 import { useCustomize } from "../stores/customize";
 import type { Column } from "../lib/fs";
 import { useApp } from "../stores/app";
-import { selectActiveTab, useNav } from "../stores/nav";
+import { toggleDualPane } from "../stores/dual";
+import { selectPaneTab, useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
 import { useSearch } from "../stores/search";
 import { storageCrumbMenu } from "../stores/storage";
 import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Pin, Plus, RotateCw, Rows3, Search, Table2,
+  ArrowDown, ArrowLeft, Columns2, ArrowRight, ArrowUp, ArrowUpDown, ChevronRight, Eye, EyeOff, Globe, Grid2x2, LayoutGrid, List, PanelLeft, PanelRight, Pin, Plus, RotateCw, Rows3, Search, Table2,
 } from "./icons";
 
 const MODE_ICON = { details: Table2, list: List, tiles: LayoutGrid, content: Rows3, icons: Grid2x2 } as const;
 
 interface Props {
+  side: 0 | 1;
   filter: string;
   onFilter(v: string): void;
   onReload(): void;
@@ -70,8 +72,10 @@ function Crumb({ label, path, last, onGo, onMenu }: { label: string; path: strin
   );
 }
 
-export function Toolbar({ filter, onFilter, onReload, view, columns, setView, setColumns, applyAll, pinned, togglePin, newFolder, newFile }: Props) {
-  const tab = useNav(selectActiveTab);
+export function Toolbar({ side, filter, onFilter, onReload, view, columns, setView, setColumns, applyAll, pinned, togglePin, newFolder, newFile }: Props) {
+  const tab = useNav(selectPaneTab(side));
+  const focused = useNav((s) => s.side === side);
+  const dualOn = useNav((s) => !!s.other);
   const { navigate, goBack, goForward, goUp, jump } = useNav();
   const showHidden = usePrefs((s) => s.showHidden);
   const favorites = usePrefs((s) => s.favorites);
@@ -91,7 +95,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const check = useRef(0); // identifica la validación en curso: Escape o una nueva anulan la anterior
   const drives = useApp((s) => s.drives);
   const usage = useApp((s) => s.usage);
-  const scope = useSearch((s) => s.scope);
+  const scope = useSearch((s) => (s.scope === "global" && s.side === side ? "global" : "folder"));
   const searchText = useSearch((s) => s.text);
   const setScope = useSearch((s) => s.setScope);
   const openGlobal = useSearch((s) => s.openGlobal);
@@ -124,6 +128,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
     setEditing(false);
   };
   useEffect(() => {
+    if (!focused) return;
     window.addEventListener("nova:edit-path", startEdit);
     return () => window.removeEventListener("nova:edit-path", startEdit);
   });
@@ -199,13 +204,13 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
 
   // Cualquier petición de abrir la búsqueda global (botón o Ctrl+Mayús+F) lleva el cursor al campo y selecciona su texto.
   useEffect(() => {
-    if (focusTick === 0) return;
+    if (focusTick === 0 || !focused) return;
     const el = document.getElementById("nova-filter") as HTMLInputElement | null;
     el?.focus();
     el?.select();
   }, [focusTick]);
   const dnd = useReorder({
-    group: "tools", axis: "x", ids: shownTools, ignore: customizing ? ".tb-tool-eye" : ".tb-tool-eye,input",
+    group: `tools-${side}`, axis: "x", ids: shownTools, ignore: customizing ? ".tb-tool-eye" : ".tb-tool-eye,input",
     // Fuera del modo de personalización hace falta Alt: un clic con algo de movimiento nunca desplaza un botón.
     accept: (e) => customizing || e.altKey,
     onMove: (id, before) => setLayout({ toolbar: moveKey(toolIds, id, before) }),
@@ -214,6 +219,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
   const toolNode = (id: string): ReactNode => {
     switch (id) {
       case "panel": return <button className="ibtn" aria-pressed={!sidebarCollapsed} title="Mostrar u ocultar el panel lateral (Ctrl+B)" aria-label="Panel lateral" onClick={() => update({ sidebarCollapsed: !sidebarCollapsed })}><PanelLeft /></button>;
+      case "dual": return <button className="ibtn" aria-pressed={dualOn} title="Doble panel (Ctrl+Mayús+D)" aria-label="Doble panel" onClick={toggleDualPane}><Columns2 /></button>;
       case "back": return <button className="ibtn" disabled={!tab?.back.length} title="Atrás (Alt+←) · clic derecho: historial" aria-label="Atrás" onClick={goBack} onContextMenu={(e) => history(e, "back")}><ArrowLeft /></button>;
       case "forward": return <button className="ibtn" disabled={!tab?.forward.length} title="Adelante (Alt+→) · clic derecho: historial" aria-label="Adelante" onClick={goForward} onContextMenu={(e) => history(e, "forward")}><ArrowRight /></button>;
       case "up": return <button className="ibtn" disabled={!path || !upOf(path)} title="Subir un nivel (Alt+↑)" aria-label="Subir un nivel" onClick={goUp}><ArrowUp /></button>;
@@ -241,7 +247,7 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         <label className="filter" data-global={global || undefined}>
           <Search />
           <input
-            id="nova-filter" value={global ? searchText : filter} spellCheck={false}
+            id={focused ? "nova-filter" : undefined} value={global ? searchText : filter} spellCheck={false}
             placeholder={global ? "Buscar en todas las unidades" : "Filtrar en esta carpeta"}
             aria-label={global ? "Buscar en todas las unidades" : "Filtrar en esta carpeta"}
             onChange={(e) => (global ? setSearchText(e.target.value) : onFilter(e.target.value))}
@@ -294,6 +300,8 @@ export function Toolbar({ filter, onFilter, onReload, view, columns, setView, se
         openMenu(ev.clientX, ev.clientY, [
           { kind: "item", label: customizing ? "Salir de Personalizar interfaz" : "Personalizar interfaz", run: customizing ? exitCustomize : enterCustomize },
           { kind: "item", label: "Restaurar distribución predeterminada", run: () => usePrefs.getState().resetLayout() },
+          { kind: "sep" },
+          { kind: "item", label: "Personalización…", run: () => useCustomize.getState().openAppearance() },
         ]);
       }}
     >

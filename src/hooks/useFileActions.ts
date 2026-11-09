@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from "react";
+import { chooseBackground } from "../stores/backgroundPick";
+import { useCustomize } from "../stores/customize";
 import { errMsg, fs } from "../lib/fs";
 import type { Entry, NewTemplate, SendToItem } from "../lib/fs";
 import { scheduleRefresh } from "../lib/contextMenu";
@@ -73,6 +75,7 @@ export function useFileActions(a: Args) {
       },
       open(e: Entry) {
         if (e.kind === "dir") useNav.getState().navigate(pathOf(e));
+        else if (useCustomize.getState().picking) void chooseBackground(pathOf(e), !!e.cloud);
         else fs.openPath(pathOf(e)).catch(fail);
       },
       openInNewTab: (e: Entry) => useNav.getState().openTab(pathOf(e)),

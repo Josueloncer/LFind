@@ -20,6 +20,7 @@ export interface ToolDef {
 /** Orden original. `address` es la barra de dirección: no se mueve, y separa la zona izquierda de la derecha. */
 export const TOOLS: readonly ToolDef[] = [
   { id: "panel", label: "Panel lateral", group: "panel", hideable: true },
+  { id: "dual", label: "Doble panel", group: "panel", hideable: true },
   { id: "back", label: "Atrás", group: "nav", hideable: true },
   { id: "forward", label: "Adelante", group: "nav", hideable: true },
   { id: "up", label: "Subir un nivel", group: "nav", hideable: true },

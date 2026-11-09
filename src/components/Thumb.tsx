@@ -1,4 +1,4 @@
-import { thumbBucket } from "../lib/thumbKinds";
+import { thumbBucket, thumbKey } from "../lib/thumbKinds";
 import type { Entry } from "../lib/fs";
 import { join } from "../lib/path";
 import { useThumb } from "../hooks/useThumb";
@@ -13,7 +13,7 @@ export function Thumb({ entry, basePath, size }: { entry: Entry; basePath: strin
   const px = thumbBucket(size, window.devicePixelRatio || 1);
   const path = join(basePath, entry.name);
   // La fecha y el tamaño forman parte de la clave: si el archivo cambia, se vuelve a pedir.
-  const { url } = useThumb(`${path}|${px}|${entry.modified ?? 0}|${entry.size}`, path, px);
+  const { url } = useThumb(thumbKey(path, px, entry), path, px);
   if (!url) return <EntryIcon entry={entry} basePath={basePath} size={size} />;
   return (
     <span className="thumb" style={{ width: size, height: size }}>

@@ -35,6 +35,25 @@ pub async fn analyzer_start(root: String, on_event: Channel<AnalyzeEvent>, state
     .await
 }
 
+/// Actualiza el informe releyendo solo lo que cambió.
+#[tauri::command]
+pub async fn analyzer_update(root: String, on_event: Channel<AnalyzeEvent>, state: State<'_, AnalyzerState>) -> Result<(), String> {
+    let a = state.0.clone();
+    blocking(move || a.update(&root, None, Box::new(move |e| { let _ = on_event.send(e); }))).await
+}
+
+/// Vigila una ubicación con informe y lo actualiza en segundo plano cuando cesa la actividad.
+#[tauri::command]
+pub async fn analyzer_watch(root: String, on_event: Channel<AnalyzeEvent>, state: State<'_, AnalyzerState>) -> Result<(), String> {
+    let a = state.0.clone();
+    blocking(move || a.watch(&root, Arc::new(move |e| { let _ = on_event.send(e); }))).await
+}
+
+#[tauri::command]
+pub fn analyzer_unwatch(state: State<'_, AnalyzerState>) {
+    state.0.unwatch();
+}
+
 #[tauri::command]
 pub fn analyzer_pause(state: State<'_, AnalyzerState>) {
     state.0.pause();

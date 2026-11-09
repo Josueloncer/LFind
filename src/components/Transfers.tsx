@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatBytes } from "../lib/format";
 import { basename } from "../lib/path";
-import { STATE_LABEL, jobState, useOps } from "../stores/ops";
+import { STATE_LABEL, jobState, useOps, visibleJobs } from "../stores/ops";
 import type { Job } from "../stores/ops";
 import { useUi } from "../stores/ui";
 import { X } from "./icons";
@@ -67,7 +67,7 @@ function JobCard({ j }: { j: Job }) {
 
 /** Cola de transferencias + avisos (toasts), abajo a la derecha. */
 export function Overlays() {
-  const jobs = useOps((s) => s.jobs);
+  const jobs = visibleJobs(useOps((s) => s.jobs));
   const toasts = useUi((s) => s.toasts);
   const dismissToast = useUi((s) => s.dismissToast);
   if (!jobs.length && !toasts.length) return null;

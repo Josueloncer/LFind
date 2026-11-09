@@ -1,5 +1,11 @@
 # LFind — Registro de cambios
 
+## Update 12: doble panel, personalización y analizador inteligente
+- Nueva vista de doble panel: cada lado tiene su ruta, historial, pestañas y selección. Copia, mueve o arrastra archivos entre paneles, ajusta el divisor e intercámbialos (Ctrl+Mayús+D).
+- Nuevo centro de personalización: fondos con tus imágenes, general o por panel, desenfoque, transparencia, colores, esquinas, densidad, tipografía y temas propios, con vista previa al momento.
+- El analizador actualiza sus informes releyendo solo lo que ha cambiado, a mano o automáticamente, e indica cuándo se actualizaron y si los resultados son parciales.
+- La documentación del proyecto está más ordenada.
+
 ## Update 11: organiza LFind a tu manera
 - Arrastra las secciones de la barra lateral para ponerlas en el orden que prefieras.
 - Reordena también carpetas fijadas, ubicaciones del sistema, recientes, unidades y pestañas, con una línea que indica dónde quedarán. Escape cancela.

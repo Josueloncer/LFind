@@ -1,4 +1,5 @@
 mod analyzer_cmd;
+mod backgrounds_cmd;
 mod clipboard_cmd;
 mod commands;
 mod icons_cmd;
@@ -42,6 +43,7 @@ pub fn run() {
             let index_state = index_cmd::init(app.handle());
             app.manage(index_state);
             app.manage(analyzer_cmd::init(app.handle()));
+            app.manage(backgrounds_cmd::init(app.handle()));
             app.manage(icons_cmd::IconState(std::sync::Arc::new(nova_core::icons::IconService::with_defaults(icons_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
@@ -81,6 +83,7 @@ pub fn run() {
             commands::get_properties,
             commands::start_stats,
             commands::get_drive_usage,
+            commands::list_fonts,
             commands::resolve_path,
             thumbs_cmd::get_thumbnail,
             thumbs_cmd::set_thumb_epoch,
@@ -109,7 +112,13 @@ pub fn run() {
             index_cmd::index_pause,
             index_cmd::index_resume,
             index_cmd::index_rebuild,
+            backgrounds_cmd::background_import,
+            backgrounds_cmd::background_load,
+            backgrounds_cmd::background_retain,
             analyzer_cmd::analyzer_start,
+            analyzer_cmd::analyzer_update,
+            analyzer_cmd::analyzer_watch,
+            analyzer_cmd::analyzer_unwatch,
             analyzer_cmd::analyzer_pause,
             analyzer_cmd::analyzer_resume,
             analyzer_cmd::analyzer_cancel,

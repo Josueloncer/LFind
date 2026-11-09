@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ThumbService } from "./thumbService";
 import type { ThumbBackend } from "./thumbService";
-import { isThumbEligible, thumbBucket } from "./thumbKinds";
+import { isThumbEligible, thumbBucket, thumbKey } from "./thumbKinds";
 
 /** Backend controlable: cada llamada queda pendiente hasta que el test la resuelve. */
 function fake() {
@@ -255,5 +255,16 @@ describe("criterios de qué pedir", () => {
     expect(thumbBucket(256)).toBe(256);
     expect(thumbBucket(256, 2)).toBe(512);
     expect(thumbBucket(900, 2)).toBe(512);
+  });
+});
+
+describe("archivos en la nube", () => {
+  const f = { kind: "file", ext: "jpg", hidden: false, size: 10, modified: 5 } as const;
+  it("también piden miniatura: el backend solo mira la caché de Windows", () => {
+    expect(isThumbEligible({ ...f, cloud: true } as never)).toBe(true);
+  });
+  it("al descargarse cambia la clave, y un fallo anterior deja de contar", () => {
+    expect(thumbKey("C:\\a.jpg", 64, { ...f, cloud: true })).not.toBe(thumbKey("C:\\a.jpg", 64, { ...f, cloud: false }));
+    expect(thumbKey("C:\\a.jpg", 64, { ...f, cloud: false })).toBe("C:\\a.jpg|64|5|10");
   });
 });

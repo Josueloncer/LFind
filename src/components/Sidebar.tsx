@@ -136,9 +136,11 @@ export function Sidebar() {
   // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
   const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    openMenu(r.left, r.top - (THEMES.length + 1) * 32, [
+    openMenu(r.left, r.top - (THEMES.length + 2) * 32, [
       { kind: "header", label: "Tema" },
       ...THEMES.map((t): MenuItem => ({ kind: "item", label: t.label, checked: t.id === theme, run: () => update({ theme: t.id }) })),
+      { kind: "sep" },
+      { kind: "item", label: "Personalización…", run: () => useCustomize.getState().openAppearance() },
     ]);
   };
 

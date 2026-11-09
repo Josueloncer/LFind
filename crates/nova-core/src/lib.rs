@@ -6,6 +6,7 @@
 pub mod analyzer;
 pub mod archive;
 pub mod b64;
+pub mod backgrounds;
 pub mod clipboard;
 pub mod cloud;
 #[cfg(any(windows, nova_winck))]
@@ -29,6 +30,7 @@ pub mod search;
 pub mod sendto;
 pub mod shell;
 pub mod sys;
+pub mod fonts;
 pub mod thumbs;
 #[cfg(any(windows, nova_winck))]
 pub mod thumbs_win;

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { ContextMenu } from "./components/ContextMenu";
+import { AppearancePanel } from "./components/AppearancePanel";
 import { CustomizeBar } from "./components/CustomizeBar";
 import { Dialogs } from "./components/Dialogs";
 import { GlyphDefs } from "./components/Glyphs";
-import { Pane } from "./components/Pane";
+import { Panes } from "./components/Panes";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { Overlays } from "./components/Transfers";
@@ -13,6 +14,9 @@ import { mark } from "./lib/perf";
 import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
 import { useCustomize } from "./stores/customize";
+import { useBackgrounds } from "./stores/backgrounds";
+import { BG_SLOTS, MANAGED_VARS, appearanceVars, diffVars } from "./lib/appearance";
+import { toggleDualPane } from "./stores/dual";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
 import { usePathHealth } from "./stores/pathHealth";
@@ -106,7 +110,11 @@ export default function App() {
     if (!ready || !loaded) return;
     mark("booted");
     const first = places[0] ?? drives[0];
-    if (first) useNav.getState().init(first.path);
+    if (first) {
+      useNav.getState().init(first.path);
+      // La vista doble se recuerda; el segundo panel empieza en la misma carpeta que el primero.
+      if (usePrefs.getState().dualPane && !useNav.getState().other) useNav.getState().toggleDual();
+    }
   }, [ready, loaded, places, drives]);
 
   // Tema: "system" sigue al sistema. No se toca hasta conocer las preferencias reales:
@@ -129,6 +137,67 @@ export default function App() {
     document.documentElement.dataset.vibrancy = vibrancy ? "on" : "off";
     cache("nova.vibrancy", vibrancy ? "1" : "0");
   }, [vibrancy, ready]);
+
+  // Personalización: variables sobre las del tema; lo que está en su valor original no se escribe y manda el tema.
+  const appearance = usePrefs((s) => s.appearance);
+  const bgLoaded = useBackgrounds((s) => s.urls);
+  const bgUrls = useBackgrounds((s) => s.baked);
+  const bgLive = useBackgrounds((s) => s.liveFilter);
+  const themeBase = useRef<{ theme: string; values: Record<string, number> } | null>(null);
+  const writtenVars = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!loaded) return;
+    const root = document.documentElement;
+    const current = root.dataset.theme ?? "";
+    // Las medidas del tema se toman una vez por tema; al mover un control solo se escribe lo que cambia.
+    if (themeBase.current?.theme !== current) {
+      for (const name of MANAGED_VARS) root.style.removeProperty(name);
+      writtenVars.current = {};
+      const cs = getComputedStyle(root);
+      themeBase.current = { theme: current, values: Object.fromEntries(MANAGED_VARS.map((n) => [n, parseFloat(cs.getPropertyValue(n)) || 0])) };
+    }
+    const base = themeBase.current.values;
+    const vars = appearanceVars(appearance, (n) => base[n] ?? 0);
+    const { set: changed, remove } = diffVars(writtenVars.current, vars);
+    for (const name of remove) root.style.removeProperty(name);
+    for (const [k, v] of changed) root.style.setProperty(k, v);
+    writtenVars.current = vars;
+    useBackgrounds.getState().ensure(BG_SLOTS.flatMap((s) => appearance.backgrounds[s] ?? []));
+  }, [appearance, theme, loaded]);
+  useEffect(() => {
+    useBackgrounds.getState().bake(appearance.blur, appearance.contrast);
+  }, [bgLoaded, appearance.blur, appearance.contrast]);
+  useEffect(() => {
+    let timer = 0;
+    const onResize = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const a = usePrefs.getState().appearance;
+        useBackgrounds.getState().bake(a.blur, a.contrast);
+      }, 400);
+    };
+    window.addEventListener("resize", onResize);
+    return () => (window.clearTimeout(timer), window.removeEventListener("resize", onResize));
+  }, []);
+  useEffect(() => {
+    if (bgLive) document.documentElement.dataset.bgFilter = "1";
+    else delete document.documentElement.dataset.bgFilter;
+  }, [bgLive]);
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const s of BG_SLOTS) {
+      const url = appearance.backgrounds[s] ? bgUrls[appearance.backgrounds[s]!] : undefined;
+      if (url) {
+        root.style.setProperty(`--cz-img-${s}`, `url("${url}")`);
+        root.dataset[`bg${s[0].toUpperCase()}${s.slice(1)}`] = "1";
+      } else {
+        root.style.removeProperty(`--cz-img-${s}`);
+        delete root.dataset[`bg${s[0].toUpperCase()}${s.slice(1)}`];
+      }
+    }
+    if (BG_SLOTS.some((s) => appearance.backgrounds[s] && bgUrls[appearance.backgrounds[s]!])) root.dataset.bg = "1";
+    else delete root.dataset.bg;
+  }, [appearance.backgrounds, bgUrls]);
 
   // La ventana nace oculta: se muestra con la interfaz ya montada y las preferencias aplicadas.
   // Si el arranque se retrasa, se muestra igualmente a los 1,2 s (y Rust lo hace a los 6 s si todo falla).
@@ -160,10 +229,13 @@ export default function App() {
       if (e.altKey && e.key === "ArrowLeft") return e.preventDefault(), nav.goBack();
       if (e.altKey && e.key === "ArrowRight") return e.preventDefault(), nav.goForward();
       if (e.altKey && e.key === "ArrowUp") return e.preventDefault(), nav.goUp();
-      if (e.key === "Backspace" && !typing && useSearch.getState().scope !== "global") return e.preventDefault(), nav.goUp();
+      if (e.key === "Backspace" && !typing && (useSearch.getState().scope !== "global" || useSearch.getState().side !== nav.side)) return e.preventDefault(), nav.goUp();
+      if (e.key === "F6" && nav.other) return e.preventDefault(), nav.focusSide(nav.side === 0 ? 1 : 0);
       if (e.altKey && e.key.toLowerCase() === "p") return e.preventDefault(), update({ previewPane: !usePrefs.getState().previewPane });
       if (!ctrl) return;
       switch (e.key.toLowerCase()) {
+        case "d": if (e.shiftKey) (e.preventDefault(), toggleDualPane()); break;
+        case "x": if (e.shiftKey && nav.other) (e.preventDefault(), nav.swap()); break;
         case "t": e.preventDefault(); nav.openTab(); break;
         case "w": e.preventDefault(); if (nav.activeId) nav.closeTab(nav.activeId); break;
         case "l": e.preventDefault(); window.dispatchEvent(new Event("nova:edit-path")); break;
@@ -186,12 +258,13 @@ export default function App() {
       <TitleBar />
       <div className="body">
         <Sidebar />
-        <Pane />
+        <Panes />
       </div>
       <ContextMenu />
       <Dialogs />
       <Overlays />
       <CustomizeBar />
+      <AppearancePanel />
     </div>
   );
 }

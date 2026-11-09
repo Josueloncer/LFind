@@ -116,11 +116,54 @@ pub struct DirRow {
     pub flags: u32,
 }
 
-/// Destino de lo encontrado.
+/// Qué hacer con una carpeta del informe anterior al actualizarlo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Visit {
+    /// Ni ella ni nada de lo que contiene cambió: se copia entera del informe anterior.
+    Copy,
+    /// Ella no cambió, pero algo de dentro sí: se conservan sus archivos y se visitan sus subcarpetas.
+    Keep,
+    /// Cambió: se vuelve a leer del disco.
+    Rescan,
+}
+
+/// Subcarpeta conocida por el informe anterior.
+pub struct OldChild {
+    pub id: i64,
+    pub name: String,
+    pub modified: Option<i64>,
+    pub flags: u32,
+}
+
+/// Destino de lo encontrado. Los métodos con valor por defecto solo se usan al actualizar un informe existente.
 pub trait Sink {
     fn file(&mut self, f: &FileRow) -> Result<(), String>;
     fn dir(&mut self, d: &DirRow) -> Result<(), String>;
     fn issue(&mut self, path: &str, message: &str) -> Result<(), String>;
+    fn visit(&mut self, _old: i64) -> Result<Visit, String> {
+        Ok(Visit::Rescan)
+    }
+    fn old_child(&mut self, _old: i64, _name: &str) -> Result<Option<i64>, String> {
+        Ok(None)
+    }
+    fn old_children(&mut self, _old: i64) -> Result<Vec<OldChild>, String> {
+        Ok(vec![])
+    }
+    fn old_row(&mut self, _old: i64) -> Result<DirRow, String> {
+        Err("sin informe anterior".into())
+    }
+    /// Copia los archivos propios de la carpeta. Devuelve los bytes que solo están en la nube.
+    fn keep_files(&mut self, _old: &DirRow, _new_dir: i64, _first_file: i64) -> Result<u64, String> {
+        Err("sin informe anterior".into())
+    }
+    /// Copia la carpeta y todo su contenido. Devuelve su fila anterior, con los totales.
+    fn copy_subtree(&mut self, _old: i64, _new_parent: i64, _new_id: i64, _first_file: i64) -> Result<DirRow, String> {
+        Err("sin informe anterior".into())
+    }
+    /// ¿Hay que preguntar al propio archivo? La enumeración da los datos guardados en la carpeta, que van retrasados mientras alguien lo tiene abierto.
+    fn fresh(&self, _dir: &Path, _name: &std::ffi::OsStr) -> bool {
+        false
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -200,9 +243,11 @@ struct Pending {
     depth: usize,
     modified: Option<i64>,
     cloud: bool,
+    /// Identificador en el informe anterior, al actualizar.
+    old: Option<i64>,
 }
 
-fn ms(t: std::io::Result<std::time::SystemTime>) -> Option<i64> {
+pub(super) fn ms(t: std::io::Result<std::time::SystemTime>) -> Option<i64> {
     let t = t.ok()?;
     Some(match t.duration_since(UNIX_EPOCH) {
         Ok(d) => d.as_millis() as i64,
@@ -352,7 +397,7 @@ impl Walker<'_> {
         self.sink.file(&FileRow { id, dir: dir_id, name, ext: ext_id, cat, size, modified, flags: if cloud { FILE_CLOUD } else { 0 } })
     }
 
-    fn read(&mut self, dir: &Path, depth: usize, stack: &mut Vec<Pending>) -> Result<bool, String> {
+    fn read(&mut self, dir: &Path, depth: usize, old: Option<i64>, stack: &mut Vec<Pending>) -> Result<bool, String> {
         let rd = match fs::read_dir(dir) {
             Ok(r) => r,
             Err(e) => {
@@ -388,7 +433,8 @@ impl Walker<'_> {
                 self.p.links += 1;
                 continue;
             }
-            let meta = match ent.metadata() {
+            let read = if ft.is_file() && self.sink.fresh(dir, &ent.file_name()) { fs::symlink_metadata(ent.path()).or_else(|_| ent.metadata()) } else { ent.metadata() };
+            let meta = match read {
                 Ok(m) => m,
                 Err(e) => {
                     self.fail(&ent.path(), &e)?;
@@ -397,7 +443,11 @@ impl Walker<'_> {
             };
             if ft.is_dir() {
                 self.p.dirs += 1;
-                stack.push(Pending { path: ent.path(), depth: depth + 1, modified: ms(meta.modified()), cloud: attrs_cloud_dir(attrs_of(&meta)) });
+                let known = match old {
+                    Some(o) => self.sink.old_child(o, &ent.file_name().to_string_lossy())?,
+                    None => None,
+                };
+                stack.push(Pending { path: ent.path(), depth: depth + 1, modified: ms(meta.modified()), cloud: attrs_cloud_dir(attrs_of(&meta)), old: known });
             } else if ft.is_file() {
                 let name = ent.file_name();
                 let name = name.to_string_lossy();
@@ -407,24 +457,78 @@ impl Walker<'_> {
         Ok(false)
     }
 
-    fn run(&mut self, root: &Path) -> Result<bool, String> {
-        let mut stack = vec![Pending { path: root.to_path_buf(), depth: 0, modified: fs::symlink_metadata(root).ok().and_then(|m| ms(m.modified())), cloud: false }];
+    /// Copia del informe anterior una carpeta que no ha cambiado, con todo lo que contiene.
+    fn copy_old(&mut self, old: i64) -> Result<(), String> {
+        let parent = self.chain.last().map_or(0, |d| d.id);
+        let t = self.sink.copy_subtree(old, parent, self.next_dir, self.next_file)?;
+        self.next_dir += t.dirs as i64 + 1;
+        self.next_file += t.end_file - t.first_file;
+        self.p.files += t.files;
+        self.p.dirs += t.dirs;
+        self.p.bytes += t.bytes;
+        self.p.cloud_bytes += t.cloud_bytes;
+        if let Some(up) = self.chain.last_mut() {
+            up.files += t.files;
+            up.dirs += t.dirs + 1;
+            up.bytes += t.bytes;
+            up.cloud_bytes += t.cloud_bytes;
+        }
+        Ok(())
+    }
+
+    /// Conserva los archivos propios de una carpeta sin cambios y programa sus subcarpetas, sin tocar el disco.
+    fn keep_old(&mut self, p: &Pending, old: i64, stack: &mut Vec<Pending>) -> Result<(), String> {
+        let o = self.sink.old_row(old)?;
+        let id = self.next_dir;
+        self.next_dir += 1;
+        let parent = self.chain.last().map_or(0, |d| d.id);
+        let cloud = self.sink.keep_files(&o, id, self.next_file)?;
+        self.chain.push(DirRow { id, parent, name: o.name.clone(), first_file: self.next_file, own_files: o.own_files, own_bytes: o.own_bytes, cloud_bytes: cloud, modified: o.modified, flags: o.flags, ..Default::default() });
+        self.next_file += o.own_files as i64;
+        self.p.files += o.own_files;
+        self.p.bytes += o.own_bytes;
+        self.p.cloud_bytes += cloud;
+        for c in self.sink.old_children(old)? {
+            self.p.dirs += 1;
+            stack.push(Pending { path: p.path.join(&c.name), depth: p.depth + 1, modified: c.modified, cloud: c.flags & DIR_CLOUD_PENDING != 0, old: Some(c.id) });
+        }
+        Ok(())
+    }
+
+    fn run(&mut self, root: &Path, update: bool) -> Result<bool, String> {
+        let mut stack = vec![Pending { path: root.to_path_buf(), depth: 0, modified: fs::symlink_metadata(root).ok().and_then(|m| ms(m.modified())), cloud: false, old: update.then_some(1) }];
         while let Some(p) = stack.pop() {
             if self.checkpoint(&p.path) {
                 return Ok(true);
             }
             self.close_to(p.depth)?;
+            if let Some(old) = p.old {
+                match self.sink.visit(old)? {
+                    Visit::Copy if p.depth > 0 => {
+                        self.copy_old(old)?;
+                        continue;
+                    }
+                    Visit::Copy | Visit::Keep => {
+                        self.keep_old(&p, old, &mut stack)?;
+                        continue;
+                    }
+                    Visit::Rescan => {}
+                }
+            }
+            // La fecha que trae la enumeración de la carpeta madre puede ir retrasada: se lee la de la propia carpeta, antes de recorrerla,
+            // para que un cambio posterior se detecte en la siguiente comprobación.
+            let modified = fs::symlink_metadata(&p.path).ok().and_then(|m| ms(m.modified())).or(p.modified);
             let id = self.next_dir;
             self.next_dir += 1;
             let parent = self.chain.last().map_or(0, |d| d.id);
             let name = if p.depth == 0 { root.to_string_lossy().into_owned() } else { p.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default() };
-            self.chain.push(DirRow { id, parent, name, first_file: self.next_file, modified: p.modified, ..Default::default() });
+            self.chain.push(DirRow { id, parent, name, first_file: self.next_file, modified, ..Default::default() });
             if p.cloud {
                 self.chain.last_mut().expect("recién añadida").flags |= DIR_CLOUD_PENDING;
                 self.p.cloud_dirs += 1;
                 continue;
             }
-            if self.read(&p.path, p.depth, &mut stack)? {
+            if self.read(&p.path, p.depth, p.old, &mut stack)? {
                 return Ok(true);
             }
         }
@@ -435,6 +539,15 @@ impl Walker<'_> {
 
 /// Recorre `root` y entrega lo encontrado a `sink`. Si se cancela, lo escrito no tiene los totales cerrados: quien llama debe descartarlo.
 pub fn walk(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, on_progress: &mut dyn FnMut(&Progress)) -> Result<Outcome, String> {
+    walk_inner(root, sink, ctl, opts, on_progress, None)
+}
+
+/// Como `walk`, pero parte de un informe anterior: `known` son sus extensiones y el sumidero decide qué copiar y qué releer.
+pub fn walk_update(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, known: HashMap<String, ExtSlot>) -> Result<Outcome, String> {
+    walk_inner(root, sink, ctl, opts, &mut |_| {}, Some(known))
+}
+
+fn walk_inner(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, on_progress: &mut dyn FnMut(&Progress), known: Option<HashMap<String, ExtSlot>>) -> Result<Outcome, String> {
     let meta = fs::symlink_metadata(root).map_err(|e| format!("No se puede acceder a «{}»: {e}", root.display()))?;
     if meta.file_type().is_symlink() {
         return Err("Esta ubicación es un enlace: abre y analiza la carpeta de destino.".into());
@@ -442,6 +555,7 @@ pub fn walk(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, on_progr
     if !meta.is_dir() {
         return Err("Solo se pueden analizar unidades y carpetas.".into());
     }
+    let known_update = known.is_some();
     let now = Instant::now();
     let mut w = Walker {
         sink,
@@ -453,14 +567,14 @@ pub fn walk(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, on_progr
         next_file: 1,
         p: Progress::default(),
         cats: [(0, 0); 12],
-        exts: HashMap::new(),
+        exts: known.unwrap_or_default(),
         heap: BinaryHeap::with_capacity(TOP_FILES + 1),
         root_kids: vec![],
         since_pace: 0,
         started: now,
         last_emit: now,
     };
-    let cancelled = w.run(root)?;
+    let cancelled = w.run(root, known_update)?;
     w.snapshot(root);
     let Walker { p, exts, .. } = w;
     Ok(Outcome { progress: p, exts, cancelled })

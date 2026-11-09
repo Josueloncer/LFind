@@ -9,6 +9,12 @@ export const COMPUTER = "lfind://computer";
 /** Analizador de almacenamiento. Con informe abierto: `lfind://storage?root=…&at=carpeta/subcarpeta`. */
 export const STORAGE = "lfind://storage";
 
+/** Papelera de reciclaje de Windows. */
+export const RECYCLE = "lfind://recycle";
+
+/** Detector de archivos duplicados. */
+export const DUPLICATES = "lfind://duplicates";
+
 export const isVirtual = (p: string): boolean => p.startsWith("lfind://");
 export const isStorage = (p: string): boolean => p === STORAGE || p.startsWith(STORAGE + "?");
 

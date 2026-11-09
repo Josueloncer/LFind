@@ -114,6 +114,13 @@ export interface Prefs {
   dualPane: boolean;
   /** Posición del divisor, en milésimas de la anchura. */
   dualSplit: number;
+  /** Pestaña del panel derecho. */
+  previewTab: "preview" | "details";
+  sidebarSide: "left" | "right";
+  terminalHeight: number;
+  terminalShell: TerminalShell;
+  /** La terminal sigue la carpeta del panel activo. Desactivado salvo que el usuario lo pida. */
+  terminalSync: boolean;
   /** Actualización de los informes del analizador. */
   analyzerRefresh: "auto" | "manual" | "off";
   layout: Layout;
@@ -143,6 +150,11 @@ export const DEFAULT_PREFS: Prefs = {
   customThemes: [],
   dualPane: false,
   dualSplit: 500,
+  previewTab: "preview",
+  sidebarSide: "left",
+  terminalHeight: 280,
+  terminalShell: "powershell",
+  terminalSync: false,
   analyzerRefresh: "manual",
   layout: DEFAULT_LAYOUT,
   version: 3,
@@ -150,7 +162,119 @@ export const DEFAULT_PREFS: Prefs = {
 
 // ───────── operaciones de archivo (espejo de src-tauri/commands.rs y nova-core::ops) ─────────
 
-export type OpKind = "copy" | "move" | "trash" | "delete";
+export interface RecycleItem {
+  id: string;
+  name: string;
+  original: string;
+  deleted: number;
+  size: number | null;
+  entries: number | null;
+}
+
+export type Availability = "local" | "cloud" | "synced" | "unknown";
+export interface AvailStat { kind: Availability; files: number; bytes: number }
+
+export type TerminalShell = "powershell" | "cmd";
+export type WinFeature = "preferred" | "contextFolders" | "contextDrives" | "startup";
+export interface WinStatus {
+  preferred: boolean;
+  contextFolders: boolean;
+  contextDrives: boolean;
+  startup: boolean;
+  stale: boolean;
+  exe: string;
+}
+
+export interface DupConfig {
+  roots: string[];
+  exclusions: string[];
+  minSize: number;
+  maxMbps: number;
+}
+
+export interface DupProgress {
+  phase: "scanning" | "grouping" | "hashing" | "finishing";
+  paused: boolean;
+  files: number;
+  candidates: number;
+  candidateBytes: number;
+  readBytes: number;
+  reused: number;
+  skippedCloud: number;
+  skippedProtected: number;
+  links: number;
+  issues: number;
+  current: string;
+  /** 1 resumen, 2 lectura completa, 3 verificación; 0 fuera de ellas. */
+  step: number;
+  stepDone: number;
+  stepTotal: number;
+}
+
+export interface DupPending {
+  roots: string[];
+  step: number;
+  stepDone: number;
+  stepTotal: number;
+  files: number;
+  savedAt: number;
+}
+
+export interface DupSummary {
+  finishedAt: number;
+  durationMs: number;
+  roots: string[];
+  files: number;
+  groups: number;
+  duplicateFiles: number;
+  reclaimable: number;
+  readBytes: number;
+  reused: number;
+  skippedCloud: number;
+  skippedProtected: number;
+  links: number;
+  issues: number;
+}
+
+export interface DupGroup {
+  id: number;
+  size: number;
+  hash: string;
+  reclaimable: number;
+  members: { path: string; modified: number; flags: number }[];
+}
+
+export type DupEvent = ({ type: "progress" } & DupProgress) | { type: "done"; outcome: "completed" | "cancelled" | "suspended" | "failed"; message: string | null; summary: DupSummary | null };
+
+export interface InspectionSection {
+  title: string;
+  facts: { label: string; value: string }[];
+}
+
+export interface Inspection {
+  name: string;
+  ext: string;
+  path: string;
+  parent: string;
+  kind: "file" | "dir" | "link";
+  size: number;
+  created: number | null;
+  modified: number | null;
+  accessed: number | null;
+  attributes: string[];
+  readOnly: boolean;
+  cloud: boolean;
+  owner: string | null;
+  linkTarget: string | null;
+  children: number | null;
+  childrenCapped: boolean;
+  sections: InspectionSection[];
+}
+
+export type HashEvent = { type: "progress"; done: number; total: number } | { type: "done"; hash: string | null; error: string | null };
+
+/** `rename` solo existe en el gestor de la interfaz: el backend lo atiende con `renamePath`. */
+export type OpKind = "copy" | "move" | "trash" | "delete" | "rename";
 export interface OpRequest {
   kind: OpKind;
   sources: string[];
@@ -190,6 +314,7 @@ export interface DoneInfo {
 export type OpEvent = ({ type: "progress" } & Progress) | ({ type: "conflict" } & ConflictInfo) | ({ type: "done" } & DoneInfo);
 export interface OpHandle {
   cancel(): void;
+  pause(paused: boolean): void;
   resolve(decision: Decision, applyAll: boolean): void;
 }
 export interface FileProps {
@@ -424,7 +549,7 @@ export interface ExtStat { ext: string; cat: string; files: number; bytes: numbe
 export interface TreeNode { id: number; name: string; bytes: number; files: number; kids: TreeNode[] }
 export interface Issue { path: string; message: string }
 export interface Page<T> { items: T[]; more: boolean }
-export interface FilesQuery { dir: number; cat?: string; exts?: string[]; min?: number; max?: number; offset?: number; limit?: number }
+export interface FilesQuery { dir: number; cat?: string; exts?: string[]; min?: number; max?: number; offset?: number; limit?: number; avail?: string }
 export interface DirsQuery { dir: number; tree: boolean; sort: "size" | "name" | "files"; desc: boolean; min?: number; max?: number; offset?: number; limit?: number }
 
 export interface FsProvider {
@@ -521,6 +646,40 @@ export interface FsProvider {
   analyzerUnwatch(): Promise<void>;
   /** Guarda una imagen de fondo ya optimizada (base64) y devuelve su identificador. */
   backgroundImport(path: string): Promise<string>;
+  dupStart(config: DupConfig, onEvent: (e: DupEvent) => void): Promise<void>;
+  dupPause(paused: boolean): Promise<void>;
+  dupResume(onEvent: (e: DupEvent) => void): Promise<void>;
+  dupPending(): Promise<DupPending | null>;
+  dupDiscard(): Promise<void>;
+  dupSuspend(): Promise<void>;
+  dupCancel(): Promise<void>;
+  dupDefaultExclusions(): Promise<string[]>;
+  dupSummary(): Promise<DupSummary | null>;
+  dupGroups(offset: number, limit: number): Promise<DupGroup[]>;
+  dupCheckRemoval(paths: string[]): Promise<{ allowed: string[]; blocked: [string, string][] }>;
+  dupPrune(paths: string[]): Promise<void>;
+  dupForget(): Promise<void>;
+  dupCompare(a: string, b: string): Promise<{ identical: boolean; firstDifference: number | null } | null>;
+  openWithList(path: string): Promise<string[]>;
+  openWithApp(path: string, app: string): Promise<void>;
+  startNativeDrag(paths: string[]): Promise<number>;
+  recycleList(): Promise<{ items: RecycleItem[]; totalBytes: number | null }>;
+  recycleRestore(ids: string[]): Promise<void>;
+  recyclePurge(ids: string[]): Promise<void>;
+  winRepair(): Promise<WinStatus>;
+  termOpen(shell: TerminalShell, cwd: string | null, cols: number, rows: number, onData: (d: ArrayBuffer) => void, onExit: (code: number) => void): Promise<number>;
+  termWrite(id: number, data: string): Promise<void>;
+  termResize(id: number, cols: number, rows: number): Promise<void>;
+  termAck(id: number, bytes: number): Promise<void>;
+  termBusy(id: number): Promise<boolean>;
+  termClose(id: number): Promise<void>;
+  takeStartupPath(): Promise<string | null>;
+  onOpenPath(handler: (path: string) => void): Promise<() => void>;
+  winStatus(): Promise<WinStatus>;
+  winSet(feature: WinFeature, on: boolean): Promise<WinStatus>;
+  winRestore(): Promise<WinStatus>;
+  inspectPath(path: string): Promise<Inspection>;
+  startHash(path: string, onEvent: (e: HashEvent) => void): { cancel(): void };
   listFonts(): Promise<string[]>;
   backgroundLoad(id: string): Promise<string | null>;
   /** Retira las imágenes que no estén en la lista. */
@@ -534,8 +693,9 @@ export interface FsProvider {
   analyzerNode(root: string, at: string): Promise<DirHit | null>;
   analyzerDirs(root: string, query: DirsQuery): Promise<Page<DirHit>>;
   analyzerFiles(root: string, query: FilesQuery): Promise<Page<FileHit>>;
-  analyzerCategories(root: string, dir: number): Promise<CatStat[]>;
-  analyzerExts(root: string, dir: number, offset: number, limit: number): Promise<Page<ExtStat>>;
+  analyzerCategories(root: string, dir: number, avail?: string): Promise<CatStat[]>;
+  analyzerAvailability(root: string, dir: number): Promise<AvailStat[]>;
+  analyzerExts(root: string, dir: number, offset: number, limit: number, avail?: string): Promise<Page<ExtStat>>;
   analyzerTreemap(root: string, dir: number): Promise<TreeNode[]>;
   analyzerIssues(root: string): Promise<Issue[]>;
 

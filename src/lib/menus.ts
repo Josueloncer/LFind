@@ -66,7 +66,7 @@ export function viewMenu(v: EffectiveView, columns: Column[], a: ViewActions, t:
   ];
 }
 
-const SORTS: [SortKey, string][] = [["name", "Nombre"], ["kind", "Tipo"], ["size", "Tamaño"], ["modified", "Fecha de modificación"], ["created", "Fecha de creación"]];
+export const SORTS: [SortKey, string][] = [["name", "Nombre"], ["kind", "Tipo"], ["size", "Tamaño"], ["modified", "Fecha de modificación"], ["created", "Fecha de creación"]];
 
 /** Texto del orden vigente: criterio y qué queda arriba. */
 export function sortDescription(v: Pick<EffectiveView, "sortKey" | "sortDir">): string {

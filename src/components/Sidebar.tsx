@@ -1,6 +1,6 @@
-import { ChartPie, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, SlidersHorizontal, TriangleAlert, X } from "./icons";
+import { ChartPie, Copy, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, SlidersHorizontal, Trash2, TriangleAlert, Wrench, X } from "./icons";
 import { useEffect, useRef, useState } from "react";
-import type { ComponentType, MouseEvent, ReactNode } from "react";
+import type { ComponentType, MouseEvent, PointerEvent, ReactNode } from "react";
 import type { DriveUsage, Favorite, PathState, Place } from "../lib/fs";
 import { placeMenu } from "../lib/contextMenu";
 import type { PlaceMenuActions } from "../lib/contextMenu";
@@ -14,10 +14,12 @@ import { useReorder } from "../hooks/useReorder";
 import { VISIBLE_RECENTS, isPinned, usedPercent, visibleRecents } from "../lib/locations";
 import { applyOrder, moveKey } from "../lib/reorder";
 import { locationOrder, sectionOrder } from "../lib/uiLayout";
-import { COMPUTER, STORAGE, basename, canonicalKey, isStorage, samePath } from "../lib/path";
+import { COMPUTER, DUPLICATES, RECYCLE, STORAGE, basename, canonicalKey, isStorage, samePath } from "../lib/path";
 import { useApp } from "../stores/app";
 import { copyText } from "../stores/clipboard";
 import { useCustomize } from "../stores/customize";
+import { usePalette } from "../stores/palette";
+import { useTerminal } from "../stores/terminal";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePathHealth } from "../stores/pathHealth";
 import { usePrefs } from "../stores/prefs";
@@ -55,6 +57,54 @@ function LabelEditor({ value, onDone }: { value: string; onDone(v: string | null
         else if (e.key === "Escape") finish(null);
       }}
     />
+  );
+}
+
+const DRAG_MIN = 24;
+
+/** Asa para llevar la barra al otro lado. Solo se mueve al cruzar la mitad de la ventana: un clic o un gesto corto no hacen nada. */
+function SidebarGrip() {
+  const update = usePrefs((s) => s.update);
+  const side = usePrefs((s) => s.sidebarSide);
+  const [hint, setHint] = useState<"left" | "right" | null>(null);
+  const apply = (next: "left" | "right") => {
+    if (next === usePrefs.getState().sidebarSide) return;
+    const doc = document as Document & { startViewTransition?: (f: () => void) => unknown };
+    const change = () => update({ sidebarSide: next });
+    if (doc.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) doc.startViewTransition(change);
+    else change();
+  };
+  const onDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    let target: "left" | "right" | null = null;
+    const move = (ev: globalThis.PointerEvent) => {
+      if (Math.abs(ev.clientX - startX) < DRAG_MIN) return;
+      target = ev.clientX < window.innerWidth / 2 ? "left" : "right";
+      setHint(target);
+    };
+    const finish = (commit: boolean) => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      window.removeEventListener("keydown", key, true);
+      setHint(null);
+      if (commit && target) apply(target);
+    };
+    const up = () => finish(true);
+    const key = (ev: KeyboardEvent) => ev.key === "Escape" && (ev.stopPropagation(), finish(false));
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    window.addEventListener("keydown", key, true);
+  };
+  const other = side === "left" ? "right" : "left";
+  return (
+    <>
+      <div className="side-grip" role="button" tabIndex={0} aria-label={`Mover la barra lateral a la ${other === "left" ? "izquierda" : "derecha"}`} title="Arrastra para cambiar de lado" onPointerDown={onDown} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), apply(other))}><i /></div>
+      {hint && <div className="side-dock" data-side={hint} aria-hidden />}
+    </>
   );
 }
 
@@ -134,6 +184,16 @@ export function Sidebar() {
   const analyzing = useStorage((s) => !!s.job);
 
   // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
+  const pickTools = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    openMenu(r.left, r.top - 5 * 32, [
+      { kind: "item", label: "Paleta de comandos", shortcut: "Ctrl+K", run: () => usePalette.getState().show() },
+      { kind: "item", label: "Terminal", shortcut: "Ctrl+J", run: () => useTerminal.getState().toggle() },
+      { kind: "item", label: "Inspector de archivos", shortcut: "Ctrl+I", run: () => update({ previewPane: true, previewTab: "details" }) },
+      { kind: "sep" },
+      { kind: "item", label: "Configuración…", run: () => openDialog({ type: "settings" }) },
+    ]);
+  };
   const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     openMenu(r.left, r.top - (THEMES.length + 2) * 32, [
@@ -251,7 +311,7 @@ export function Sidebar() {
         </>
       ),
     },
-    storage: { title: "Almacenamiento", body: <Item label="Analizador de almacenamiento" path={STORAGE} Icon={ChartPie} active={isStorage(cur)} onOpen={navigate} busy={analyzing} /> },
+    storage: { title: "Almacenamiento", body: <><Item label="Detector de duplicados" path={DUPLICATES} Icon={Copy} active={cur === DUPLICATES} onOpen={navigate} /><Item label="Papelera de reciclaje" path={RECYCLE} Icon={Trash2} active={cur === RECYCLE} onOpen={navigate} /><Item label="Analizador de almacenamiento" path={STORAGE} Icon={ChartPie} active={isStorage(cur)} onOpen={navigate} busy={analyzing} /></> },
   };
   const allSections = sectionOrder(layout);
   const visibleSections = allSections.filter((id) => sections[id]);
@@ -259,6 +319,7 @@ export function Sidebar() {
 
   return (
     <nav className="sidebar" aria-label="Ubicaciones" data-customizing={customizing || undefined}>
+      <SidebarGrip />
       <div className="side-scroll">
         {visibleSections.map((id) => {
           const sec = sections[id]!;
@@ -280,6 +341,10 @@ export function Sidebar() {
         <button className="side-theme" title={`Tema: ${th.label} (clic para cambiar)`} onClick={pickTheme}>
           <Palette />
           <span className="side-label">Tema: {th.label}</span>
+        </button>
+        <button className="side-theme" title="Herramientas y configuración" aria-label="Herramientas" onClick={pickTools}>
+          <Wrench />
+          <span className="side-label">Herramientas</span>
         </button>
         <button className="side-theme" title={updateReady ? "Hay una nueva versión de LFind" : "Buscar actualizaciones"} aria-label="Buscar actualizaciones" onClick={() => openDialog({ type: "update" })}>
           <CircleArrowUp />

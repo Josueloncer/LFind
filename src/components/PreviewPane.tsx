@@ -12,6 +12,7 @@ import { useViewerSource } from "../hooks/useViewerSource";
 import { usePrefs } from "../stores/prefs";
 import { useViewer } from "../stores/viewer";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { Inspector } from "./Inspector";
 import { EntryGlyph } from "./Glyphs";
 import { ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, X } from "./icons";
 import { ImageViewer } from "./viewer/ImageViewer";
@@ -126,7 +127,10 @@ export function PreviewPane({ entry, basePath, count }: { entry: Entry | null; b
   const path = entry ? join(basePath, entry.name) : null;
   const isFile = entry?.kind === "file";
   const key = entry && isFile ? `${path}|${entry.size}|${entry.modified ?? 0}` : null;
-  const load = useViewerSource(fs.available ? key : null, path);
+  const tab = usePrefs((s) => s.previewTab);
+  const details = tab === "details" && !expanded;
+  // En «Detalles» no se prepara el visor: abrir un PDF o un vídeo para no enseñarlo sería trabajo perdido.
+  const load = useViewerSource(fs.available && !details ? key : null, path);
   const source = load.status === "ready" ? load.source : null;
   const onFacts = useCallback((facts: ViewerFact[]) => setRuntime({ key, facts }), [key]);
 
@@ -248,8 +252,18 @@ export function PreviewPane({ entry, basePath, count }: { entry: Entry | null; b
           <button className="ibtn" title={expanded ? "Cerrar (Esc)" : "Ocultar el panel"} aria-label={expanded ? "Cerrar" : "Ocultar el panel"} onClick={close}><X /></button>
         </span>
       </header>
-      <div className="vw-stage">{body}</div>
-      {entry && (
+      {!expanded && (
+        <div className="ins-tabs" role="tablist" aria-label="Contenido del panel">
+          <button role="tab" aria-selected={!details} onClick={() => update({ previewTab: "preview" })}>Vista previa</button>
+          <button role="tab" aria-selected={details} onClick={() => update({ previewTab: "details" })}>Detalles</button>
+        </div>
+      )}
+      {details ? (
+        <div className="vw-stage ins-stage">{entry && path && fs.available ? <Inspector key={path} entry={entry} path={path} /> : <p className="preview-empty">{count > 1 ? `${count} elementos seleccionados` : "Selecciona un elemento para ver sus detalles."}</p>}</div>
+      ) : (
+        <div className="vw-stage">{body}</div>
+      )}
+      {entry && !details && (
         <footer className="vw-info">
           {note && <p className="vw-note">{note}</p>}
           <dl className="vw-facts">

@@ -83,8 +83,19 @@ pub enum Decision {
 
 pub struct Ctx<'a> {
     pub cancel: &'a AtomicBool,
+    /// Mientras esté activo, la operación espera antes del siguiente bloque o archivo.
+    pub paused: Option<&'a AtomicBool>,
     pub on_progress: &'a mut dyn FnMut(&Progress),
     pub on_conflict: &'a mut dyn FnMut(&ConflictInfo) -> Decision,
+}
+
+impl Ctx<'_> {
+    /// Sin ocupar procesador. La cancelación siempre puede con la pausa.
+    pub fn wait_if_paused(&self) {
+        while self.paused.is_some_and(|p| p.load(Ordering::Relaxed)) && !self.cancel.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -154,6 +165,7 @@ impl<'c, 'a> St<'c, 'a> {
         St { ctx, prog: Progress { files_total: files, bytes_total: bytes, ..Default::default() }, skipped: 0, errors: vec![], created: vec![], moved: vec![] }
     }
     fn check(&self) -> R {
+        self.ctx.wait_if_paused();
         if self.ctx.cancel.load(Ordering::Relaxed) { Err(Fail::Cancelled) } else { Ok(()) }
     }
     fn emit(&mut self) {
@@ -580,7 +592,7 @@ pub fn move_single(src: &Path, dst: &Path) -> Result<(), String> {
     let cancel = AtomicBool::new(false);
     let mut p = |_: &Progress| {};
     let mut c = |_: &ConflictInfo| Decision::Skip;
-    let mut ctx = Ctx { cancel: &cancel, on_progress: &mut p, on_conflict: &mut c };
+    let mut ctx = Ctx { cancel: &cancel, paused: None, on_progress: &mut p, on_conflict: &mut c };
     let is_dir = fs::symlink_metadata(src).map(|m| m.is_dir()).map_err(|e| classify(&e).1)?;
     let mut st = St::new(&mut ctx, 1, 0);
     let r = move_path(src, dst, is_dir, &mut st);
@@ -691,6 +703,7 @@ pub fn trash_items(
     }
     prog.files_done = (paths.len() - ok.len()) as u64;
     for chunk in ok.chunks(TRASH_BATCH) {
+        ctx.wait_if_paused();
         if ctx.cancel.load(Ordering::Relaxed) {
             out.cancelled = true;
             break;
@@ -803,7 +816,7 @@ mod tests {
         let mut log = vec![];
         let mut p = |x: &Progress| log.push(x.clone());
         let mut c = |_: &ConflictInfo| decide;
-        let mut ctx = Ctx { cancel: &cancel, on_progress: &mut p, on_conflict: &mut c };
+        let mut ctx = Ctx { cancel: &cancel, paused: None, on_progress: &mut p, on_conflict: &mut c };
         let o = f(&mut ctx);
         (o, log)
     }
@@ -916,7 +929,7 @@ mod tests {
             }
         };
         let mut c = |_: &ConflictInfo| Decision::Skip;
-        let mut ctx = Ctx { cancel: &cancel, on_progress: &mut p, on_conflict: &mut c };
+        let mut ctx = Ctx { cancel: &cancel, paused: None, on_progress: &mut p, on_conflict: &mut c };
         let o = copy_items(&[d.join("big.bin")], &d.join("out"), &mut ctx);
         assert!(o.cancelled);
         assert_eq!(fs::read_dir(d.join("out")).unwrap().count(), 0, "sin archivo parcial ni temporal");
@@ -1029,10 +1042,52 @@ mod tests {
         let cancel = AtomicBool::new(true);
         let mut p = |_: &Progress| {};
         let mut c = |_: &ConflictInfo| Decision::Skip;
-        let mut ctx = Ctx { cancel: &cancel, on_progress: &mut p, on_conflict: &mut c };
+        let mut ctx = Ctx { cancel: &cancel, paused: None, on_progress: &mut p, on_conflict: &mut c };
         w(&d.join("a"), "1");
         let o = trash_items(&[d.join("a")], &mut ctx, &mut |_| panic!("cancelado"), &mut |_| panic!("cancelado"));
         assert!(o.cancelled && d.join("a").exists());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    fn copy_while(paused: bool, act: impl FnOnce(&AtomicBool, &AtomicBool, &Path) + Send) -> (OpOutcome, PathBuf) {
+        let d = tmp(if paused { "pausa" } else { "pausa2" });
+        w(&d.join("o/a.txt"), "1");
+        w(&d.join("o/b.txt"), "2");
+        fs::create_dir_all(d.join("dst")).unwrap();
+        let (cancel, pause) = (AtomicBool::new(false), AtomicBool::new(paused));
+        let out = std::thread::scope(|s| {
+            let job = s.spawn(|| {
+                let mut p = |_: &Progress| {};
+                let mut c = |_: &ConflictInfo| Decision::Skip;
+                let mut ctx = Ctx { cancel: &cancel, paused: Some(&pause), on_progress: &mut p, on_conflict: &mut c };
+                copy_items(&[d.join("o/a.txt"), d.join("o/b.txt")], &d.join("dst"), &mut ctx)
+            });
+            act(&cancel, &pause, &d);
+            job.join().unwrap()
+        });
+        (out, d)
+    }
+
+    #[test]
+    fn a_paused_copy_writes_nothing_until_resumed() {
+        let (out, d) = copy_while(true, |_, pause, dir| {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            assert_eq!(fs::read_dir(dir.join("dst")).unwrap().count(), 0, "en pausa no se escribe nada");
+            pause.store(false, Ordering::Relaxed);
+        });
+        assert_eq!((out.completed, out.cancelled), (2, false));
+        assert!(d.join("dst/a.txt").exists() && d.join("dst/b.txt").exists());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn cancelling_a_paused_copy_ends_it_at_once() {
+        let (out, d) = copy_while(true, |cancel, _, _| {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            cancel.store(true, Ordering::Relaxed);
+        });
+        assert!(out.cancelled);
+        assert_eq!(fs::read_dir(d.join("dst")).unwrap().count(), 0, "no deja nada a medias");
         let _ = fs::remove_dir_all(d);
     }
 

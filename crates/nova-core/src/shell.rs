@@ -73,20 +73,10 @@ pub fn create_shortcut(target: &Path, link_path: &Path) -> io::Result<()> {
     std::os::unix::fs::symlink(target, link_path)
 }
 
-/// «Abrir con…»: el cuadro de selección de aplicación de Windows (verbo `openas`).
+/// «Abrir con…»: el cuadro de selección de aplicación de Windows.
 #[cfg(windows)]
 pub fn open_with(p: &Path) -> io::Result<()> {
-    use crate::sys::win;
-    let file = win::wide(p.as_os_str());
-    let verb = win::wide("openas".as_ref());
-    unsafe {
-        let com = win::CoInitializeEx(std::ptr::null_mut(), 2) >= 0;
-        let r = win::ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), std::ptr::null(), std::ptr::null(), 1);
-        if com {
-            win::CoUninitialize();
-        }
-        if r > 32 { Ok(()) } else { Err(io::Error::new(io::ErrorKind::Other, format!("Windows no pudo mostrar «Abrir con» (código {r})."))) }
-    }
+    crate::shellapps::choose_app(p).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 #[cfg(not(windows))]

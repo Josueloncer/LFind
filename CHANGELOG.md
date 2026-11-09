@@ -1,5 +1,21 @@
 # LFind — Registro de cambios
 
+## Update 13: herramientas profesionales
+- Nueva paleta de comandos (Ctrl+K): busca y ejecuta cualquier acción, carpeta o ajuste con el teclado.
+- Nuevo inspector de archivos (Ctrl+I): detalles, propiedades multimedia, EXIF, permisos y hash a petición.
+- Las operaciones de archivo se pueden pausar y muestran velocidad y tiempo restante.
+- Nuevo detector de duplicados por contenido real, que solo trabaja cuando se lo pides, nunca elimina la última copia y se puede pausar y continuar, también después de cerrar LFind.
+- Nueva terminal integrada con PowerShell y CMD (Ctrl+J), que puede sincronizarse con el explorador en los dos sentidos.
+- Integración con Windows opcional y reversible: abrir carpetas con LFind, menú contextual e inicio con el sistema.
+- Papelera de reciclaje dentro de LFind: consulta, busca, restaura y elimina definitivamente, con el espacio que ocupa.
+- «Abrir con» muestra las aplicaciones registradas en Windows, como WinRAR, y permite elegir otra con el cuadro nativo.
+- Arrastra uno o varios archivos desde LFind al Explorador, al escritorio o a otras aplicaciones. Ahora también se puede soltar en un panel con la carpeta vacía.
+- La barra lateral se puede llevar a la izquierda o a la derecha arrastrándola.
+- El analizador separa lo local, lo que está solo en la nube y lo sincronizado, y permite filtrar por ello sin descargar nada.
+- Los desplegables se leen bien en todos los temas.
+- Corregida la línea extraña del doble panel.
+- Si la integración con Windows abría una consola o una página inaccesible, se puede corregir desde Ajustes con «Reparar».
+
 ## Update 12: doble panel, personalización y analizador inteligente
 - Nueva vista de doble panel: cada lado tiene su ruta, historial, pestañas y selección. Copia, mueve o arrastra archivos entre paneles, ajusta el divisor e intercámbialos (Ctrl+Mayús+D).
 - Nuevo centro de personalización: fondos con tus imágenes, general o por panel, desenfoque, transparencia, colores, esquinas, densidad, tipografía y temas propios, con vista previa al momento.

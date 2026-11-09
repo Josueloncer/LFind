@@ -1,6 +1,6 @@
 /** Modelo puro de la barra de dirección: migas de pan y decisión de qué hacer con lo escrito. Sin React ni Tauri. */
 import type { DriveUsage } from "./fs/types";
-import { COMPUTER, STORAGE, basename, isStorage, join, parseStorageRoute, samePath, segments, storageRoute } from "./path";
+import { COMPUTER, DUPLICATES, RECYCLE, STORAGE, basename, isStorage, join, parseStorageRoute, samePath, segments, storageRoute } from "./path";
 
 export interface Crumb {
   label: string;
@@ -21,6 +21,8 @@ export function driveLabel(letter: string, usage?: Pick<DriveUsage, "label" | "k
 export function crumbsFor(path: string, usage: Record<string, Pick<DriveUsage, "label" | "kind"> | undefined> = {}): Crumb[] {
   if (!path) return [];
   if (path === COMPUTER) return [{ label: "Mi equipo", path: COMPUTER }];
+  if (path === RECYCLE) return [{ label: "Papelera de reciclaje", path: RECYCLE }];
+  if (path === DUPLICATES) return [{ label: "Detector de duplicados", path: DUPLICATES }];
   if (isStorage(path)) {
     const { root, at } = parseStorageRoute(path);
     const out: Crumb[] = [{ label: "Almacenamiento", path: STORAGE }];

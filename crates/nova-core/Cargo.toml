@@ -17,6 +17,9 @@ image = { version = "=0.25.6", default-features = false, features = ["jpeg", "pn
 # `hooks` habilita `progress_handler`, con el que se cancelan las consultas en curso. Opcional: `nova-core` se prueba sin ella (`cargo test`).
 rusqlite = { version = "0.32", features = ["bundled", "hooks"], optional = true }
 
+# Hash SHA-256 del inspector y del detector de duplicados. Ya formaba parte del árbol de dependencias de la aplicación.
+sha2 = "0.10"
+
 [features]
 default = []
 sqlite = ["dep:rusqlite"]

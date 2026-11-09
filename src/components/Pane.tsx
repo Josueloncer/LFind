@@ -15,7 +15,7 @@ import { columnsMenu } from "../lib/menus";
 import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
 import { VISIT_DWELL_MS } from "../lib/locations";
-import { COMPUTER, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
+import { COMPUTER, DUPLICATES, RECYCLE, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
 import { ladderAt, ladderPos, zoomStep } from "../lib/view";
 import { effectiveView, isPinned, keepsPaneOrder, nextSort, paneView, splitViewPatch } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
@@ -25,11 +25,14 @@ import { otherPanePath, selectPaneTab, useNav } from "../stores/nav";
 import { pathKey, useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
 import { useSearch } from "../stores/search";
+import { setPaneActions } from "../stores/paneActions";
 import { useStorage } from "../stores/storage";
 import { useUi } from "../stores/ui";
 import { useViewer } from "../stores/viewer";
 import { filePosition, neighborIndex } from "../lib/viewerMath";
 import { ComputerView } from "./ComputerView";
+import { DuplicatesView } from "./DuplicatesView";
+import { RecycleView } from "./RecycleView";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileView } from "./FileView";
@@ -193,6 +196,11 @@ export function Pane({ side }: { side: 0 | 1 }) {
     useNav.getState().setPaneOrder(side, path, { sortKey: cur.sortKey, sortDir: cur.sortDir, groupBy: cur.groupBy, ...order });
     if (Object.keys(look).length) setPrefsView(path, look);
   }, [path, setPrefsView, dualOn, otherPath, orders, side]);
+  useEffect(() => {
+    if (!focused) return;
+    setPaneActions({ path, view, setView, reload });
+    return () => setPaneActions(null);
+  }, [focused, path, view, setView, reload]);
   const pinned = useMemo(() => !!path && isPinned(p, path), [p.folderViews, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
   const onSort = (k: SortKey) => setView(nextSort(view, k));
@@ -237,7 +245,16 @@ export function Pane({ side }: { side: 0 | 1 }) {
 
   // ───────── arrastrar y soltar ─────────
   const destOf = (t: Entry | null) => (t ? join(path ?? "", t.name) : path ?? "");
-  const onDragStart = (ev: DragEvent, e: Entry) => beginDrag(ev, (selected.has(e.name) ? A.sel : [e]).map((x) => join(path ?? "", x.name)));
+  const onDragStart = (ev: DragEvent, e: Entry) => {
+    const list = (selected.has(e.name) ? A.sel : [e]).map((x) => join(path ?? "", x.name));
+    beginDrag(ev, list);
+    // Arrastre nativo de Windows: sirve igual para otras aplicaciones y, dentro de LFind, para los paneles (`draggedPaths` sigue disponible).
+    if (!ev.nativeEvent.isTrusted || !fs.available) return;
+    ev.preventDefault();
+    void fs.startNativeDrag(list).then((effect) => {
+      if (effect) useOps.setState((s) => ({ version: s.version + 1 }));
+    }).catch(() => {}).finally(endDrag);
+  };
   const canDrop = (t: Entry | null) => {
     const d = draggedPaths();
     return !!d && !!path && canDropInto(d, destOf(t));
@@ -340,6 +357,10 @@ export function Pane({ side }: { side: 0 | 1 }) {
     body = <SearchView basePath={path ?? ""} />;
   } else if (isComputer) {
     body = <ComputerView />;
+  } else if (tab?.path === RECYCLE) {
+    body = <RecycleView />;
+  } else if (tab?.path === DUPLICATES) {
+    body = <DuplicatesView />;
   } else if (storage) {
     const r = parseStorageRoute(tab.path);
     body = <StorageView root={r.root} at={r.at} />;
@@ -348,7 +369,25 @@ export function Pane({ side }: { side: 0 | 1 }) {
   } else if (!loading && !sorting && visible.length === 0) {
     body = <EmptyState title={filter ? "Sin coincidencias" : "Carpeta vacía"}>{filter ? `Ningún elemento contiene “${filter}”.` : "Haz clic derecho para crear una carpeta o un archivo, o pega elementos aquí."}</EmptyState>;
     // El menú contextual también debe funcionar en una carpeta vacía.
-    body = <div className="empty-wrap" onContextMenu={(ev) => (ev.preventDefault(), onContext(ev, null))}>{body}</div>;
+    // Y soltar: una carpeta vacía es un destino habitual del arrastre entre paneles.
+    body = (
+      <div
+        className="empty-wrap"
+        onContextMenu={(ev) => (ev.preventDefault(), onContext(ev, null))}
+        onDragOver={(ev) => {
+          if (!canDrop(null)) return;
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = dropEffect(ev, null);
+        }}
+        onDrop={(ev) => {
+          if (!canDrop(null)) return;
+          ev.preventDefault();
+          onDrop(ev, null);
+        }}
+      >
+        {body}
+      </div>
+    );
   } else {
     body = (
       <FileView

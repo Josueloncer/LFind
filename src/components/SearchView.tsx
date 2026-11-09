@@ -19,6 +19,7 @@ import { useNav } from "../stores/nav";
 import { useSearch } from "../stores/search";
 import { usePrefs } from "../stores/prefs";
 import { useUi } from "../stores/ui";
+import { Select } from "./Select";
 import { useViewer } from "../stores/viewer";
 import type { MenuItem } from "../stores/ui";
 import { EmptyState } from "./EmptyState";
@@ -32,6 +33,8 @@ const CATEGORIES: [string, string][] = [
   ["", "Todos los tipos"], ["image", "Imágenes"], ["video", "Vídeos"], ["audio", "Audio"], ["archive", "Comprimidos"], ["code", "Código"],
   ["doc", "Documentos"], ["sheet", "Hojas de cálculo"], ["slides", "Presentaciones"], ["pdf", "PDF"], ["design", "Diseño"], ["exec", "Aplicaciones"],
 ];
+const DATE_FIELDS: readonly (readonly [SearchFilters["dateField"], string])[] = [["modified", "Modificación"], ["created", "Creación"], ["accessed", "Último acceso"]];
+const SORT_OPTIONS: readonly (readonly [SearchFilters["sort"], string])[] = [["relevance", "Relevancia"], ["name", "Nombre"], ["size", "Tamaño"], ["modified", "Fecha de modificación"]];
 const PRESETS: [DatePreset, string][] = [["any", "Cualquier fecha"], ["today", "Hoy"], ["7d", "Últimos 7 días"], ["30d", "Último mes"], ["365d", "Último año"], ["custom", "Personalizado…"]];
 
 /** Abre un resultado: las carpetas se abren dentro de LFind (y se sale de la búsqueda); los archivos con su programa. */
@@ -124,17 +127,15 @@ function FiltersPanel({ basePath }: { basePath: string }) {
     <div className="sv-filters" role="group" aria-label="Filtros de búsqueda">
       <label className="sv-field"><span>Extensión</span><input value={f.exts} spellCheck={false} placeholder="psd, png, pdf" onChange={(e) => set("exts")(e.target.value)} /></label>
       <label className="sv-field"><span>Tipo</span>
-        <select value={f.category} onChange={(e) => set("category")(e.target.value)}>{CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <Select label="Tipo" value={f.category} options={CATEGORIES} onChange={set("category")} />
       </label>
       <label className="sv-field"><span>Tamaño mínimo</span><input value={f.minSize} spellCheck={false} placeholder="1 GB" aria-invalid={bad.min || undefined} onChange={(e) => set("minSize")(e.target.value)} /></label>
       <label className="sv-field"><span>Tamaño máximo</span><input value={f.maxSize} spellCheck={false} placeholder="500 MB" aria-invalid={bad.max || undefined} onChange={(e) => set("maxSize")(e.target.value)} /></label>
       <label className="sv-field"><span>Fecha de</span>
-        <select value={f.dateField} onChange={(e) => set("dateField")(e.target.value as SearchFilters["dateField"])}>
-          <option value="modified">Modificación</option><option value="created">Creación</option><option value="accessed">Último acceso</option>
-        </select>
+        <Select label="Fecha de" value={f.dateField} options={DATE_FIELDS} onChange={set("dateField")} />
       </label>
       <label className="sv-field"><span>Periodo</span>
-        <select value={f.datePreset} onChange={(e) => set("datePreset")(e.target.value as DatePreset)}>{PRESETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <Select label="Periodo" value={f.datePreset} options={PRESETS} onChange={set("datePreset")} />
       </label>
       {f.datePreset === "custom" && (
         <>
@@ -143,11 +144,7 @@ function FiltersPanel({ basePath }: { basePath: string }) {
         </>
       )}
       <label className="sv-field"><span>Unidad</span>
-        <select value={f.drive} onChange={(e) => set("drive")(e.target.value)}>
-          <option value="">Todas</option>
-          {f.drive && !drives.includes(f.drive) && <option value={f.drive}>{f.drive}</option>}
-          {drives.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
+        <Select label="Unidad" value={f.drive} options={[["", "Todas"], ...(f.drive && !drives.includes(f.drive) ? [f.drive] : []).concat(drives).map((d) => [d, d] as const)] as const} onChange={set("drive")} />
       </label>
       <label className="sv-field sv-wide"><span>Dentro de la carpeta</span>
         <span className="sv-inline">
@@ -156,9 +153,7 @@ function FiltersPanel({ basePath }: { basePath: string }) {
         </span>
       </label>
       <label className="sv-field"><span>Ordenar por</span>
-        <select value={f.sort} onChange={(e) => patch({ sort: e.target.value as SearchFilters["sort"], desc: e.target.value === "size" || e.target.value === "modified" })}>
-          <option value="relevance">Relevancia</option><option value="name">Nombre</option><option value="size">Tamaño</option><option value="modified">Fecha de modificación</option>
-        </select>
+        <Select label="Ordenar por" value={f.sort} options={SORT_OPTIONS} onChange={(sort) => patch({ sort, desc: sort === "size" || sort === "modified" })} />
       </label>
       <div className="sv-field sv-checks">
         <label className="check"><input type="checkbox" checked={f.exact} onChange={(e) => set("exact")(e.target.checked)} /> Nombre exacto</label>

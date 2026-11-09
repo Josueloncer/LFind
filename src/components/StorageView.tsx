@@ -1,4 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Select } from "./Select";
+import type { AvailStat, Availability } from "../lib/fs";
 import type { ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { driveLabel } from "../lib/addressBar";
@@ -37,8 +39,11 @@ export const CAT_LABEL: Record<string, string> = {
 type Tab = "overview" | "folders" | "files" | "types";
 const TABS: [Tab, string][] = [["overview", "Resumen"], ["folders", "Carpetas"], ["files", "Archivos"], ["types", "Tipos"]];
 
-interface FileFilters { cat: string; exts: string; min: string; max: string }
-const NO_FILTERS: FileFilters = { cat: "", exts: "", min: "", max: "" };
+interface FileFilters { cat: string; exts: string; min: string; max: string; avail: string }
+const NO_FILTERS: FileFilters = { cat: "", exts: "", min: "", max: "", avail: "" };
+const AVAIL_LABEL: Record<Availability, string> = { local: "Solo en este equipo", cloud: "Solo en la nube", synced: "En este equipo y sincronizados", unknown: "Estado desconocido" };
+const AVAIL_NOTE: Record<Availability, string> = { local: "", cloud: "No ocupan espacio en este equipo", synced: "Borrarlos aquí también los borra en la nube", unknown: "Informe anterior: vuelve a analizar para clasificarlos" };
+const AVAIL_OPTIONS: readonly (readonly [string, string])[] = [["", "Todos"], ...(Object.entries(AVAIL_LABEL) as [string, string][]), ["noncloud", "Sin archivos solo en la nube"]];
 
 const percent = (v: number, total: number) => (total > 0 ? `${((v / total) * 100).toFixed(1)} %` : "—");
 const fail = (e: unknown) => useUi.getState().toast(errMsg(e), "error");
@@ -199,7 +204,7 @@ const FileRow = memo(function FileRow({ f, top }: { f: FileHit; top: number }) {
 });
 
 function FilesTab({ root, dir, version, filters, setFilters }: { root: string; dir: number; version: number; filters: FileFilters; setFilters(f: FileFilters): void }) {
-  const q = { dir, cat: filters.cat || undefined, exts: parseExts(filters.exts), min: sizeOf(filters.min), max: sizeOf(filters.max), limit: PAGE };
+  const q = { dir, cat: filters.cat || undefined, exts: parseExts(filters.exts), min: sizeOf(filters.min), max: sizeOf(filters.max), avail: filters.avail || undefined, limit: PAGE };
   const key = JSON.stringify([root, version, q]);
   const page = usePaged((offset) => fs.analyzerFiles(root, { ...q, offset }), key);
   const set = (p: Partial<FileFilters>) => setFilters({ ...filters, ...p });
@@ -207,7 +212,10 @@ function FilesTab({ root, dir, version, filters, setFilters }: { root: string; d
     <div className="an-tabbody">
       <Toolbar>
         <label className="sv-field"><span>Tipo</span>
-          <select value={filters.cat} onChange={(e) => set({ cat: e.target.value })}><option value="">Todos</option>{Object.entries(CAT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <Select label="Tipo" value={filters.cat} options={[["", "Todos"], ...Object.entries(CAT_LABEL)]} onChange={(cat) => set({ cat })} />
+        </label>
+        <label className="sv-field"><span>Disponibilidad</span>
+          <Select label="Disponibilidad" value={filters.avail} options={AVAIL_OPTIONS} onChange={(avail) => set({ avail })} />
         </label>
         <label className="sv-field"><span>Extensión</span><input value={filters.exts} spellCheck={false} placeholder="mp4, iso" onChange={(e) => set({ exts: e.target.value })} /></label>
         <SizeField label="Tamaño mínimo" value={filters.min} onChange={(min) => set({ min })} />
@@ -271,13 +279,42 @@ function FoldersTab({ root, node, version, total, enter }: { root: string; node:
   );
 }
 
-function TypesTab({ root, dir, version, cats, total, pickCat, pickExt }: { root: string; dir: number; version: number; cats: CatStat[] | null; total: number; pickCat(c: string): void; pickExt(e: ExtStat): void }) {
-  const page = usePaged((offset) => fs.analyzerExts(root, dir, offset, PAGE), `${root}|${dir}|${version}`);
+/** Reparte los archivos según dónde están. Se calcula con lo guardado en el informe: no toca los archivos. */
+function AvailabilityCard({ root, dir, version, value, onChange }: { root: string; dir: number; version: number; value: string; onChange(v: string): void }) {
+  const stats = useQuery<AvailStat[]>(() => fs.analyzerAvailability(root, dir), `${root}|${dir}|${version}`);
+  if (!stats) return null;
+  const onDisk = stats.reduce((n, s) => n + (s.kind === "cloud" ? 0 : s.bytes), 0);
+  const logical = stats.reduce((n, s) => n + s.bytes, 0);
+  return (
+    <section className="an-card">
+      <h2 className="an-h">Dónde están los archivos</h2>
+      <div className="an-rows-head an-avail"><span>Estado</span><span className="an-num">Archivos</span><span className="an-num">Tamaño</span><span className="an-num">En este equipo</span></div>
+      <div className="an-rows">
+        {stats.map((s) => (
+          <button key={s.kind} className="an-row an-avail" aria-pressed={value === s.kind} title={AVAIL_NOTE[s.kind] || undefined} onClick={() => onChange(value === s.kind ? "" : s.kind)}>
+            <span className="an-row-name">{AVAIL_LABEL[s.kind]}{AVAIL_NOTE[s.kind] && <em className="an-avail-note">{AVAIL_NOTE[s.kind]}</em>}</span>
+            <span className="an-num">{s.files.toLocaleString("es")}</span>
+            <span className="an-num">{formatBytes(s.bytes)}</span>
+            <span className="an-num">{formatBytes(s.kind === "cloud" ? 0 : s.bytes)}</span>
+          </button>
+        ))}
+      </div>
+      <p className="an-note">Total {formatBytes(logical)} de tamaño, {formatBytes(onDisk)} en este equipo.</p>
+    </section>
+  );
+}
+
+function TypesTab({ root, dir, version, cats: allCats, total: allTotal, pickCat, pickExt, avail, setAvail }: { root: string; dir: number; version: number; cats: CatStat[] | null; total: number; avail: string; setAvail(v: string): void; pickCat(c: string): void; pickExt(e: ExtStat): void }) {
+  const page = usePaged((offset) => fs.analyzerExts(root, dir, offset, PAGE, avail || undefined), `${root}|${dir}|${version}|${avail}`);
+  const filtered = useQuery<CatStat[]>(() => (avail ? fs.analyzerCategories(root, dir, avail) : Promise.resolve([])), `${root}|${dir}|${version}|${avail}`);
+  const cats = avail ? filtered : allCats;
+  const total = avail ? (filtered ?? []).reduce((n, c) => n + c.bytes, 0) : allTotal;
   const max = page.items[0]?.bytes ?? 0;
   return (
     <div className="an-scroll">
+      <AvailabilityCard root={root} dir={dir} version={version} value={avail} onChange={setAvail} />
       <section className="an-card">
-        <h2 className="an-h">Por tipo de archivo</h2>
+        <h2 className="an-h">Por tipo de archivo{avail && <span className="an-note"> · {AVAIL_OPTIONS.find(([v]) => v === avail)?.[1]}</span>}</h2>
         <div className="an-rows-head"><span>Tipo</span><span /><span className="an-num">Tamaño</span><span className="an-num">%</span><span className="an-num">Archivos</span></div>
         {cats ? <CategoryRows cats={cats} total={total} onPick={pickCat} /> : <p className="an-note">Calculando…</p>}
       </section>
@@ -351,9 +388,7 @@ function Actions({ job, onStart, root }: { job: StorageJob | null; onStart(): vo
     <div className="an-actions">
       <label className="an-mode" title="Automática: mientras LFind está abierto, actualiza en segundo plano lo que cambia. Manual: solo con el botón. Desactivada: el informe no cambia hasta un nuevo análisis.">
         <span>Actualización</span>
-        <select value={mode} onChange={(e) => (usePrefs.getState().update({ analyzerRefresh: e.target.value as Prefs["analyzerRefresh"] }), useStorage.getState().syncWatch(root))}>
-          {REFRESH_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
+        <Select label="Actualización" value={mode} options={REFRESH_MODES} onChange={(analyzerRefresh) => (usePrefs.getState().update({ analyzerRefresh }), useStorage.getState().syncWatch(root))} />
       </label>
       {mode !== "off" && <button className="btn" disabled={busy} title="Relee solo las carpetas que han cambiado" onClick={() => useStorage.getState().update(root)}><RotateCw className="an-btn-ico" />{updating ? "Actualizando…" : "Actualizar cambios"}</button>}
       <button className="btn" disabled={busy} title={job && !mine ? `Hay un análisis en curso de ${job.root}` : "Vuelve a recorrer toda la ubicación"} onClick={onStart}><RefreshCw className="an-btn-ico" />Analizar de nuevo</button>
@@ -385,8 +420,8 @@ function ReportBody({ root, at, report, version }: { root: string; at: string; r
   if (node === null) return <EmptyState title="Cargando el informe…"> </EmptyState>;
   const old = Date.now() - report.finishedAt > OLD_REPORT_MS;
   const stale = report.state === "missing" ? "Esta ubicación ya no existe: el informe muestra cómo estaba al analizarla." : report.state === "otherVolume" ? "Ahora hay otro disco en esta letra de unidad: este informe corresponde al disco anterior." : old ? "Este informe tiene más de una semana y puede no reflejar el estado actual." : null;
-  const pickCat = (cat: string) => (setFilters({ ...NO_FILTERS, cat }), setTab("files"));
-  const pickExt = (e: ExtStat) => (setFilters({ ...NO_FILTERS, exts: e.ext }), setTab("files"));
+  const pickCat = (cat: string) => (setFilters({ ...NO_FILTERS, cat, avail: filters.avail }), setTab("files"));
+  const pickExt = (e: ExtStat) => (setFilters({ ...NO_FILTERS, exts: e.ext, avail: filters.avail }), setTab("files"));
   return (
     <div className="an" data-flow={tab === "overview" || tab === "types" || undefined}>
       <div className="an-top">
@@ -420,7 +455,7 @@ function ReportBody({ root, at, report, version }: { root: string; at: string; r
       {tab === "overview" && <Overview root={root} at={at} node={node} version={version} cats={cats} total={node.bytes} enter={enter} openTab={setTab} pickCat={pickCat} />}
       {tab === "folders" && <FoldersTab root={root} node={node} version={version} total={report.bytes} enter={enterDir} />}
       {tab === "files" && <FilesTab root={root} dir={node.id} version={version} filters={filters} setFilters={setFilters} />}
-      {tab === "types" && <TypesTab root={root} dir={node.id} version={version} cats={cats} total={node.bytes} pickCat={pickCat} pickExt={pickExt} />}
+      {tab === "types" && <TypesTab root={root} dir={node.id} version={version} cats={cats} total={node.bytes} pickCat={pickCat} pickExt={pickExt} avail={filters.avail} setAvail={(avail) => setFilters({ ...filters, avail })} />}
     </div>
   );
 }

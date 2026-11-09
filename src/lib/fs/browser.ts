@@ -59,7 +59,7 @@ export class BrowserProvider implements FsProvider {
 
   startOp(_req: OpRequest, onEvent: (e: OpEvent) => void): OpHandle {
     queueMicrotask(() => onEvent({ type: "done", completed: 0, skipped: 0, cancelled: false, undoable: false, errors: [{ path: "", message: "Las operaciones de archivo solo están disponibles en la aplicación de escritorio.", kind: "other" }] }));
-    return { cancel() {}, resolve() {} };
+    return { cancel() {}, resolve() {}, pause() {} };
   }
   renamePath = NA as FsProvider["renamePath"];
   createFolder = NA as FsProvider["createFolder"];
@@ -113,6 +113,40 @@ export class BrowserProvider implements FsProvider {
   analyzerUnwatch = async () => {};
   backgroundImport = NA as FsProvider["backgroundImport"];
   listFonts = async (): Promise<string[]> => [];
+  dupStart = NA as FsProvider["dupStart"];
+  dupPause = NA as FsProvider["dupPause"];
+  dupResume = NA as FsProvider["dupResume"];
+  dupPending = async () => null;
+  dupDiscard = async () => {};
+  dupSuspend = NA as FsProvider["dupSuspend"];
+  dupCancel = NA as FsProvider["dupCancel"];
+  dupDefaultExclusions = async (): Promise<string[]> => [];
+  dupSummary = async () => null;
+  dupGroups = async () => [];
+  dupCheckRemoval = NA as FsProvider["dupCheckRemoval"];
+  dupPrune = NA as FsProvider["dupPrune"];
+  dupForget = NA as FsProvider["dupForget"];
+  dupCompare = NA as FsProvider["dupCompare"];
+  openWithList = async (): Promise<string[]> => [];
+  openWithApp = NA as FsProvider["openWithApp"];
+  startNativeDrag = NA as FsProvider["startNativeDrag"];
+  recycleList = NA as FsProvider["recycleList"];
+  recycleRestore = NA as FsProvider["recycleRestore"];
+  recyclePurge = NA as FsProvider["recyclePurge"];
+  winRepair = NA as FsProvider["winRepair"];
+  termOpen = NA as FsProvider["termOpen"];
+  termWrite = NA as FsProvider["termWrite"];
+  termResize = NA as FsProvider["termResize"];
+  termAck = NA as FsProvider["termAck"];
+  termBusy = NA as FsProvider["termBusy"];
+  termClose = NA as FsProvider["termClose"];
+  takeStartupPath = async () => null;
+  onOpenPath = async () => () => {};
+  winStatus = NA as FsProvider["winStatus"];
+  winSet = NA as FsProvider["winSet"];
+  winRestore = NA as FsProvider["winRestore"];
+  inspectPath = NA as FsProvider["inspectPath"];
+  startHash = () => ({ cancel() {} });
   backgroundLoad = async () => null;
   backgroundRetain = async () => 0;
   analyzerPause = async () => {};
@@ -125,6 +159,7 @@ export class BrowserProvider implements FsProvider {
   analyzerDirs = NA as FsProvider["analyzerDirs"];
   analyzerFiles = NA as FsProvider["analyzerFiles"];
   analyzerCategories = NA as FsProvider["analyzerCategories"];
+  analyzerAvailability = NA as FsProvider["analyzerAvailability"];
   analyzerExts = NA as FsProvider["analyzerExts"];
   analyzerTreemap = NA as FsProvider["analyzerTreemap"];
   analyzerIssues = NA as FsProvider["analyzerIssues"];

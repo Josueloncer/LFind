@@ -178,6 +178,16 @@ pub struct Prefs {
     pub dual_pane: bool,
     /// Posición del divisor, en milésimas de la anchura.
     pub dual_split: u16,
+    #[serde(default = "terminal_height")]
+    pub terminal_height: u16,
+    #[serde(default = "terminal_shell")]
+    pub terminal_shell: String,
+    #[serde(default)]
+    pub terminal_sync: bool,
+    #[serde(default = "sidebar_side")]
+    pub sidebar_side: String,
+    #[serde(default = "preview_tab")]
+    pub preview_tab: String,
     /// Actualización de los informes del analizador: `auto`, `manual` u `off`.
     #[serde(default = "manual_refresh")]
     pub analyzer_refresh: String,
@@ -191,6 +201,22 @@ pub struct Prefs {
 
 fn any_json<'de, D: serde::Deserializer<'de>>(d: D) -> Result<serde_json::Value, D::Error> {
     serde_json::Value::deserialize(d)
+}
+
+fn terminal_height() -> u16 {
+    280
+}
+
+fn terminal_shell() -> String {
+    "powershell".into()
+}
+
+fn sidebar_side() -> String {
+    "left".into()
+}
+
+fn preview_tab() -> String {
+    "preview".into()
 }
 
 fn manual_refresh() -> String {
@@ -228,6 +254,16 @@ impl Prefs {
             f.icon_size = f.icon_size.clamp(16, 512);
         }
         self.dual_split = self.dual_split.clamp(200, 800);
+        self.terminal_height = self.terminal_height.clamp(120, 2000);
+        if !matches!(self.terminal_shell.as_str(), "powershell" | "cmd") {
+            self.terminal_shell = terminal_shell();
+        }
+        if !matches!(self.sidebar_side.as_str(), "left" | "right") {
+            self.sidebar_side = sidebar_side();
+        }
+        if !matches!(self.preview_tab.as_str(), "preview" | "details") {
+            self.preview_tab = preview_tab();
+        }
         for v in [&mut self.appearance, &mut self.custom_themes] {
             if v.to_string().len() > MAX_APPEARANCE_JSON {
                 *v = serde_json::Value::Null;
@@ -290,6 +326,11 @@ impl Default for Prefs {
             custom_themes: serde_json::Value::Null,
             dual_pane: false,
             dual_split: 500,
+            preview_tab: preview_tab(),
+            sidebar_side: sidebar_side(),
+            terminal_height: terminal_height(),
+            terminal_shell: terminal_shell(),
+            terminal_sync: false,
             analyzer_refresh: manual_refresh(),
             layout: Layout::default(),
             version: CURRENT_VERSION,

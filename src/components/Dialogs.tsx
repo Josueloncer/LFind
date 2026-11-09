@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SettingsDialog } from "./SettingsDialog";
 import type { ReactNode } from "react";
 import { kindLabel } from "../lib/fileKinds";
 import { errMsg, fs } from "../lib/fs";
@@ -153,6 +154,7 @@ export function Dialogs() {
       {d?.type === "properties" && <PropertiesDialog paths={d.paths} />}
       {d?.type === "index" && <IndexDialog />}
       {d?.type === "update" && <UpdateDialog />}
+      {d?.type === "settings" && <SettingsDialog />}
       <ConflictDialog />
     </>
   );

@@ -23,6 +23,33 @@ export interface Job {
   result: DoneInfo | null;
   /** Solo existe cuando la operación ya salió hacia el backend. */
   handle: OpHandle | null;
+  paused: boolean;
+  /** Bytes por segundo, suavizado. */
+  rate: number;
+  rateAt: number;
+}
+
+/** Velocidad suavizada: un archivo pequeño no debe hacer saltar la cifra. */
+export function nextRate(prev: number, bytes: number, ms: number): number {
+  if (ms <= 0 || bytes < 0) return prev;
+  const now = (bytes * 1000) / ms;
+  return prev > 0 ? prev * 0.75 + now * 0.25 : now;
+}
+
+/** Segundos que faltan, o `null` si aún no se puede estimar. */
+export const etaSeconds = (remaining: number, rate: number): number | null => (rate > 0 && remaining > 0 ? Math.ceil(remaining / rate) : null);
+
+export const formatEta = (s: number): string => (s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`);
+
+/** Avance conjunto de lo que está en marcha o en cola. */
+export function overallProgress(jobs: readonly Job[]): { active: number; bytesDone: number; bytesTotal: number; rate: number } {
+  const active = jobs.filter((j) => j.status !== "done");
+  return {
+    active: active.length,
+    bytesDone: active.reduce((n, j) => n + (j.progress?.bytesDone ?? 0), 0),
+    bytesTotal: active.reduce((n, j) => n + (j.progress?.bytesTotal ?? 0), 0),
+    rate: active.reduce((n, j) => n + (j.paused ? 0 : j.rate), 0),
+  };
 }
 
 /** En cola · en curso · completada · completada con errores · fallida (nada se pudo hacer) · cancelada. */
@@ -80,9 +107,13 @@ interface OpsState {
   cancel(key: number): void;
   dismiss(key: number): void;
   undo(): Promise<void>;
+  setPaused(key: number, paused: boolean): void;
+  /** Renombra sin esperar turno (es instantáneo y lo está mirando el usuario), pero visible para el resto del gestor. */
+  rename(path: string, newName: string): Promise<string>;
 }
 
 const VERB: Record<OpKind, [string, string]> = {
+  rename: ["Renombrando", "Renombrado"],
   copy: ["Copiando", "Copiado"],
   move: ["Moviendo", "Movido"],
   trash: ["Enviando a la Papelera", "Enviado a la Papelera"],
@@ -141,11 +172,17 @@ export const useOps = create<OpsState>((set, get) => {
       const key = next.key;
       patch(key, (j) => ({ ...j, status: "running" }));
       const handle = fs.startOp(next.req, (e) => {
-        if (e.type === "progress") patch(key, (j) => ({ ...j, progress: e }));
+        if (e.type === "progress") {
+          patch(key, (j) => {
+            const now = performance.now();
+            if (j.paused || !j.progress) return { ...j, progress: e, rateAt: now };
+            return { ...j, progress: e, rate: nextRate(j.rate, e.bytesDone - j.progress.bytesDone, now - j.rateAt), rateAt: now };
+          });
+        }
         else if (e.type === "conflict") patch(key, (j) => ({ ...j, conflict: { src: e.src, dst: e.dst } }));
         else finish(key, e);
       });
-      patch(key, (j) => ({ ...j, handle }));
+      patch(key, (j) => ({ ...j, handle, rateAt: performance.now() }));
     }
   };
 
@@ -171,7 +208,7 @@ export const useOps = create<OpsState>((set, get) => {
       }
       const key = ++seq;
       const title = `${VERB[req.kind][0]} ${plural(req.sources.length)}`;
-      set((s) => ({ jobs: [...s.jobs, { key, kind: req.kind, title, req, sig, status: "queued", progress: null, conflict: null, result: null, handle: null }] }));
+      set((s) => ({ jobs: [...s.jobs, { key, kind: req.kind, title, req, sig, status: "queued", progress: null, conflict: null, result: null, handle: null, paused: false, rate: 0, rateAt: 0 }] }));
       if (req.kind === "trash" || req.kind === "delete") hide(req.sources); // desaparece de la vista al instante
       pump();
       return true;
@@ -195,6 +232,26 @@ export const useOps = create<OpsState>((set, get) => {
         pump();
       } else if (j.status === "running") {
         j.handle?.cancel(); // el backend responde con «terminado (cancelado)»; el estado cambia entonces
+      }
+    },
+
+    setPaused(key, paused) {
+      const j = get().jobs.find((x) => x.key === key);
+      if (!j?.handle || j.status !== "running") return;
+      j.handle.pause(paused);
+      patch(key, (x) => ({ ...x, paused, rate: 0, rateAt: performance.now() }));
+    },
+
+    async rename(path, newName) {
+      const req: OpRequest = { kind: "rename" as OpKind, sources: [path], dest: newName };
+      const sig = signature(req);
+      if (get().jobs.some((j) => j.sig === sig && j.status !== "done")) throw "Ese renombrado ya está en curso.";
+      const key = ++seq;
+      set((s) => ({ jobs: [...s.jobs, { key, kind: "rename", title: `Renombrando ${newName}`, req, sig, status: "running", progress: null, conflict: null, result: null, handle: null, paused: false, rate: 0, rateAt: 0 }] }));
+      try {
+        return await fs.renamePath(path, newName);
+      } finally {
+        set((s) => ({ jobs: s.jobs.filter((j) => j.key !== key) }));
       }
     },
 

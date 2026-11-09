@@ -35,6 +35,49 @@ pub mod win {
     }
 }
 
+/// Por compatibilidad, Windows disfraza los archivos de la nube al enumerarlos: uno ya descargado parece un archivo normal.
+/// Mientras dure este guardia, el hilo ve sus atributos reales. Solo cambia lo que se lee, no el archivo ni su sincronización.
+pub struct ExposePlaceholders {
+    #[cfg(windows)]
+    restore: Option<(unsafe extern "system" fn(i8) -> i8, i8)>,
+}
+
+impl ExposePlaceholders {
+    #[cfg(windows)]
+    pub fn new() -> Self {
+        use std::ffi::c_void;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetModuleHandleW(name: *const u16) -> *mut c_void;
+            fn GetProcAddress(m: *mut c_void, name: *const u8) -> *mut c_void;
+        }
+        const PHCM_EXPOSE_PLACEHOLDERS: i8 = 2;
+        let module: Vec<u16> = "ntdll.dll".encode_utf16().chain(Some(0)).collect();
+        // Se busca en ejecución: no existe en versiones antiguas de Windows 10.
+        let f = unsafe { GetProcAddress(GetModuleHandleW(module.as_ptr()), b"RtlSetThreadPlaceholderCompatibilityMode\0".as_ptr()) };
+        if f.is_null() {
+            return ExposePlaceholders { restore: None };
+        }
+        let set: unsafe extern "system" fn(i8) -> i8 = unsafe { std::mem::transmute(f) };
+        let old = unsafe { set(PHCM_EXPOSE_PLACEHOLDERS) };
+        ExposePlaceholders { restore: Some((set, old)) }
+    }
+
+    #[cfg(not(windows))]
+    pub fn new() -> Self {
+        ExposePlaceholders {}
+    }
+}
+
+impl Drop for ExposePlaceholders {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some((set, old)) = self.restore {
+            unsafe { set(old) };
+        }
+    }
+}
+
 /// Pasa el hilo actual a segundo plano: prioridad baja de CPU y de disco. Dura lo que el hilo.
 pub fn background_thread() {
     #[cfg(windows)]

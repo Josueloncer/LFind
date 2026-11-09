@@ -30,8 +30,14 @@ pub mod search;
 pub mod sendto;
 pub mod shell;
 pub mod sys;
+#[cfg(feature = "sqlite")]
+pub mod duplicates;
 pub mod fonts;
+pub mod inspector;
+pub mod shellapps;
+pub mod terminal;
 pub mod thumbs;
+pub mod winshell;
 #[cfg(any(windows, nova_winck))]
 pub mod thumbs_win;
 pub mod undo;

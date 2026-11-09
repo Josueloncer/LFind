@@ -12,6 +12,7 @@ import { useOps } from "../stores/ops";
 import { usePrefs } from "../stores/prefs";
 import { pullFromSystem, pushToSystem } from "../lib/systemClipboard";
 import { useUi } from "../stores/ui";
+import type { MenuItem } from "../stores/ui";
 
 interface Args {
   path: string | null;
@@ -71,7 +72,7 @@ export function useFileActions(a: Args) {
       newFile: () => path && fs.createFile(path, "Nuevo documento.txt").then((p) => a.afterCreate(basename(p))).catch(fail),
       rename(oldName: string, newName: string) {
         if (!path || newName === oldName) return;
-        fs.renamePath(join(path, oldName), newName.trim()).then((p) => a.afterRename(basename(p))).catch(fail);
+        useOps.getState().rename(join(path, oldName), newName.trim()).then((p) => a.afterRename(basename(p))).catch(fail);
       },
       open(e: Entry) {
         if (e.kind === "dir") useNav.getState().navigate(pathOf(e));
@@ -94,7 +95,16 @@ export function useFileActions(a: Args) {
       isPinned: (e: Entry) => isPinned(usePrefs.getState().favorites, pathOf(e)),
       togglePinFolder: () => path && usePrefs.getState().toggleFavorite(path, basename(path)),
       folderPinned: () => !!path && isPinned(usePrefs.getState().favorites, path),
-      openWith: (e: Entry) => fs.openWith(pathOf(e)).catch(fail),
+      openWith(e: Entry) {
+        const target = pathOf(e);
+        const ui = useUi.getState();
+        const { x, y } = ui.menuAt;
+        const other: MenuItem = { kind: "item", label: "Elegir otra aplicación…", run: () => void fs.openWith(target).catch(fail) };
+        fs.openWithList(target).then((apps) => {
+          if (!apps.length) return void fs.openWith(target).catch(fail);
+          ui.openMenu(x, y, [{ kind: "header", label: "Abrir con" }, ...apps.map((app): MenuItem => ({ kind: "item", label: app, run: () => void fs.openWithApp(target, app).catch(fail) })), { kind: "sep" }, other]);
+        }).catch(fail);
+      },
       openTerminal: (e?: Entry) => {
         const d = e ? pathOf(e) : path;
         if (d) fs.openTerminal(d).catch(fail);

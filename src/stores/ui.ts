@@ -19,6 +19,7 @@ export type Dialog =
   | { type: "properties"; paths: string[] }
   | { type: "index" }
   | { type: "update" }
+  | { type: "settings" }
   | null;
 
 interface UiState {
@@ -28,6 +29,8 @@ interface UiState {
   toast(text: string, tone?: Toast["tone"], action?: Toast["action"], ms?: number): void;
   dismissToast(id: number): void;
   openMenu(x: number, y: number, items: MenuItem[]): void;
+  /** Dónde se abrió el último menú: los submenús que tardan en cargarse aparecen ahí. */
+  menuAt: { x: number; y: number };
   closeMenu(): void;
   openDialog(d: Exclude<Dialog, null>): void;
   closeDialog(): void;
@@ -48,7 +51,8 @@ export const useUi = create<UiState>((set, get) => ({
     setTimeout(() => get().dismissToast(id), ms ?? (tone === "error" ? 9000 : action ? 8000 : 4500));
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-  openMenu: (x, y, items) => set({ menu: { x, y, items } }),
+  menuAt: { x: 0, y: 0 },
+  openMenu: (x, y, items) => set({ menu: { x, y, items }, menuAt: { x, y } }),
   closeMenu: () => set({ menu: null }),
   openDialog: (d) => set({ dialog: d, menu: null }),
   closeDialog: () => set({ dialog: null }),

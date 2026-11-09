@@ -1,7 +1,11 @@
-import { useEffect, useRef } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 import { ContextMenu } from "./components/ContextMenu";
 import { AppearancePanel } from "./components/AppearancePanel";
+import { CommandPalette } from "./components/CommandPalette";
 import { CustomizeBar } from "./components/CustomizeBar";
+import { registerBuiltinCommands } from "./lib/builtinCommands";
+import { usePalette } from "./stores/palette";
+import { useTerminal } from "./stores/terminal";
 import { Dialogs } from "./components/Dialogs";
 import { GlyphDefs } from "./components/Glyphs";
 import { Panes } from "./components/Panes";
@@ -36,6 +40,8 @@ const cache = (k: string, v: string) => {
     /* sin almacenamiento: solo se pierde el arranque sin parpadeo */
   }
 };
+
+const TerminalPanel = lazy(() => import("./components/TerminalPanel"));
 
 export default function App() {
   const ready = useApp((s) => s.ready);
@@ -220,12 +226,27 @@ export default function App() {
     };
   }, []);
 
+  useEffect(registerBuiltinCommands, []);
+  const terminalOpen = useTerminal((s) => s.open);
+  const sidebarSide = usePrefs((s) => s.sidebarSide);
+
+  // Carpeta pedida desde Windows: al arrancar y si ya había una ventana abierta.
+  useEffect(() => {
+    if (!ready || !loaded || !fs.available) return;
+    void fs.takeStartupPath().then((p) => p && useNav.getState().navigate(p)).catch(() => {});
+    const off = fs.onOpenPath((p) => useNav.getState().openTab(p));
+    return () => void off.then((f) => f()).catch(() => {});
+  }, [ready, loaded]);
+
   // Atajos globales.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const nav = useNav.getState();
+      // Dentro de la terminal, las teclas son del shell.
+      if (e.target instanceof Element && e.target.closest(".term")) return;
       const typing = e.target instanceof HTMLInputElement;
       const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && !e.shiftKey && e.key.toLowerCase() === "k") return e.preventDefault(), usePalette.getState().toggle();
       if (e.altKey && e.key === "ArrowLeft") return e.preventDefault(), nav.goBack();
       if (e.altKey && e.key === "ArrowRight") return e.preventDefault(), nav.goForward();
       if (e.altKey && e.key === "ArrowUp") return e.preventDefault(), nav.goUp();
@@ -245,6 +266,8 @@ export default function App() {
             useSearch.getState().openGlobal(); // Ctrl+Mayús+F: misma acción que el botón «Buscar en todos los archivos»
           } else document.getElementById("nova-filter")?.focus();
           break;
+        case "j": e.preventDefault(); useTerminal.getState().toggle(); break;
+        case "i": e.preventDefault(); update({ previewPane: true, previewTab: "details" }); break;
         case "b": e.preventDefault(); update({ sidebarCollapsed: !usePrefs.getState().sidebarCollapsed }); break;
       }
     };
@@ -253,17 +276,21 @@ export default function App() {
   }, [update]);
 
   return (
-    <div className="app" data-rail={sidebarCollapsed && !customizing} data-booting={!(ready && loaded)}>
+    <div className="app" data-sidebar={sidebarSide} data-rail={sidebarCollapsed && !customizing} data-booting={!(ready && loaded)}>
       <GlyphDefs />
       <TitleBar />
       <div className="body">
         <Sidebar />
-        <Panes />
+        <div className="workspace">
+          <Panes />
+          {terminalOpen && <Suspense fallback={null}><TerminalPanel /></Suspense>}
+        </div>
       </div>
       <ContextMenu />
       <Dialogs />
       <Overlays />
       <CustomizeBar />
+      <CommandPalette />
       <AppearancePanel />
     </div>
   );

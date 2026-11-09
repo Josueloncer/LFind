@@ -230,6 +230,8 @@ pub struct FilesQuery {
     pub max: Option<u64>,
     pub offset: u32,
     pub limit: u32,
+    /// `local`, `cloud`, `synced`, `unknown` o `noncloud`.
+    pub avail: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -359,6 +361,26 @@ enum Source {
     Listed(Vec<String>),
     /// Avisos de la vigilancia: se comprueba antes si cambió algo de verdad.
     Watched(Changes),
+}
+
+/// Archivos de un estado de disponibilidad. `bytes` es el tamaño lógico: lo que solo está en la nube no ocupa eso en el disco.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailStat {
+    pub kind: String,
+    pub files: u64,
+    pub bytes: u64,
+}
+
+fn avail_filter(a: &str) -> Option<&'static str> {
+    match a {
+        "cloud" => Some("flags&1"),
+        "synced" => Some("flags&2"),
+        "local" => Some("flags&4"),
+        "unknown" => Some("flags&7=0"),
+        "noncloud" => Some("flags&1=0"),
+        _ => None,
+    }
 }
 
 fn old_dir_row(c: &Connection, id: i64) -> rusqlite::Result<DirRow> {
@@ -1230,6 +1252,9 @@ impl Analyzer {
                 wh.push_str(" AND f.size<=?");
                 args.push((v as i64).into());
             }
+            if let Some(cond) = q.avail.as_deref().and_then(avail_filter) {
+                wh.push_str(&format!(" AND f.{cond}"));
+            }
             if !q.exts.is_empty() {
                 let mut ids = vec![];
                 for e in &q.exts {
@@ -1263,6 +1288,39 @@ impl Analyzer {
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
+            let more = items.len() as u32 > limit;
+            items.truncate(limit as usize);
+            Ok(Page { items, more })
+        })
+    }
+
+    /// Archivos por disponibilidad, solo con lo guardado en el informe.
+    pub fn availability(&self, root: &str, dir: i64) -> Result<Vec<AvailStat>, String> {
+        self.with(root, |c, _| {
+            let (first, end) = range_of(c, dir)?;
+            let mut st = c.prepare("SELECT CASE WHEN flags&1 THEN 'cloud' WHEN flags&2 THEN 'synced' WHEN flags&4 THEN 'local' ELSE 'unknown' END k,COUNT(*),SUM(size) FROM files WHERE id>=? AND id<? GROUP BY k ORDER BY 3 DESC")?;
+            let out = st.query_map([first, end], |r| Ok(AvailStat { kind: r.get(0)?, files: r.get::<_, i64>(1)? as u64, bytes: r.get::<_, i64>(2)? as u64 }))?.collect();
+            out
+        })
+    }
+
+    pub fn categories_for(&self, root: &str, dir: i64, avail: Option<&str>) -> Result<Vec<CatStat>, String> {
+        let Some(cond) = avail.and_then(avail_filter) else { return self.categories(root, dir) };
+        self.with(root, |c, _| {
+            let (first, end) = range_of(c, dir)?;
+            let mut st = c.prepare(&format!("SELECT cat,COUNT(*),SUM(size) b FROM files WHERE id>=? AND id<? AND {cond} GROUP BY cat ORDER BY b DESC"))?;
+            let out = st.query_map([first, end], |r| Ok(CatStat { cat: cat_name(r.get(0)?), files: r.get::<_, i64>(1)? as u64, bytes: r.get::<_, i64>(2)? as u64 }))?.collect();
+            out
+        })
+    }
+
+    pub fn exts_for(&self, root: &str, dir: i64, offset: u32, limit: u32, avail: Option<&str>) -> Result<Page<ExtStat>, String> {
+        let Some(cond) = avail.and_then(avail_filter) else { return self.exts(root, dir, offset, limit) };
+        self.with(root, |c, _| {
+            let limit = page_limit(limit);
+            let (first, end) = range_of(c, dir)?;
+            let mut st = c.prepare(&format!("SELECT e.ext,e.cat,x.n,x.b FROM (SELECT ext id,COUNT(*) n,SUM(size) b FROM files WHERE id>=? AND id<? AND {cond} GROUP BY ext) x JOIN exts e ON e.id=x.id ORDER BY x.b DESC, e.ext LIMIT ? OFFSET ?"))?;
+            let mut items: Vec<ExtStat> = st.query_map(params![first, end, limit + 1, offset], |r| Ok(ExtStat { ext: r.get(0)?, cat: cat_name(r.get(1)?), files: r.get::<_, i64>(2)? as u64, bytes: r.get::<_, i64>(3)? as u64 }))?.collect::<rusqlite::Result<_>>()?;
             let more = items.len() as u32 > limit;
             items.truncate(limit as usize);
             Ok(Page { items, more })
@@ -1804,6 +1862,39 @@ mod tests {
         a.unwatch();
         assert!(a.watched().is_none());
         std::thread::sleep(Duration::from_millis(100));
+        fs::remove_dir_all(r).unwrap();
+    }
+
+    #[test]
+    fn availability_classifies_with_attributes_only() {
+        assert_eq!(availability_flag(0x20), FILE_LOCAL);
+        assert_eq!(availability_flag(0x420), FILE_SYNCED, "archivo de OneDrive ya descargado");
+        assert_eq!(availability_flag(0x8_0420), FILE_SYNCED, "siempre en este dispositivo");
+        assert_eq!(availability_flag(0x50_1620), FILE_CLOUD, "solo en línea");
+        assert_eq!(availability_flag(0x1020), FILE_CLOUD, "sin conexión");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn availability_is_reported_and_can_be_filtered() {
+        let r = tree();
+        let flag = |f: &str, p: PathBuf| assert!(std::process::Command::new("attrib").arg(f).arg(p).status().unwrap().success());
+        flag("+O", r.join("z").join("e.zip"));
+        let a = Arc::new(Analyzer::new(tmp()));
+        run(&a, &r);
+        let root = r.to_str().unwrap();
+        let mut s = a.availability(root, 1).unwrap();
+        s.sort_by_key(|x| x.kind.clone());
+        assert_eq!(s.iter().map(|x| (x.kind.as_str(), x.files, x.bytes)).collect::<Vec<_>>(), vec![("cloud", 1, 1000), ("local", 4, 135)]);
+        let only = |avail: &str| a.files(root, &FilesQuery { dir: 1, limit: 50, avail: Some(avail.into()), ..Default::default() }).unwrap().items;
+        assert_eq!(only("cloud").len(), 1);
+        assert_eq!(only("noncloud").len(), 4);
+        assert_eq!(only("local").len(), 4);
+        assert!(only("synced").is_empty());
+        assert_eq!(a.categories_for(root, 1, Some("cloud")).unwrap().iter().map(|c| c.cat.as_str()).collect::<Vec<_>>(), vec!["archive"]);
+        assert_eq!(a.exts_for(root, 1, 0, 50, Some("cloud")).unwrap().items[0].ext, "zip");
+        assert!(a.exts_for(root, 1, 0, 50, Some("noncloud")).unwrap().items.iter().all(|e| e.ext != "zip"));
+        flag("-O", r.join("z").join("e.zip"));
         fs::remove_dir_all(r).unwrap();
     }
 

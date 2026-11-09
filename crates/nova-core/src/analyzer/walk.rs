@@ -27,6 +27,24 @@ pub const DIR_CLOUD_PENDING: u32 = 1;
 pub const DIR_UNREADABLE: u32 = 2;
 /// Archivo cuyo contenido solo está en la nube.
 pub const FILE_CLOUD: u32 = 1;
+/// Con contenido local, pero gestionado por un proveedor de nube.
+pub const FILE_SYNCED: u32 = 2;
+/// Solo en este equipo. Ninguno de los tres en un informe antiguo: estado desconocido.
+pub const FILE_LOCAL: u32 = 4;
+
+/// Disponibilidad de un archivo según sus atributos. No hace falta abrirlo.
+pub(crate) const fn availability_flag(attrs: u32) -> u32 {
+    const REPARSE_POINT: u32 = 0x400;
+    const PINNED: u32 = 0x8_0000;
+    const UNPINNED: u32 = 0x10_0000;
+    if attrs_cloud_only(attrs) {
+        FILE_CLOUD
+    } else if attrs & (REPARSE_POINT | PINNED | UNPINNED) != 0 {
+        FILE_SYNCED
+    } else {
+        FILE_LOCAL
+    }
+}
 
 /// Extensión reservada para los archivos sin extensión.
 pub const EXT_NONE: u32 = 0;
@@ -394,7 +412,7 @@ impl Walker<'_> {
                 self.heap.pop();
             }
         }
-        self.sink.file(&FileRow { id, dir: dir_id, name, ext: ext_id, cat, size, modified, flags: if cloud { FILE_CLOUD } else { 0 } })
+        self.sink.file(&FileRow { id, dir: dir_id, name, ext: ext_id, cat, size, modified, flags: availability_flag(attrs) })
     }
 
     fn read(&mut self, dir: &Path, depth: usize, old: Option<i64>, stack: &mut Vec<Pending>) -> Result<bool, String> {
@@ -555,6 +573,7 @@ fn walk_inner(root: &Path, sink: &mut dyn Sink, ctl: &Ctl, opts: Options, on_pro
     if !meta.is_dir() {
         return Err("Solo se pueden analizar unidades y carpetas.".into());
     }
+    let _visible = crate::sys::ExposePlaceholders::new();
     let known_update = known.is_some();
     let now = Instant::now();
     let mut w = Walker {

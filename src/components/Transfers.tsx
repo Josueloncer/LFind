@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { formatBytes } from "../lib/format";
 import { basename } from "../lib/path";
-import { STATE_LABEL, jobState, useOps, visibleJobs } from "../stores/ops";
+import { STATE_LABEL, etaSeconds, formatEta, jobState, overallProgress, useOps, visibleJobs } from "../stores/ops";
 import type { Job } from "../stores/ops";
 import { useUi } from "../stores/ui";
-import { X } from "./icons";
+import { Pause, Play, X } from "./icons";
 
 function percent(j: Job): number | null {
   const p = j.progress;
@@ -18,13 +18,16 @@ function percent(j: Job): number | null {
 
 function JobCard({ j }: { j: Job }) {
   const cancel = useOps((s) => s.cancel);
+  const setPaused = useOps((s) => s.setPaused);
   const dismiss = useOps((s) => s.dismiss);
   const [open, setOpen] = useState(false);
   const pct = percent(j);
   const p = j.progress;
   const errors = j.result?.errors ?? [];
   const state = jobState(j);
+  const eta = p && j.status === "running" && !j.paused ? etaSeconds(p.bytesTotal - p.bytesDone, j.rate) : null;
   const sub =
+    j.paused ? "En pausa" :
     state === "queued" ? "En cola: empezará cuando termine otra operación"
     : state === "running" ? (j.conflict ? "Esperando tu decisión…" : p?.current || "Preparando…")
     : state === "partial" || state === "failed" ? `${STATE_LABEL[state]} · ${errors.length} error${errors.length === 1 ? "" : "es"}`
@@ -37,9 +40,12 @@ function JobCard({ j }: { j: Job }) {
         {j.status === "done" ? (
           <button className="ibtn" title="Cerrar" aria-label="Cerrar" onClick={() => dismiss(j.key)}><X /></button>
         ) : (
+          <>
+          {j.status === "running" && j.handle && j.kind !== "rename" && <button className="ibtn" aria-pressed={j.paused} aria-label={j.paused ? "Reanudar" : "Pausar"} title={j.paused ? "Reanudar" : "Pausar: se detiene antes del siguiente bloque o archivo"} onClick={() => setPaused(j.key, !j.paused)}>{j.paused ? <Play /> : <Pause />}</button>}
           <button className="ibtn" aria-label="Cancelar"
             title={j.status === "queued" ? "Quitar de la cola" : "Cancelar: se detiene tras el elemento en curso (los archivos grandes se interrumpen a mitad); lo ya procesado no se revierte"}
             onClick={() => cancel(j.key)}><X /></button>
+          </>
         )}
       </div>
       <div className="job-sub" title={sub}>{sub}</div>
@@ -48,6 +54,8 @@ function JobCard({ j }: { j: Job }) {
         <div className="job-meta">
           {p.bytesTotal > 0 ? `${formatBytes(p.bytesDone)} de ${formatBytes(p.bytesTotal)}` : (p.filesTotal > 0 ? `${p.filesDone} de ${p.filesTotal}` : `${p.filesDone} eliminados`)}
           {p.bytesTotal > 0 && p.filesTotal > 0 ? ` · ${p.filesDone} de ${p.filesTotal} archivos` : ""}
+          {j.rate > 0 && !j.paused ? ` · ${formatBytes(j.rate)}/s` : ""}
+          {eta !== null ? ` · quedan ${formatEta(eta)}` : ""}
         </div>
       )}
       {errors.length > 0 && (
@@ -70,6 +78,7 @@ export function Overlays() {
   const jobs = visibleJobs(useOps((s) => s.jobs));
   const toasts = useUi((s) => s.toasts);
   const dismissToast = useUi((s) => s.dismissToast);
+  const all = overallProgress(jobs);
   if (!jobs.length && !toasts.length) return null;
   return (
     <div className="overlays">
@@ -80,6 +89,13 @@ export function Overlays() {
           <button className="ibtn" aria-label="Cerrar aviso" onClick={() => dismissToast(t.id)}><X /></button>
         </div>
       ))}
+      {all.active > 1 && (
+        <div className="job job-total" role="status">
+          <div className="job-top"><strong>{all.active} operaciones</strong></div>
+          <div className="bar"><i style={{ width: `${all.bytesTotal ? Math.min(100, (all.bytesDone / all.bytesTotal) * 100) : 0}%` }} /></div>
+          <div className="job-meta">{formatBytes(all.bytesDone)} de {formatBytes(all.bytesTotal)}{all.rate > 0 ? ` · ${formatBytes(all.rate)}/s` : ""}</div>
+        </div>
+      )}
       {jobs.map((j) => <JobCard key={j.key} j={j} />)}
     </div>
   );

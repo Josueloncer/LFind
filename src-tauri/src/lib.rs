@@ -2,6 +2,11 @@ mod analyzer_cmd;
 mod backgrounds_cmd;
 mod clipboard_cmd;
 mod commands;
+mod shellapps_cmd;
+mod terminal_cmd;
+mod windows_cmd;
+mod duplicates_cmd;
+mod inspector_cmd;
 mod icons_cmd;
 mod index_cmd;
 mod state;
@@ -18,6 +23,7 @@ use tauri::Manager;
 pub fn run() {
     nova_core::diagnostics::install_panic_hook();
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| windows_cmd::on_second_instance(app, args)))
         .manage(state::AppState::default())
         .manage(update_cmd::UpdateState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -43,6 +49,10 @@ pub fn run() {
             let index_state = index_cmd::init(app.handle());
             app.manage(index_state);
             app.manage(analyzer_cmd::init(app.handle()));
+            app.manage(terminal_cmd::TerminalState::default());
+            app.manage(windows_cmd::StartupPath::default());
+            windows_cmd::remember_startup(app.handle());
+            app.manage(duplicates_cmd::init(app.handle()));
             app.manage(backgrounds_cmd::init(app.handle()));
             app.manage(icons_cmd::IconState(std::sync::Arc::new(nova_core::icons::IconService::with_defaults(icons_dir))));
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
@@ -72,6 +82,7 @@ pub fn run() {
             commands::cancel_job,
             commands::start_op,
             commands::resolve_conflict,
+            commands::pause_job,
             commands::rename_path,
             commands::create_folder,
             commands::create_file,
@@ -84,6 +95,40 @@ pub fn run() {
             commands::start_stats,
             commands::get_drive_usage,
             commands::list_fonts,
+            inspector_cmd::inspect_path,
+            terminal_cmd::term_open,
+            terminal_cmd::term_write,
+            terminal_cmd::term_resize,
+            terminal_cmd::term_ack,
+            terminal_cmd::term_busy,
+            terminal_cmd::term_close,
+            windows_cmd::take_startup_path,
+            windows_cmd::win_status,
+            windows_cmd::win_set,
+            windows_cmd::win_restore,
+            windows_cmd::win_repair,
+            shellapps_cmd::open_with_list,
+            shellapps_cmd::open_with_app,
+            shellapps_cmd::start_native_drag,
+            shellapps_cmd::recycle_list,
+            shellapps_cmd::recycle_restore,
+            shellapps_cmd::recycle_purge,
+            analyzer_cmd::analyzer_availability,
+            duplicates_cmd::dup_start,
+            duplicates_cmd::dup_pause,
+            duplicates_cmd::dup_resume,
+            duplicates_cmd::dup_pending,
+            duplicates_cmd::dup_discard,
+            duplicates_cmd::dup_suspend,
+            duplicates_cmd::dup_cancel,
+            duplicates_cmd::dup_default_exclusions,
+            duplicates_cmd::dup_summary,
+            duplicates_cmd::dup_groups,
+            duplicates_cmd::dup_check_removal,
+            duplicates_cmd::dup_prune,
+            duplicates_cmd::dup_forget,
+            duplicates_cmd::dup_compare,
+            inspector_cmd::start_hash,
             commands::resolve_path,
             thumbs_cmd::get_thumbnail,
             thumbs_cmd::set_thumb_epoch,

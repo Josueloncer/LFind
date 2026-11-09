@@ -106,15 +106,21 @@ pub async fn analyzer_files(root: String, query: FilesQuery, state: State<'_, An
 }
 
 #[tauri::command]
-pub async fn analyzer_categories(root: String, dir: i64, state: State<'_, AnalyzerState>) -> Result<Vec<CatStat>, String> {
+pub async fn analyzer_categories(root: String, dir: i64, avail: Option<String>, state: State<'_, AnalyzerState>) -> Result<Vec<CatStat>, String> {
     let a = state.0.clone();
-    blocking(move || a.categories(&root, dir)).await
+    blocking(move || a.categories_for(&root, dir, avail.as_deref())).await
 }
 
 #[tauri::command]
-pub async fn analyzer_exts(root: String, dir: i64, offset: u32, limit: u32, state: State<'_, AnalyzerState>) -> Result<Page<ExtStat>, String> {
+pub async fn analyzer_availability(root: String, dir: i64, state: State<'_, AnalyzerState>) -> Result<Vec<nova_core::analyzer::report::AvailStat>, String> {
     let a = state.0.clone();
-    blocking(move || a.exts(&root, dir, offset, limit)).await
+    blocking(move || a.availability(&root, dir)).await
+}
+
+#[tauri::command]
+pub async fn analyzer_exts(root: String, dir: i64, offset: u32, limit: u32, avail: Option<String>, state: State<'_, AnalyzerState>) -> Result<Page<ExtStat>, String> {
+    let a = state.0.clone();
+    blocking(move || a.exts_for(&root, dir, offset, limit, avail.as_deref())).await
 }
 
 #[tauri::command]

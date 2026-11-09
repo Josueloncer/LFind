@@ -4,19 +4,21 @@ import type { OpEvent, OpRequest } from "../lib/fs";
 // Backend simulado: cada operación queda en marcha hasta que el test la termina.
 const started: { req: OpRequest; emit(e: OpEvent): void; cancel: ReturnType<typeof vi.fn>; resolve: ReturnType<typeof vi.fn> }[] = [];
 const undoLast = vi.fn();
+const renamePath = vi.fn();
 vi.mock("../lib/fs", () => ({
   errMsg: (e: unknown) => String(e),
   fs: {
     startOp: (req: OpRequest, on: (e: OpEvent) => void) => {
       const h = { req, emit: on, cancel: vi.fn(), resolve: vi.fn() };
       started.push(h);
-      return { cancel: h.cancel, resolve: h.resolve };
+      return { cancel: h.cancel, resolve: h.resolve, pause: vi.fn() };
     },
     undoLast: () => undoLast(),
+    renamePath: (p: string, n: string) => renamePath(p, n),
   },
 }));
 
-import { MAX_PARALLEL, failedSources, jobState, pathKey, signature, useOps, visibleJobs } from "./ops";
+import { MAX_PARALLEL, etaSeconds, failedSources, formatEta, jobState, nextRate, overallProgress, pathKey, signature, useOps, visibleJobs } from "./ops";
 import { useUi } from "./ui";
 
 const req = (name: string, o: Partial<OpRequest> = {}): OpRequest => ({ kind: "copy", sources: [`C:\\a\\${name}`], dest: "C:\\b", ...o });
@@ -239,5 +241,55 @@ describe("avisos de copiar y mover (Update 12)", () => {
     started[0].emit(done());
     started[1].emit(done({ completed: 0, errors: [{ path: "x", message: "m", kind: "other" }] }));
     expect(visibleJobs(jobs()).map((j) => j.req.sources[0])).toEqual(["C:\\a\\mal", "C:\\a\\sigue"]);
+  });
+});
+
+describe("gestor de operaciones (herramientas profesionales)", () => {
+  it("pausa y reanuda la operación en marcha; en cola no hay nada que pausar", () => {
+    for (const n of ["1", "2", "3"]) useOps.getState().start(req(n));
+    const [a, , c] = jobs();
+    useOps.getState().setPaused(c.key, true);
+    expect(jobs()[2].paused).toBe(false);
+    const h = jobs()[0].handle!;
+    h.pause = vi.fn();
+    useOps.getState().setPaused(a.key, true);
+    expect(jobs()[0].paused).toBe(true);
+    expect(h.pause).toHaveBeenCalledWith(true);
+    useOps.getState().setPaused(a.key, false);
+    expect(jobs()[0].paused).toBe(false);
+  });
+
+  it("la velocidad se suaviza y sin datos no se inventa un tiempo restante", () => {
+    expect(nextRate(0, 1000, 1000)).toBe(1000);
+    expect(nextRate(1000, 3000, 1000)).toBe(1500);
+    expect(nextRate(1000, 3000, 0)).toBe(1000);
+    expect(etaSeconds(1000, 0)).toBeNull();
+    expect(etaSeconds(1001, 100)).toBe(11);
+    expect(formatEta(45)).toBe("45 s");
+    expect(formatEta(600)).toBe("10 min");
+    expect(formatEta(3900)).toBe("1 h 5 min");
+  });
+
+  it("el avance conjunto suma lo activo y excluye lo pausado de la velocidad", () => {
+    const j = (o: object) => ({ status: "running", paused: false, rate: 100, progress: { bytesDone: 10, bytesTotal: 50 }, ...o }) as never;
+    expect(overallProgress([j({}), j({ paused: true }), j({ status: "done" })])).toEqual({ active: 2, bytesDone: 20, bytesTotal: 100, rate: 100 });
+  });
+
+  it("el renombrado pasa por el gestor, sin duplicados y sin dejar rastro", async () => {
+    let done: (v: string) => void = () => {};
+    renamePath.mockReturnValue(new Promise<string>((r) => (done = r)));
+    const p = useOps.getState().rename("C:\\a\\x", "y");
+    await expect(useOps.getState().rename("C:\\a\\x", "y")).rejects.toMatch(/en curso/);
+    expect(jobs()).toHaveLength(1);
+    expect(started).toHaveLength(0);
+    done("C:\\a\\y");
+    await expect(p).resolves.toBe("C:\\a\\y");
+    expect(jobs()).toHaveLength(0);
+  });
+
+  it("un renombrado que falla también se retira y deja que se reintente", async () => {
+    renamePath.mockRejectedValueOnce("bloqueado");
+    await expect(useOps.getState().rename("C:\\a\\x", "y")).rejects.toBe("bloqueado");
+    expect(jobs()).toHaveLength(0);
   });
 });

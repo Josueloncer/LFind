@@ -254,7 +254,7 @@ fn parse_all(list: &[String]) -> Result<Vec<PathBuf>, String> {
     list.iter().map(|s| safety::parse_path(s)).collect()
 }
 
-fn run_op(req: &OpRequest, on_event: &Channel<OpEvent>, cancel: &AtomicBool, answers: &mpsc::Receiver<(Decision, bool)>) -> Result<ops::OpOutcome, String> {
+fn run_op(req: &OpRequest, on_event: &Channel<OpEvent>, cancel: &AtomicBool, pause: &AtomicBool, answers: &mpsc::Receiver<(Decision, bool)>) -> Result<ops::OpOutcome, String> {
     let sources = parse_all(&req.sources)?;
     let mut last = Instant::now() - Duration::from_secs(1);
     // Se limita a ~12 eventos/s: miles de archivos pequeños no deben saturar la interfaz.
@@ -287,7 +287,7 @@ fn run_op(req: &OpRequest, on_event: &Channel<OpEvent>, cancel: &AtomicBool, ans
             }
         }
     };
-    let mut ctx = ops::Ctx { cancel, on_progress: &mut on_progress, on_conflict: &mut on_conflict };
+    let mut ctx = ops::Ctx { cancel, paused: Some(pause), on_progress: &mut on_progress, on_conflict: &mut on_conflict };
 
     match req.kind {
         OpKind::Copy | OpKind::Move => {
@@ -315,12 +315,14 @@ pub fn start_op(req: OpRequest, on_event: Channel<OpEvent>, state: State<'_, App
     let id = jobs.next_id.fetch_add(1, Ordering::Relaxed) + 1;
     let cancel = Arc::new(AtomicBool::new(false));
     let (tx, rx) = mpsc::channel();
+    let pause = Arc::new(AtomicBool::new(false));
     jobs.flags.lock().unwrap().insert(id, cancel.clone());
+    jobs.pauses.lock().unwrap().insert(id, pause.clone());
     jobs.answers.lock().unwrap().insert(id, tx);
 
     tauri::async_runtime::spawn_blocking(move || {
         let t0 = Instant::now();
-        let done = match run_op(&req, &on_event, &cancel, &rx) {
+        let done = match run_op(&req, &on_event, &cancel, &pause, &rx) {
             Ok(o) => {
                 let undoable = o.undo.is_some();
                 if let Some(u) = o.undo {
@@ -338,9 +340,18 @@ pub fn start_op(req: OpRequest, on_event: Channel<OpEvent>, state: State<'_, App
         }
         let _ = on_event.send(OpEvent::Done(done));
         jobs.flags.lock().unwrap().remove(&id);
+        jobs.pauses.lock().unwrap().remove(&id);
         jobs.answers.lock().unwrap().remove(&id);
     });
     id
+}
+
+/// Pausa o reanuda una operación de archivo.
+#[tauri::command]
+pub fn pause_job(id: u64, paused: bool, state: State<'_, AppState>) {
+    if let Some(flag) = state.jobs.pauses.lock().unwrap().get(&id) {
+        flag.store(paused, Ordering::Relaxed);
+    }
 }
 
 /// Respuesta de la interfaz a un conflicto («Reemplazar», «Omitir»…).

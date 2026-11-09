@@ -11,6 +11,10 @@ Explorador de archivos para Windows, rápido y personalizable. Tauri 2, Rust, Re
 - **Visor inteligente** y miniaturas.
 - **Analizador de almacenamiento** con mapa de carpetas y actualización incremental.
 - **Personalización:** reorganizar barras, fondos, colores, tipografía y temas propios.
+- **Paleta de comandos**, **inspector de archivos** y **terminal integrada** (PowerShell y CMD).
+- **Detector de duplicados** por contenido real, siempre a petición.
+- Gestor de operaciones con pausa, velocidad y tiempo restante.
+- Integración con Windows opcional y reversible: menú contextual, inicio con el sistema y explorador preferido.
 - Integración con OneDrive sin descargar archivos, y actualizaciones automáticas firmadas.
 
 ## Requisitos (Windows 10/11 x64)
@@ -58,6 +62,9 @@ Cada push a `main` con cambios de código publica una versión firmada (`.github
 | `F6` / `Ctrl+Mayús+X` | Cambiar de panel / Intercambiar paneles |
 | `Ctrl+Mayús+C` / `Ctrl+Mayús+M` | Copiar / Mover al otro panel |
 | `Alt` + arrastrar | Mover una herramienta |
+| `Ctrl+K` | Paleta de comandos |
+| `Ctrl+I` | Inspector de archivos |
+| `Ctrl+J` | Terminal |
 | `F5` | Actualizar |
 
 ## Documentación

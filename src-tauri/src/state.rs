@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 pub struct Jobs {
     pub next_id: AtomicU64,
     pub flags: Mutex<HashMap<u64, Arc<AtomicBool>>>,
+    /// Pausa de las operaciones de archivo que la admiten.
+    pub pauses: Mutex<HashMap<u64, Arc<AtomicBool>>>,
     /// Canal por el que la interfaz responde a un conflicto («¿reemplazar?») de un trabajo.
     pub answers: Mutex<HashMap<u64, Sender<(Decision, bool)>>>,
 }

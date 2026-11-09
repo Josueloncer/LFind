@@ -122,6 +122,10 @@ pub struct Prefs {
     pub preview_pane: bool,
     /// Anchura del panel de vista previa, en píxeles.
     pub preview_width: u16,
+    /// Comprobar en silencio si hay una versión nueva al iniciar.
+    pub auto_update_check: bool,
+    /// Última comprobación automática (milisegundos epoch), para no repetirla en cada arranque.
+    pub last_update_check: i64,
     /// Versión del formato; permite migrar archivos antiguos. Si falta, es 0.
     #[serde(default = "zero")]
     pub version: u32,
@@ -177,6 +181,8 @@ impl Default for Prefs {
             system_icons: true,
             preview_pane: false,
             preview_width: 320,
+            auto_update_check: true,
+            last_update_check: 0,
             version: CURRENT_VERSION,
         }
     }
@@ -222,6 +228,18 @@ mod tests {
         let p = std::env::temp_dir().join(format!("nova-prefs-{}-{}", n, std::process::id()));
         let _ = fs::remove_dir_all(&p);
         p
+    }
+
+    #[test]
+    fn preferences_from_a_version_without_updater_keep_working() {
+        let d = dir("preupdate");
+        fs::create_dir_all(&d).unwrap();
+        let f = d.join("prefs.json");
+        fs::write(&f, r#"{"theme":"hacker","iconSize":96,"previewPane":true,"version":2}"#).unwrap();
+        let p = load(&f);
+        assert_eq!((p.theme, p.icon_size, p.preview_pane), (Theme::Hacker, 96, true), "se conserva lo que había");
+        assert!(p.auto_update_check, "la comprobación automática viene activada");
+        assert_eq!(p.last_update_check, 0);
     }
 
     #[test]

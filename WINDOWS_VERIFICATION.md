@@ -1,3 +1,15 @@
+# LFind · Update 08 · verificación (actualizaciones)
+**Ya comprobado con una instalación aislada y servidor local:** ver `UPDATE08_PROGRESS.md`.
+**Falta, con GitHub y la configuración activada:**
+1. Configura los secrets y confirma que las descargas son públicas (`DEVELOPMENT_GUIDE.md`).
+2. Haz push a `main` y revisa que el workflow termine y publique una release con 3 archivos.
+3. Instala esa versión a mano: es la primera con actualizador. Tus preferencias e índice siguen ahí.
+4. Publica otra versión. Abre LFind: a los ~8 s aparece el aviso.
+5. En «Buscar actualizaciones»: Actualizar, comprobar el progreso, Reiniciar LFind. Se abre la versión nueva con tus datos.
+6. Revisa el diálogo en los seis temas.
+
+---
+
 # LFind · Update 07 · verificación en Windows (visor)
 **Ya comprobado en la app empaquetada** (37 archivos, batería automatizada): formatos de `UPDATE07_PROGRESS.md`, Espacio, ←, →, Esc, búsqueda global, zoom, rotación, SVG hostil, cierre sin Workers.
 **Falta comprobar a mano:**

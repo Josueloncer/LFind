@@ -21,7 +21,7 @@ flowchart TB
     L -.-> W
   end
   subgraph Tauri["src-tauri · capa fina"]
-    CMD["51 comandos + protocolo lfview"]
+    CMD["56 comandos + protocolo lfview"]
     ST["AppState · ThumbState · IconState · IndexState"]
     CMD --> ST
   end
@@ -106,7 +106,7 @@ flowchart TB
 | Id + cancelación | Trabajos largos | `cancel_dir`, `cancel_job`, `resolve_conflict` |
 | Sondeo | Estado del índice | `index_status` |
 
-No se usa el sistema de eventos globales de Tauri. Verificado en la Update 07: los 51 comandos registrados coinciden con los 51 usados en `lib/fs/tauri.ts`, único archivo que llama a `invoke`. El contenido de archivos para el visor no viaja por IPC, sino por el protocolo `lfview` (§8 bis).
+No se usa el sistema de eventos globales de Tauri. Verificado en la Update 08: los 56 comandos registrados coinciden con los 56 usados en `lib/fs/tauri.ts`, único archivo que llama a `invoke`. El contenido de archivos para el visor no viaja por IPC, sino por el protocolo `lfview` (§8 bis).
 
 **Tipos:** Rust serializa con `camelCase`; `lib/fs/types.ts` es el espejo manual. No hay generación automática: un cambio exige tocar ambos lados.
 
@@ -290,6 +290,28 @@ flowchart LR
 - **Rangos:** el protocolo entrega el cuerpo en memoria, así que cada respuesta se limita a 8 MiB. PDF.js usa `PDFDataRangeTransport` para no pedir nunca el archivo completo.
 - **Recursos:** cambiar de archivo cancela lo pendiente en backend y frontend. Cada PDF tiene su Worker, que se termina a la fuerza 150 ms después de cerrarlo. Sin visor abierto no queda nada en marcha.
 - **Navegación:** `Pane` registra en `useViewer` un contexto que recorre `orderRef` (el orden real de `FileView`, con agrupación) o los resultados de búsqueda, saltando carpetas.
+
+## 8 ter. Actualizaciones
+
+```mermaid
+flowchart LR
+  subgraph Cliente["LFind instalado"]
+    UI["UpdateDialog / aviso"] --> ST["stores/update"]
+    ST -->|"update_check, update_download"| RS["update_cmd + plugin oficial"]
+    RS -->|"verifica firma"| RS
+    ST -->|"update_restart"| NS["Instalador NSIS"]
+    NS --> AP["Reinicia LFind"]
+  end
+  subgraph GitHub
+    PU["push a main"] --> WF["Workflow: pruebas, versión, compila y firma"]
+    WF --> VE["Verifica firma"]
+    VE --> DR["Release en borrador"]
+    DR --> RE["Release publicada + latest.json"]
+  end
+  RS -->|"HTTPS"| RE
+```
+
+El plugin hace la red desde Rust, así que la CSP de la interfaz no cambia. Las capacidades tampoco: solo se usan comandos propios.
 
 ## 9. Errores y permisos
 

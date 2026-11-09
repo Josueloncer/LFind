@@ -77,6 +77,8 @@ export interface Prefs {
   systemIcons: boolean;
   previewPane: boolean;
   previewWidth: number;
+  autoUpdateCheck: boolean;
+  lastUpdateCheck: number;
   version: number;
 }
 
@@ -97,6 +99,8 @@ export const DEFAULT_PREFS: Prefs = {
   systemIcons: true,
   previewPane: false,
   previewWidth: 320,
+  autoUpdateCheck: true,
+  lastUpdateCheck: 0,
   version: 2,
 };
 
@@ -210,6 +214,13 @@ export type ViewerSource =
   | { kind: "text" }
   | { kind: "unsupported"; message: string; facts: ViewerFact[] }
   | { kind: "cancelled" };
+/** Versión publicada superior a la instalada. */
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+  size: number | null;
+}
+export type UpdateEvent = { type: "progress"; done: number; total: number | null } | { type: "verifying" };
 export interface UndoResult {
   description: string;
   restored: number;
@@ -375,6 +386,16 @@ export interface FsProvider {
   viewerClose(): Promise<void>;
   /** URL del contenido asociado a un permiso. */
   viewerUrl(token: string): string;
+
+  // Actualizaciones de la aplicación. Rechazan con `{ kind, message }`.
+  appVersion(): Promise<string>;
+  /** `null`: no hay una versión superior a la instalada. */
+  updateCheck(): Promise<UpdateInfo | null>;
+  /** Descarga y verifica la firma; todavía no instala. */
+  updateDownload(onEvent: (e: UpdateEvent) => void): Promise<void>;
+  updateCancel(): Promise<void>;
+  /** Instala lo descargado. En Windows la aplicación se cierra y el instalador la vuelve a abrir. */
+  updateRestart(): Promise<void>;
 
   /** Iconos del sistema (los del Explorador de Windows) de un lote de elementos. `have`: claves que ya se tienen. */
   getIcons(items: IconItem[], px: number, have: string[]): Promise<IconsReply>;

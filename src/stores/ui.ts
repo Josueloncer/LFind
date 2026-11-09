@@ -18,6 +18,7 @@ export type Dialog =
   | { type: "delete"; paths: string[]; permanent: boolean }
   | { type: "properties"; paths: string[] }
   | { type: "index" }
+  | { type: "update" }
   | null;
 
 interface UiState {

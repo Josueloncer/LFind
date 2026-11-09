@@ -104,8 +104,9 @@ svg { display: block; }
 .side-unpin:hover { background: var(--bg-press); color: var(--text); }
 .side-unpin svg { width: 12px; height: 12px; stroke-width: 2; }
 .side-theme svg { width: var(--icon-l); height: var(--icon-l); flex: none; stroke-width: 1.7; }
-.side-foot { padding-top: var(--sp-3); display: flex; }
-.side-theme { height: var(--ctl-h); flex: 1; display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4); border-radius: var(--r-s); color: var(--text-2); white-space: nowrap; }
+.side-foot { padding-top: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-0); }
+.side-dot { width: 7px; height: 7px; margin-left: auto; flex: none; border-radius: 50%; background: var(--accent); }
+.side-theme { position: relative; height: var(--ctl-h); flex: none; display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4); border-radius: var(--r-s); color: var(--text-2); white-space: nowrap; }
 .side-theme:hover { background: var(--bg-hover); color: var(--text); }
 @container side (max-width: 110px) {
   .side-label, .side-title, .side-hint, .side-unpin, .drive-text, .drive-bar { display: none; }
@@ -370,6 +371,13 @@ svg { display: block; }
 .preview-empty { margin: auto; padding: var(--sp-9); text-align: center; color: var(--text-3); line-height: var(--lh-loose); }
 .preview-meta { display: flex; flex-direction: column; gap: var(--sp-f3); padding: var(--sp-5) var(--sp-7) var(--sp-7); border-top: 1px solid var(--line); color: var(--text-3); font-size: var(--fs-s); }
 .preview-meta strong { color: var(--text); font-size: var(--fs-m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ───────── Actualizaciones (Update 08) ───────── */
+.up { display: flex; flex-direction: column; gap: var(--sp-3); }
+.up p { margin: 0; }
+.up-status { color: var(--text); font-weight: var(--fw-medium); }
+.up h3 { margin: var(--sp-3) 0 var(--sp-2); font: var(--fw-semibold) var(--fs-m) var(--font-display); color: var(--text); }
+.up-notes { margin: 0; max-height: 180px; overflow: auto; padding: var(--sp-4); border-radius: var(--r-s); background: var(--bg-field); font: var(--fs-s)/var(--lh-loose) var(--font); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 
 /* ───────── Visor (Update 07) ───────── */
 /* El panel y la vista ampliada son el mismo elemento: ampliar no recarga el contenido. La barra de título sigue visible para mover o cerrar la ventana. */

@@ -78,6 +78,12 @@ export class BrowserProvider implements FsProvider {
   viewerOpen = NA as FsProvider["viewerOpen"];
   viewerClose = async () => {};
   viewerUrl = () => "";
+
+  appVersion = async () => "";
+  updateCheck = NA as FsProvider["updateCheck"];
+  updateDownload = NA as FsProvider["updateDownload"];
+  updateCancel = async () => {};
+  updateRestart = NA as FsProvider["updateRestart"];
   getIcons: FsProvider["getIcons"] = async (items) => ({ keys: items.map(() => null), icons: {} });
   clearIconCache = async () => 0;
   // Fuera de la app de escritorio no hay Shell de Windows: la interfaz usa su menú propio.

@@ -10,6 +10,7 @@ import { useOps } from "../stores/ops";
 import { useUi } from "../stores/ui";
 import { IndexDialog } from "./IndexDialog";
 import { Modal } from "./Modal";
+import { UpdateDialog } from "./UpdateDialog";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -151,6 +152,7 @@ export function Dialogs() {
       {d?.type === "delete" && <DeleteDialog paths={d.paths} permanent={d.permanent} />}
       {d?.type === "properties" && <PropertiesDialog paths={d.paths} />}
       {d?.type === "index" && <IndexDialog />}
+      {d?.type === "update" && <UpdateDialog />}
       <ConflictDialog />
     </>
   );

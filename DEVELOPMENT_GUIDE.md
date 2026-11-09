@@ -44,7 +44,7 @@ npm run test:core   # nova-core sin SQLite
 cargo test --manifest-path crates/nova-core/Cargo.toml --features sqlite --locked --offline
 ```
 
-**Línea base (Update 07, 2026-11-08):** Vitest 217/217 · typecheck sin errores · `nova-core` 163/163 (160 unitarias + 3 de integración). Cualquier fallo es una regresión.
+**Línea base (Update 08, 2026-11-08):** Vitest 239/239 · typecheck sin errores · `nova-core` 164/164 (161 unitarias + 3 de integración). Cualquier fallo es una regresión.
 
 **Probar el visor con archivos reales:** `cargo run --release --manifest-path crates/nova-core/Cargo.toml --example viewer_probe -- <salida> <archivo>...`. Imprime cómo se resuelve cada archivo y deja las conversiones en la carpeta de salida. Para conducir la app empaquetada: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` y CDP.
 
@@ -84,6 +84,23 @@ npm run tauri build  # compilación release + instalador
 La versión se define en tres lugares: `package.json`, `src-tauri/tauri.conf.json` y `src-tauri/Cargo.toml`. El instalador no está firmado.
 
 Iconos: `python scripts/make-icons.py` (requiere Pillow).
+
+## Publicar una versión
+
+Cada push a `main` con cambios de código genera una versión (`.github/workflows/release.yml`). La primera sección de `CHANGELOG.md` son las novedades que verán los usuarios: actualízala antes de publicar.
+
+**Configuración única (GitHub → Settings → Secrets and variables → Actions → New repository secret):**
+
+| Secret | Valor |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | Contenido de `C:\Users\josue\.tauri\lfind-updater.key` |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Contenido de `C:\Users\josue\.tauri\lfind-updater.password` |
+
+Para copiar sin mostrarlo: `Get-Content "$env:USERPROFILE\.tauri\lfind-updater.key" -Raw | Set-Clipboard` (y lo mismo con `.password`).
+
+Las compilaciones locales normales no necesitan la clave: los artefactos firmados solo se activan en CI.
+
+**Si se pierde la clave,** las instalaciones existentes no podrán actualizarse. Guárdala cifrada fuera de este equipo.
 
 ## Datos locales
 

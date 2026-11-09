@@ -2,6 +2,10 @@
 
 Inventario real del proyecto. **Auditoría Fase 0 — 2026-11-08, actualizado con la Update 06.0.** Sustituye a la versión de la Fase 1.1, archivada en [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
+## Update 08 (actualizaciones)
+
+Implementado y probado localmente, con una actualización real en una instalación aislada. Rust 164/164 · Vitest 239/239. **Aún sin activar:** faltan los secrets, y el repositorio privado impide las descargas anónimas (**R-31**). El workflow no se ha ejecutado. Detalle: [UPDATE08_PROGRESS.md](UPDATE08_PROGRESS.md).
+
 ## Update 07 (visor inteligente)
 
 Terminado con validación real en la app empaquetada. Rust 163/163 · Vitest 217/217 · tipos sin errores · instalador correcto · 51 = 51 comandos. Formatos, límites y pruebas pendientes: [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md).

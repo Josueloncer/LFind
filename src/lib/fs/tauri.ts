@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
-  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, ViewerSource,
+  DirEvent, DirHandle, NewTemplate, SendResult, SendToItem, DriveUsage, ResolvedPath, FileProps, IconItem, IconsReply, FsProvider, IndexSettings, IndexStatus, OpEvent, OpHandle, OpRequest, PlacesInfo, Prefs, SearchPage, SearchQuery, StatsEvent, SystemClipboardFiles, TextPreview, Theme, ThumbReply, UndoResult, UpdateEvent, UpdateInfo, ViewerSource,
 } from "./types";
 
 export class TauriProvider implements FsProvider {
@@ -113,6 +113,16 @@ export class TauriProvider implements FsProvider {
   viewerOpen = (path: string) => invoke<ViewerSource>("viewer_open", { path });
   viewerClose = () => invoke<void>("viewer_close");
   viewerUrl = (token: string) => convertFileSrc(token, "lfview");
+
+  appVersion = () => invoke<string>("app_version");
+  updateCheck = () => invoke<UpdateInfo | null>("update_check");
+  updateDownload(onEvent: (e: UpdateEvent) => void): Promise<void> {
+    const channel = new Channel<UpdateEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("update_download", { onEvent: channel });
+  }
+  updateCancel = () => invoke<void>("update_cancel");
+  updateRestart = () => invoke<void>("update_restart");
 
   indexSearch = (query: SearchQuery) => invoke<SearchPage>("index_search", { query });
   indexStatus = () => invoke<IndexStatus>("index_status");

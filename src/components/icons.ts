@@ -65,6 +65,7 @@ export { default as Globe } from "lucide-react/dist/esm/icons/globe.js";
 export { default as SlidersHorizontal } from "lucide-react/dist/esm/icons/sliders-horizontal.js";
 export { default as Database } from "lucide-react/dist/esm/icons/database.js";
 export { default as TriangleAlert } from "lucide-react/dist/esm/icons/triangle-alert.js";
+export { default as CircleArrowUp } from "lucide-react/dist/esm/icons/circle-arrow-up.js";
 // Visor (Update 07).
 export { default as Maximize2 } from "lucide-react/dist/esm/icons/maximize-2.js";
 export { default as Minimize2 } from "lucide-react/dist/esm/icons/minimize-2.js";

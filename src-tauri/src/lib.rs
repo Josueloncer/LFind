@@ -5,6 +5,7 @@ mod index_cmd;
 mod state;
 mod system_cmd;
 mod thumbs_cmd;
+mod update_cmd;
 mod viewer_cmd;
 
 use std::sync::atomic::Ordering;
@@ -16,6 +17,8 @@ pub fn run() {
     nova_core::diagnostics::install_panic_hook();
     tauri::Builder::default()
         .manage(state::AppState::default())
+        .manage(update_cmd::UpdateState::default())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Contenido para el visor: solo archivos con permiso emitido por `viewer_open`.
         .register_asynchronous_uri_scheme_protocol(viewer_cmd::SCHEME, |ctx, request, responder| {
             let app = ctx.app_handle().clone();
@@ -111,6 +114,11 @@ pub fn run() {
             commands::log_ui_error,
             viewer_cmd::viewer_open,
             viewer_cmd::viewer_close,
+            update_cmd::app_version,
+            update_cmd::update_check,
+            update_cmd::update_download,
+            update_cmd::update_cancel,
+            update_cmd::update_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar LFind");

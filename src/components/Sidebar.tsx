@@ -1,4 +1,4 @@
-import { Clock, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Star, X } from "./icons";
+import { CircleArrowUp, Clock, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Star, X } from "./icons";
 import type { ComponentType, MouseEvent } from "react";
 import type { DriveUsage, Place } from "../lib/fs";
 import { THEMES } from "../lib/themes";
@@ -10,6 +10,7 @@ import { basename, samePath } from "../lib/path";
 import { useApp } from "../stores/app";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePrefs } from "../stores/prefs";
+import { useUpdate } from "../stores/update";
 
 const ICONS: Record<Place["kind"], ComponentType<{ className?: string }>> = {
   home: Home, desktop: Monitor, documents: FileText, downloads: Download,
@@ -54,6 +55,8 @@ export function Sidebar() {
   const cur = tab?.path ?? "";
   const th = THEMES.find((t) => t.id === theme) ?? THEMES[0];
   const openMenu = useUi((s) => s.openMenu);
+  const openDialog = useUi((s) => s.openDialog);
+  const updateReady = useUpdate((s) => s.state.phase === "available" || s.state.phase === "ready");
   // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
   const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -91,6 +94,11 @@ export function Sidebar() {
         <button className="side-theme" title={`Tema: ${th.label} (clic para cambiar)`} onClick={pickTheme}>
           <Palette />
           <span className="side-label">Tema: {th.label}</span>
+        </button>
+        <button className="side-theme" title={updateReady ? "Hay una nueva versión de LFind" : "Buscar actualizaciones"} aria-label="Buscar actualizaciones" onClick={() => openDialog({ type: "update" })}>
+          <CircleArrowUp />
+          <span className="side-label">Buscar actualizaciones</span>
+          {updateReady && <i className="side-dot" />}
         </button>
       </div>
     </nav>

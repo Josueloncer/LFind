@@ -17,3 +17,8 @@ src-tauri/target/
 # Archivos locales
 .DS_Store
 Thumbs.db
+
+# Claves de firma: nunca en el repositorio
+*.key
+*.key.pub
+*.password

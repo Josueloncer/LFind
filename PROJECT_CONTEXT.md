@@ -1,6 +1,6 @@
 # LFind · PROJECT_CONTEXT
 
-> **Fuente principal de contexto técnico.** Última auditoría: **Fase 0 — 2026-11-08**, sobre el código de la rama `main` con cambios sin commitear (Update 05 + 05.1). Actualizado con **Update 06.0** (estabilidad; [UPDATE06_PROGRESS.md](UPDATE06_PROGRESS.md)) y **Update 07** (visor inteligente; [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md)).
+> **Fuente principal de contexto técnico.** Última auditoría: **Fase 0 — 2026-11-08**, sobre el código de la rama `main` con cambios sin commitear (Update 05 + 05.1). Actualizado con **Update 06.0** (estabilidad; [UPDATE06_PROGRESS.md](UPDATE06_PROGRESS.md)) , **Update 07** (visor inteligente; [UPDATE07_PROGRESS.md](UPDATE07_PROGRESS.md)) y **Update 08** (actualizaciones; [UPDATE08_PROGRESS.md](UPDATE08_PROGRESS.md)).
 > Documentos hermanos: [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md) (módulos y flujos) · [PROJECT_STATUS.md](PROJECT_STATUS.md) (inventario, problemas y riesgos) · [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) (instalar, probar, compilar).
 > El historial anterior, intacto: [docs/history/PROJECT_CONTEXT_hasta-05.1.md](docs/history/PROJECT_CONTEXT_hasta-05.1.md) y [docs/history/PROJECT_STATUS_fase-1.1.md](docs/history/PROJECT_STATUS_fase-1.1.md).
 
@@ -62,7 +62,8 @@ crates/nova-core/        Lógica pura en Rust, sin Tauri (se prueba con cargo te
   src/search.rs          Marcador antiguo sin código (el motor real está en index/)
   examples/              bench_dir, bench_thumb, index_xcheck
 src-tauri/               Capa fina: comandos, estado, permisos, ventana
-  src/lib.rs             Arranque, protocolo `lfview` y registro de los 51 comandos
+  src/lib.rs             Arranque, protocolo `lfview` y registro de los 56 comandos
+  src/update_cmd.rs      Actualizador: comprobar, descargar, cancelar, reiniciar
   src/commands.rs *_cmd.rs state.rs
   tauri.conf.json capabilities/default.json .cargo/config.toml
 src/                     Interfaz
@@ -99,6 +100,7 @@ docs/                    CONTEXT_MENU.md, UPDATE_04.3_REPORT.md, history/
 | `image` (solo codecs jpeg/png/gif/bmp/tiff/webp/ico, sin rayon) | Miniaturas | Esencial; versión fijada a propósito |
 | `rusqlite` (`bundled`, `hooks`, opcional tras `sqlite`) | Índice | Esencial; requiere compilador de C |
 | `trash` | Papelera; solo en `src-tauri` | Esencial |
+| `tauri-plugin-updater` 2 | Actualizaciones firmadas; solo en `src-tauri` | Esencial; oficial de Tauri |
 
 **Sin duplicidades entre dependencias.** Las duplicidades son de datos: listas repetidas en Rust y TS (ver `PROJECT_STATUS.md`, D-02). La API de Windows se declara a mano por FFI en lugar de usar la crate `windows`: mantener esa decisión salvo necesidad clara.
 
@@ -126,6 +128,7 @@ docs/                    CONTEXT_MENU.md, UPDATE_04.3_REPORT.md, history/
 18. **El contenido de archivos solo llega a la interfaz por el protocolo `lfview`, con un permiso por archivo** (Update 07). Nada de `assetProtocol` con scope amplio ni CSP relajada. El tipo lo fija el backend inspeccionando el archivo.
 19. **Sin decodificadores nativos en el proceso principal para el visor** (Update 07). PDF.js corre en un Worker; PSD, EPS y RAW son Rust seguro bajo `isolate`. PostScript jamás se ejecuta.
 20. **El panel y la vista ampliada son el mismo elemento DOM**: ampliar no recarga el documento.
+21. **Actualizaciones solo por el plugin oficial, firmadas y con el consentimiento del usuario** (Update 08). La clave privada nunca entra en el repositorio. La versión se calcula en CI (`MAYOR.MENOR.<número de ejecución>`): no añadir commits automáticos de versión. Una release solo se publica con todos sus archivos verificados.
 
 ## 6. Convenciones de código
 
@@ -171,6 +174,9 @@ Dos servicios y dos cachés. Frontend: colas con concurrencia limitada, época p
 | Sistema | HEIC y lo que tenga proveedor de Windows | Miniatura real reutilizando `ThumbService`, 1024 px, con aviso |
 
 Texto: los primeros 8 KiB, como antes.
+
+### 7.4 ter Actualizaciones (Update 08)
+`stores/update.ts` lleva el estado; `UpdateDialog` lo muestra; `src-tauri/src/update_cmd.rs` usa el plugin oficial. Publicación en `.github/workflows/release.yml` con la lógica en `scripts/release/`. Detalle: `UPDATE08_PROGRESS.md`.
 
 ### 7.5 Persistencia
 | Dato | Dónde |

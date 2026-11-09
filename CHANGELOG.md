@@ -1,5 +1,10 @@
 # LFind — Registro de cambios
 
+## Update 08: actualizaciones automáticas
+- Nueva opción «Buscar actualizaciones» en la barra lateral: muestra la versión instalada, la nueva, las novedades y el progreso real de descarga, que se puede cancelar.
+- LFind comprueba al iniciar si hay una versión nueva y solo avisa: nunca descarga nada sin tu permiso. Se puede desactivar.
+- Las actualizaciones se verifican con firma criptográfica antes de instalarse y conservan tus preferencias y tu índice.
+
 ## Update 07: visor inteligente de archivos
 - Vista previa integrada: panel lateral redimensionable y vista ampliada (Espacio), que comparten el mismo contenido. ←/→ recorren los archivos de la carpeta o de los resultados de búsqueda; Esc vuelve conservando la selección.
 - Formatos: JPG, PNG, WebP, GIF animado, BMP, ICO, AVIF, SVG y TIFF con zoom, ajuste, tamaño real, desplazamiento y rotación; PDF y AI compatible con páginas, zoom y metadatos; PSD/PSB con la composición real, sin Photoshop; MP4, WebM y audio. Soporte parcial, siempre indicado: EPS, RAW, HEIC y MOV.

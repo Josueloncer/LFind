@@ -15,6 +15,9 @@ import { useOps } from "./stores/ops";
 import { useIndex } from "./stores/indexStatus";
 import { usePrefs } from "./stores/prefs";
 import { useSearch } from "./stores/search";
+import { useUpdate } from "./stores/update";
+
+const UPDATE_CHECK_DELAY_MS = 8000;
 
 const cache = (k: string, v: string) => {
   try {
@@ -43,6 +46,13 @@ export default function App() {
     void load();
     void boot();
   }, [load, boot]);
+
+  // Actualizaciones: bastante después del arranque, para no competir con la primera carpeta. Nunca descarga nada por su cuenta.
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => void useUpdate.getState().autoCheck(), UPDATE_CHECK_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [loaded]);
 
   // Estado del índice de búsqueda: consulta periódica (más frecuente mientras se indexa). No hace nada fuera de la app de escritorio.
   useEffect(() => useIndex.getState().start(), []);

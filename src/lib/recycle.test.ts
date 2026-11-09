@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { confirmText, filterRecycle, recycleBytes, sortRecycle } from "./recycle";
+import { confirmText, filterRecycle, purgeSummary, recycleBytes, sortRecycle } from "./recycle";
 import type { RecycleItem } from "./fs";
 
 const it0 = (name: string, original: string, deleted: number, size: number | null = 10): RecycleItem => ({ id: name, name, original, deleted, size, entries: null });
@@ -23,6 +23,29 @@ describe("Papelera", () => {
   it("avisa de que no se puede deshacer", () => {
     expect(confirmText("purge", 3).detail).toMatch(/no se puede deshacer/);
     expect(confirmText("empty", 1).detail).toMatch(/1 elemento\. /);
+  });
+});
+
+describe("resultado de eliminar", () => {
+  const failed = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `${i}`, name: `f${i}`, reason: "en uso" }));
+  it("solo es limpio si se borró todo", () => {
+    expect(purgeSummary({ deleted: 3, failed: [], notAttempted: 0, cancelled: false }).clean).toBe(true);
+    expect(purgeSummary({ deleted: 2, failed: failed(1), notAttempted: 0, cancelled: false }).clean).toBe(false);
+    expect(purgeSummary({ deleted: 3, failed: [], notAttempted: 0, cancelled: true }).clean).toBe(false);
+  });
+  it("dice cuántos quedan cuando Windows no deja borrar", () => {
+    const s = purgeSummary({ deleted: 1, failed: failed(2), notAttempted: 0, cancelled: false });
+    expect(s.title).toBe("No se pudo eliminar todo");
+    expect(s.detail).toBe("Se eliminaron 1 elemento. 2 elementos siguen en la Papelera:");
+  });
+  it("al cancelar cuenta lo hecho y lo pendiente", () => {
+    const s = purgeSummary({ deleted: 4, failed: [], notAttempted: 1, cancelled: true });
+    expect(s.title).toBe("Eliminación cancelada");
+    expect(s.detail).toBe("Se eliminaron 4 elementos. 1 elemento sigue en la Papelera.");
+  });
+  it("la pantalla no da por eliminado nada sin mirar el resultado", () => {
+    const src = readFileSync(new URL("../components/RecycleView.tsx", import.meta.url), "utf8");
+    expect(src).toMatch(/purgeSummary\(r\)\.clean/);
   });
 });
 

@@ -30,7 +30,7 @@ describe("normalizar", () => {
 describe("variables CSS", () => {
   it("por defecto no toca nada del tema", () => {
     const v = appearanceVars(DEFAULT_APPEARANCE, base);
-    expect(Object.keys(v).sort()).toEqual(["--cz-blur", "--cz-contrast", "--cz-intensity", "--cz-surface"]);
+    expect(Object.keys(v).filter((k) => !k.startsWith("--z-")).sort()).toEqual(["--cz-blur", "--cz-contrast", "--cz-intensity", "--cz-surface"]);
     expect(isDefaultAppearance(DEFAULT_APPEARANCE)).toBe(true);
   });
   it("escala sobre las medidas del tema vigente", () => {

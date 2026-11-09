@@ -217,6 +217,17 @@ Ninguna mantiene procesos ni hilos mientras está inactiva. La paleta se amplía
 
 Windows disfraza los placeholders al enumerar: el analizador usa `sys::ExposePlaceholders` por hilo para distinguir lo local, lo que está solo en la nube y lo sincronizado sin hidratar nada. `writable()`, en `src-tauri/src/windows_cmd.rs`, rechaza las compilaciones de desarrollo: escribir su ruta en el Registro abre una consola y una página inaccesible en cuanto Vite no está en marcha. Los desplegables usan `components/Select.tsx`, no `<select>`, porque la lista nativa no respeta los temas.
 
+### Barra lateral, Papelera y desenfoque por zona (Update 14)
+Detalle y pruebas: [UPDATE14_PROGRESS.md](docs/history/UPDATE14_PROGRESS.md).
+
+`SidebarResizer` escribe `--sidebar-w-open` una vez por fotograma y guarda `appearance.sidebarWidth` al soltar. Escucha en la ventana: no depender de la captura de puntero evita que un arrastre quede sin terminar.
+
+`trash::os_limited::purge_all` devuelve éxito aunque Windows no borre lo que está en uso. **Nunca se puede dar por borrado sin volver a listar:** `nova_core::recycle` trocea, vigila y compara con la Papelera. Lo que explica un bloqueo pide solo el permiso de borrar, sin leer contenido, para no descargar lo que esté en la nube.
+
+Cada zona (`Appearance.zones`) tiene sus variables `--z-<zona>-surface` y `--z-<zona>-blur`. Para no duplicar capas, una zona que coincide con el desenfoque de la ventana no lleva imagen: deja ver la de debajo. Si difiere, lleva una copia ya desenfocada (`zoneBaked`, por `id@blur`), con `background-attachment: fixed` para seguir alineada con la ventana. El único `backdrop-filter` es el de menús y diálogos, porque pasan sobre contenido que cambia.
+
+**Los diálogos Abrir y Guardar no se pueden sustituir.** Son un servidor COM dentro del proceso (`comdlg32.dll`), y la única forma de desviarlos es el secuestro de COM. No hay que intentarlo; ver el documento de progreso.
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.

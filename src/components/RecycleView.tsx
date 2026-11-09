@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { confirmText, filterRecycle, recycleBytes, sortRecycle } from "../lib/recycle";
+import { confirmText, filterRecycle, purgeSummary, recycleBytes, sortRecycle } from "../lib/recycle";
 import { errMsg, fs } from "../lib/fs";
-import type { RecycleItem } from "../lib/fs";
+import type { PurgeReport, RecycleItem } from "../lib/fs";
 import { formatBytes, formatDate } from "../lib/format";
 import { useOps } from "../stores/ops";
 import { useUi } from "../stores/ui";
 
 const ROW = 40;
+const FAILED_SHOWN = 8;
 
 /** La Papelera real de Windows. Solo se consulta al abrirla y después de cada operación: nada la vigila en segundo plano. */
 export function RecycleView() {
@@ -19,6 +20,9 @@ export function RecycleView() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [asking, setAsking] = useState<"purge" | "empty" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<{ done: number; total: number } | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [report, setReport] = useState<PurgeReport | null>(null);
   const list = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -51,8 +55,22 @@ export function RecycleView() {
   const restore = () => act(() => fs.recycleRestore(chosen.map((it) => it.id)), `Restaurado${chosen.length === 1 ? "" : "s"} ${chosen.length} elemento${chosen.length === 1 ? "" : "s"}`);
   const confirmNow = () => {
     const ids = (asking === "empty" ? items ?? [] : chosen).map((it) => it.id);
-    act(() => fs.recyclePurge(ids), asking === "empty" ? "Papelera vaciada" : "Eliminado definitivamente");
+    const emptying = asking === "empty";
+    setAsking(null);
+    setBusy(true);
+    setStopping(false);
+    setJob({ done: 0, total: ids.length });
+    fs.recyclePurge(ids, setJob).then((r) => {
+      if (purgeSummary(r).clean) toast(emptying ? "Papelera vaciada" : "Eliminado definitivamente", "success");
+      else setReport(r);
+      useOps.setState((s) => ({ version: s.version + 1 }));
+    }).catch((e) => toast(errMsg(e), "error")).finally(() => (setBusy(false), setJob(null)));
   };
+  const stop = () => {
+    setStopping(true);
+    void fs.recycleCancel().catch((e) => toast(errMsg(e), "error"));
+  };
+  const summary = report ? purgeSummary(report) : null;
   const text = asking ? confirmText(asking, asking === "empty" ? items?.length ?? 0 : chosen.length) : null;
 
   return (
@@ -101,6 +119,37 @@ export function RecycleView() {
               <button className="btn" disabled={busy} onClick={() => setAsking(null)}>Cancelar</button>
               <button className="btn danger" disabled={busy} onClick={confirmNow}>Eliminar</button>
             </div>
+          </div>
+        </div>
+      )}
+      {job && (
+        <div className="modal-backdrop">
+          <div className="modal" role="alertdialog" aria-modal="true" aria-label="Eliminando definitivamente">
+            <h2>Eliminando definitivamente…</h2>
+            <div className="modal-body">
+              <progress className="rb-progress" max={job.total} value={job.done} aria-label="Progreso" />
+              <p role="status">{job.done.toLocaleString("es")} de {job.total.toLocaleString("es")}</p>
+            </div>
+            <div className="modal-actions">
+              <button className="btn" disabled={stopping} onClick={stop}>{stopping ? "Cancelando…" : "Cancelar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {report && summary && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setReport(null)}>
+          <div className="modal" role="alertdialog" aria-modal="true" aria-label={summary.title}>
+            <h2>{summary.title}</h2>
+            <div className="modal-body">
+              <p>{summary.detail}</p>
+              {report.failed.length > 0 && (
+                <ul className="rb-failed">
+                  {report.failed.slice(0, FAILED_SHOWN).map((f) => <li key={f.id}><strong title={f.name}>{f.name}</strong><span>{f.reason}</span></li>)}
+                  {report.failed.length > FAILED_SHOWN && <li><span>y {report.failed.length - FAILED_SHOWN} más</span></li>}
+                </ul>
+              )}
+            </div>
+            <div className="modal-actions"><button className="btn" autoFocus onClick={() => setReport(null)}>Cerrar</button></div>
           </div>
         </div>
       )}

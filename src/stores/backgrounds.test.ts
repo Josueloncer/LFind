@@ -45,6 +45,40 @@ describe("fondos en memoria", () => {
     expect([Object.keys(bg().urls), Object.keys(bg().baked)]).toEqual([["b"], ["b"]]);
   });
 
+  it("prepara una copia por zona distinta, y solo una vez", async () => {
+    bg().ensure(["a"]);
+    await flush();
+    const zones = [{ id: "a", blur: 30 }, { id: "a", blur: 0 }];
+    bg().bake(14, 100, zones);
+    await flush();
+    bg().bake(14, 100, zones);
+    await flush();
+    expect(bake.mock.calls.map((c) => c[1]).sort((x, y) => x - y)).toEqual([0, 14, 30]);
+    expect(Object.keys(bg().zoneBaked).sort()).toEqual(["a@0", "a@30"]);
+  });
+
+  it("las copias que ya no usa ninguna zona se liberan", async () => {
+    bg().ensure(["a"]);
+    await flush();
+    bg().bake(14, 100, [{ id: "a", blur: 30 }]);
+    await flush();
+    bg().bake(14, 100, [{ id: "a", blur: 5 }]);
+    await flush();
+    expect(Object.keys(bg().zoneBaked)).toEqual(["a@5"]);
+    bg().bake(14, 100);
+    await flush();
+    expect(bg().zoneBaked).toEqual({});
+  });
+
+  it("al dejar de usar una imagen se liberan sus copias de zona", async () => {
+    bg().ensure(["a", "b"]);
+    await flush();
+    bg().bake(14, 100, [{ id: "a", blur: 30 }, { id: "b", blur: 30 }]);
+    await flush();
+    bg().ensure(["b"]);
+    expect(Object.keys(bg().zoneBaked)).toEqual(["b@30"]);
+  });
+
   it("muchos cambios seguidos del control preparan la imagen como mucho dos veces, y gana el último", async () => {
     bg().ensure(["a"]);
     await flush();

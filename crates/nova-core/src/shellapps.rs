@@ -239,7 +239,8 @@ mod imp {
         let hr = SHDoDragDrop(hwnd, data, null_mut(), DROPEFFECT_ALL, &mut effect);
         ((**(data as *mut *const UnknownVtbl)).release)(data);
         match hr {
-            DRAGDROP_S_DROP => Ok(effect),
+            // En un movimiento optimizado el destino lo hace todo y Windows informa «ningún efecto»: soltar siempre cuenta.
+            DRAGDROP_S_DROP => Ok(effect.max(1)),
             DRAGDROP_S_CANCEL => Ok(0),
             other if other >= 0 => Ok(effect),
             other => Err(format!("Windows no pudo completar el arrastre ({other:#x}).")),

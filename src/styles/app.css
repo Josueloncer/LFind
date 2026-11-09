@@ -28,7 +28,7 @@ svg { display: block; }
 .app[data-rail="true"] { --sidebar-w: var(--sidebar-w-rail); }
 @media (max-width: 880px) { .app { --sidebar-w: var(--sidebar-w-rail); } }
 .app[data-booting="true"] .body { transition: none; }
-.body { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 0; transition: grid-template-columns var(--t-med) var(--ease); }
+.body { position: relative; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 0; transition: grid-template-columns var(--t-med) var(--ease); }
 
 /* ───────── Botones de icono ───────── */
 .ibtn {
@@ -738,27 +738,42 @@ body[data-reordering] [data-movable]::after { opacity: 0; }
 
 /* ───────── Personalización ───────── */
 :root { --cz-row: 0px; --cz-surface: 82%; --cz-blur: 14px; --cz-intensity: 1; --cz-contrast: 1; --cz-img-general: none; --cz-img-sidebar: none; --cz-img-main: none; --cz-img-preview: none; }
+:root { --z-sidebar-surface: 91%; --z-main-surface: 82%; --z-secondary-surface: 82%; --z-floating-surface: 100%; --z-sidebar-blur: 14px; --z-main-blur: 14px; --z-secondary-blur: 14px; --z-floating-blur: 0px; --z-img-sidebar: none; --z-img-main: none; --z-img-secondary: none; }
 html[data-bg-general] .app { position: relative; isolation: isolate; }
 /* El desenfoque y el contraste ya vienen aplicados en la imagen (`bakeBackground`): pintarla no necesita filtros. */
 html[data-bg-general] .app::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--cz-img-general) center / cover no-repeat; opacity: var(--cz-intensity); }
-html[data-bg-general] .main, html[data-bg-general] .preview { background: color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent); }
+html[data-bg-general] .preview { background: color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent); }
+html[data-bg-general] .panes > main:first-of-type { background: color-mix(in srgb, var(--bg-content) var(--z-main-surface), transparent); }
+html[data-bg-general] .panes > main:not(:first-of-type) { background: color-mix(in srgb, var(--bg-content) var(--z-secondary-surface), transparent); }
 /* La barra lateral y la de título llevan texto pequeño sobre el fondo: siempre más opacas que el contenido. Se usa --bg-content porque --bg-chrome es transparente con Mica. */
-html[data-bg-general] .sidebar, html[data-bg-general] .titlebar { background: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
-html[data-bg-sidebar] .sidebar { background: var(--bg-content); }
-html[data-bg-main] .main, html[data-bg-preview] .preview { background: var(--bg-content); }
-html[data-bg-sidebar] .sidebar, html[data-bg-main] .main, html[data-bg-preview] .preview { position: relative; isolation: isolate; overflow: hidden; }
-html[data-bg-sidebar] .sidebar::before, html[data-bg-main] .main::before, html[data-bg-preview] .preview::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--cz-intensity); }
-html[data-bg-sidebar] .sidebar::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent) 0 0), var(--cz-img-sidebar) center / cover no-repeat; }
-html[data-bg-main] .main::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent) 0 0), var(--cz-img-main) center / cover no-repeat; }
+html[data-bg-general] .sidebar { background: color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent); }
+html[data-bg-general] .titlebar { background: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
+/* Una zona con imagen propia. Si es la de toda la ventana, `fixed` la mantiene alineada con ella aunque lleve otro desenfoque. */
+html[data-z-sidebar] .sidebar, html[data-z-main] .panes > main:first-of-type, html[data-z-secondary] .panes > main:not(:first-of-type) { background: var(--bg-content); position: relative; isolation: isolate; overflow: hidden; }
+html[data-bg-preview] .preview { background: var(--bg-content); }
+html[data-bg-preview] .preview { position: relative; isolation: isolate; overflow: hidden; }
+html[data-z-sidebar] .sidebar::before, html[data-z-main] .panes > main:first-of-type::before, html[data-z-secondary] .panes > main:not(:first-of-type)::before, html[data-bg-preview] .preview::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--cz-intensity); }
+html[data-z-sidebar] .sidebar::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent) 0 0), var(--z-img-sidebar) center / cover no-repeat; }
+html[data-z-sidebar="fixed"] .sidebar::before { background-attachment: scroll, fixed; }
+html[data-z-main] .panes > main:first-of-type::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-main-surface), transparent) 0 0), var(--z-img-main) center / cover no-repeat; }
+html[data-z-main="fixed"] .panes > main:first-of-type::before { background-attachment: scroll, fixed; }
+html[data-z-secondary] .panes > main:not(:first-of-type)::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-secondary-surface), transparent) 0 0), var(--z-img-secondary) center / cover no-repeat; }
+html[data-z-secondary="fixed"] .panes > main:not(:first-of-type)::before { background-attachment: scroll, fixed; }
 html[data-bg-preview] .preview::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent) 0 0), var(--cz-img-preview) center / cover no-repeat; }
 /* La esquina redondeada del contenido deja ver lo que hay detrás: sin velo se vería la imagen con toda su fuerza. Lleva el mismo que la barra lateral. */
-html[data-bg-general] .panes { --cz-veil: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
+html[data-bg-general] .panes { --cz-veil: color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent); }
 html[data-bg-general] .panes::before, html[data-bg-general] .pane-split::after { content: ""; position: absolute; top: 0; width: var(--r-l); height: var(--r-l); z-index: 1; pointer-events: none; background: radial-gradient(circle at 100% 100%, transparent calc(var(--r-l) - 0.5px), var(--cz-veil) var(--r-l)); }
 html[data-bg-general] .panes::before { left: 0; }
 html[data-bg-general] .pane-split::after { left: 100%; }
 html[data-bg-general] .pane-split { background: var(--cz-veil); }
 /* Solo si no se pudo preparar la imagen. */
-html[data-bg-filter] .app::before, html[data-bg-filter] .sidebar::before, html[data-bg-filter] .main::before, html[data-bg-filter] .preview::before { inset: calc(var(--cz-blur) * -2); filter: blur(var(--cz-blur)) contrast(var(--cz-contrast)); }
+html[data-bg-filter] .app::before, html[data-bg-filter] .preview::before { inset: calc(var(--cz-blur) * -2); filter: blur(var(--cz-blur)) contrast(var(--cz-contrast)); }
+html[data-bg-filter][data-z-sidebar] .sidebar::before { inset: calc(var(--z-sidebar-blur) * -2); filter: blur(var(--z-sidebar-blur)) contrast(var(--cz-contrast)); }
+html[data-bg-filter][data-z-main] .panes > main:first-of-type::before { inset: calc(var(--z-main-blur) * -2); filter: blur(var(--z-main-blur)) contrast(var(--cz-contrast)); }
+html[data-bg-filter][data-z-secondary] .panes > main:not(:first-of-type)::before { inset: calc(var(--z-secondary-blur) * -2); filter: blur(var(--z-secondary-blur)) contrast(var(--cz-contrast)); }
+/* Lo flotante pasa sobre contenido que cambia: es el único sitio con desenfoque en vivo, y solo mientras está abierto. */
+html[data-z-floating] :is(.menu, .modal, .cp) { background: color-mix(in srgb, var(--bg-raised) var(--z-floating-surface), transparent); }
+html[data-z-floating="blur"] :is(.menu, .modal, .cp) { backdrop-filter: blur(var(--z-floating-blur)); }
 .ap { position: fixed; top: var(--titlebar-h); right: var(--sp-3); bottom: var(--sp-3); width: min(372px, calc(100vw - var(--sp-9))); z-index: var(--z-overlay); display: flex; flex-direction: column; border-radius: var(--r-l); background: var(--bg-raised); box-shadow: var(--shadow-modal); animation: ap-in var(--t-med) var(--ease); }
 @keyframes ap-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ap { animation: none; } }
@@ -780,6 +795,10 @@ html[data-bg-filter] .app::before, html[data-bg-filter] .sidebar::before, html[d
 .ap-slider { display: grid; grid-template-columns: 112px minmax(0, 1fr) 46px; align-items: center; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
 .ap-slider input { width: 100%; accent-color: var(--accent); }
 .ap-slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.ap-slider[data-off] { opacity: 0.5; }
+.ap-toggle { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
+.ap-toggle input { accent-color: var(--accent); }
+.ap-note { margin: 0; font-size: var(--fs-xs); color: var(--text-3); }
 .ap-color { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
 .ap-color label { display: flex; align-items: center; gap: var(--sp-3); }
 .ap-color input { width: 28px; height: 22px; padding: 0; border: 0; border-radius: var(--r-xs); background: none; }
@@ -910,6 +929,16 @@ html[data-bg-filter] .app::before, html[data-bg-filter] .sidebar::before, html[d
 .sidebar:hover .side-grip i, .side-grip:focus-visible i { opacity: 1; }
 .side-grip:active { cursor: grabbing; }
 .side-grip:focus-visible { outline: 0; box-shadow: 0 0 0 1.5px var(--focus-ring); }
+.side-resize { position: absolute; top: 0; bottom: 0; left: calc(var(--sidebar-w) - 4px); width: 9px; z-index: 3; cursor: col-resize; touch-action: none; }
+.side-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3.5px; width: 2px; background: var(--accent); opacity: 0; transition: opacity var(--t-fast); }
+.side-resize:hover::after, .app[data-resizing] .side-resize::after, .side-resize:focus-visible::after { opacity: 1; }
+.side-resize:focus-visible { outline: 0; }
+.app[data-sidebar="right"] .side-resize { left: auto; right: calc(var(--sidebar-w) - 4px); }
+.app[data-rail="true"] .side-resize { display: none; }
+@media (max-width: 880px) { .side-resize { display: none; } }
+.app[data-resizing] { cursor: col-resize; user-select: none; }
+.app[data-resizing] * { cursor: col-resize !important; }
+.app[data-resizing] .body { transition: none; }
 .side-dock { position: fixed; top: var(--titlebar-h); bottom: 0; width: var(--sidebar-w-open); background: var(--sel); box-shadow: inset 0 0 0 2px var(--accent); z-index: var(--z-overlay); pointer-events: none; }
 .side-dock[data-side="left"] { left: 0; }
 .side-dock[data-side="right"] { right: 0; }
@@ -935,6 +964,10 @@ html[data-bg-general] .app[data-sidebar="right"] .pane-split::after { display: n
 .rb-name, .rb-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rb-name { color: var(--text); }
 .rb-foot { min-height: 18px; }
+.rb-progress { display: block; width: 100%; height: 6px; accent-color: var(--accent); }
+.rb-failed { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); max-height: 240px; overflow-y: auto; }
+.rb-failed li { display: flex; flex-direction: column; gap: var(--sp-0); min-width: 0; font-size: var(--fs-s); color: var(--text-2); }
+.rb-failed strong { font-weight: var(--fw-medium); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .an-avail { grid-template-columns: minmax(0, 1fr) 90px 100px 110px !important; }
 .an-avail-note { display: block; font-style: normal; color: var(--text-3); font-size: var(--fs-xs); }
 .an-row[aria-pressed="true"] { background: var(--sel); }

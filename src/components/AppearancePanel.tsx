@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { BG_SLOTS, COLOR_KEYS, DEFAULT_APPEARANCE, LIMITS, PRESETS, legibilityIssues } from "../lib/appearance";
-import type { Appearance, BgSlot, ColorKey, Density } from "../lib/appearance";
+import { BG_SLOTS, COLOR_KEYS, DEFAULT_APPEARANCE, LIMITS, PRESETS, ZONES, ZONE_LIMITS, legibilityIssues } from "../lib/appearance";
+import type { Appearance, BgSlot, ColorKey, Density, Zone, ZoneStyle } from "../lib/appearance";
 import { THEMES } from "../lib/themes";
 import { useBackgrounds } from "../stores/backgrounds";
 import { useCustomize } from "../stores/customize";
@@ -12,6 +12,8 @@ import { FolderGlyph } from "./Glyphs";
 import { X } from "./icons";
 
 const SLOT_LABEL: Record<BgSlot, string> = { general: "Toda la ventana", sidebar: "Barra lateral", main: "Contenido", preview: "Vista previa" };
+const ZONE_LABEL: Record<Zone, string> = { sidebar: "Barra lateral", main: "Contenido", secondary: "Panel secundario", floating: "Menús y diálogos" };
+const ZONE_NOTE: Partial<Record<Zone, string>> = { secondary: "Se ve al activar el doble panel.", floating: "Menús, diálogos y paleta de comandos." };
 const COLOR_LABEL: Record<ColorKey, string> = { accent: "Acento", selection: "Selección", border: "Bordes", text: "Texto", interactive: "Elementos interactivos", folder: "Carpetas" };
 const DENSITY: [Density, string][] = [["compact", "Compacta"], ["normal", "Normal"], ["comfortable", "Cómoda"]];
 
@@ -32,6 +34,32 @@ function Slider({ label, field, unit = "%" }: { label: string; field: keyof type
   );
 }
 
+function ZoneControls({ zone }: { zone: Zone }) {
+  const style = usePrefs((s) => s.appearance.zones[zone]);
+  const setAppearance = usePrefs((s) => s.setAppearance);
+  const change = (patch: Partial<ZoneStyle>) => setAppearance({ zones: { ...usePrefs.getState().appearance.zones, [zone]: { ...style, ...patch } } });
+  const [blurMin, blurMax] = ZONE_LIMITS[zone].blur;
+  const [clearMin, clearMax] = ZONE_LIMITS[zone].transparency;
+  const blurName = `Desenfoque de ${ZONE_LABEL[zone]}`;
+  const clearName = `Transparencia de ${ZONE_LABEL[zone]}`;
+  return (
+    <>
+      {ZONE_NOTE[zone] && <p className="ap-note">{ZONE_NOTE[zone]}</p>}
+      <label className="ap-toggle"><input type="checkbox" checked={style.blurOn} aria-label={`Activar desenfoque: ${ZONE_LABEL[zone]}`} onChange={(e) => change({ blurOn: e.target.checked })} /><span>Desenfoque</span></label>
+      <label className="ap-slider" data-off={style.blurOn ? undefined : true}>
+        <span>Intensidad</span>
+        <input type="range" min={blurMin} max={blurMax} value={style.blur} disabled={!style.blurOn} aria-label={blurName} onChange={(e) => change({ blur: Number(e.target.value) })} />
+        <output>{style.blurOn ? `${style.blur} px` : "—"}</output>
+      </label>
+      <label className="ap-slider">
+        <span>Transparencia</span>
+        <input type="range" min={clearMin} max={clearMax} value={style.transparency} aria-label={clearName} onChange={(e) => change({ transparency: Number(e.target.value) })} />
+        <output>{style.transparency}%</output>
+      </label>
+    </>
+  );
+}
+
 /** Centro de personalización. Es un panel lateral sin velo: cada cambio se aplica al momento sobre la propia interfaz. */
 export function AppearancePanel() {
   const open = useCustomize((s) => s.appearance);
@@ -43,6 +71,7 @@ export function AppearancePanel() {
   const toast = useUi((s) => s.toast);
   const images = useBackgrounds((s) => s.baked);
   const [slot, setSlot] = useState<BgSlot>("general");
+  const [zone, setZone] = useState<Zone>("sidebar");
   const [name, setName] = useState("");
   const picking = useCustomize((s) => s.picking);
   const startPick = useCustomize((s) => s.startPick);
@@ -120,10 +149,15 @@ export function AppearancePanel() {
           </div>
           {anyImage && (
             <>
-              <Slider label="Desenfoque" field="blur" unit=" px" />
+              <Slider label="Desenfoque de la ventana" field="blur" unit=" px" />
               <Slider label="Intensidad" field="intensity" />
               <Slider label="Contraste" field="contrast" />
-              <Slider label="Opacidad de paneles" field="surface" />
+              <Slider label="Opacidad del resto" field="surface" />
+              <h4>Por zona</h4>
+              <div className="ap-chips" role="group" aria-label="Zona de desenfoque">
+                {ZONES.map((z) => <button key={z} aria-pressed={zone === z} onClick={() => setZone(z)}>{ZONE_LABEL[z]}</button>)}
+              </div>
+              <ZoneControls zone={zone} />
             </>
           )}
         </Section>

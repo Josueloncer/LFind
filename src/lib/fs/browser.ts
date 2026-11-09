@@ -133,6 +133,7 @@ export class BrowserProvider implements FsProvider {
   recycleList = NA as FsProvider["recycleList"];
   recycleRestore = NA as FsProvider["recycleRestore"];
   recyclePurge = NA as FsProvider["recyclePurge"];
+  recycleCancel = NA as FsProvider["recycleCancel"];
   winRepair = NA as FsProvider["winRepair"];
   termOpen = NA as FsProvider["termOpen"];
   termWrite = NA as FsProvider["termWrite"];

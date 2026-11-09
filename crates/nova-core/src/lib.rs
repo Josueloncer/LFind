@@ -25,6 +25,7 @@ pub mod places;
 pub mod preview;
 pub mod prefs;
 pub mod props;
+pub mod recycle;
 pub mod safety;
 pub mod search;
 pub mod sendto;

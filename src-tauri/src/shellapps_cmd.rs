@@ -1,9 +1,11 @@
 //! Aplicaciones para «Abrir con», arrastre nativo y Papelera de Windows.
 
-use nova_core::{safety, shellapps};
+use nova_core::{recycle, safety, shellapps};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::ipc::Channel;
 use tauri::WebviewWindow;
 
 async fn blocking<R: Send + 'static>(f: impl FnOnce() -> Result<R, String> + Send + 'static) -> Result<R, String> {
@@ -91,11 +93,9 @@ fn total_bytes() -> Option<u64> {
 
 /// Tamaño leído del propio archivo en `$Recycle.Bin`: preguntárselo al shell por cada elemento tarda varios segundos con una papelera normal.
 fn physical_size(id: &str) -> (Option<u64>, Option<u64>) {
-    let lower = id.to_ascii_lowercase();
-    let Some(at) = lower.find(":\\$recycle.bin\\").filter(|a| *a > 0) else { return (None, None) };
-    let path = Path::new(&id[at - 1..]);
-    match std::fs::symlink_metadata(path) {
-        Ok(m) if m.is_dir() => (None, std::fs::read_dir(path).ok().map(|d| d.take(10_000).count() as u64)),
+    let Some(path) = recycle::physical_path(id) else { return (None, None) };
+    match std::fs::symlink_metadata(&path) {
+        Ok(m) if m.is_dir() => (None, std::fs::read_dir(&path).ok().map(|d| d.take(10_000).count() as u64)),
         Ok(m) => (Some(m.len()), None),
         Err(_) => (None, None),
     }
@@ -149,8 +149,58 @@ pub async fn recycle_restore(ids: Vec<String>) -> Result<(), String> {
     .await
 }
 
-/// La confirmación se hace siempre en la interfaz, antes de llegar aquí.
+static PURGING: AtomicBool = AtomicBool::new(false);
+static PURGE_CANCEL: AtomicBool = AtomicBool::new(false);
+
+struct PurgeSlot;
+impl Drop for PurgeSlot {
+    fn drop(&mut self) {
+        PURGING.store(false, Ordering::SeqCst);
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PurgeProgress {
+    done: usize,
+    total: usize,
+}
+
+/// La confirmación se hace siempre en la interfaz, antes de llegar aquí. Solo se borra lo que llega en `ids`: una lista vacía es un error, nunca «todo».
 #[tauri::command]
-pub async fn recycle_purge(ids: Vec<String>) -> Result<(), String> {
-    blocking(move || own_thread(move || trash::os_limited::purge_all(selected(&ids)?).map_err(|e| e.to_string()))).await
+pub async fn recycle_purge(ids: Vec<String>, on_progress: Channel<PurgeProgress>) -> Result<recycle::PurgeReport, String> {
+    if ids.is_empty() {
+        return Err("No hay elementos seleccionados.".into());
+    }
+    if PURGING.swap(true, Ordering::SeqCst) {
+        return Err("Ya se está eliminando otra selección.".into());
+    }
+    let slot = PurgeSlot;
+    blocking(move || {
+        let _slot = slot;
+        PURGE_CANCEL.store(false, Ordering::SeqCst);
+        let items = own_thread(move || selected(&ids))?;
+        let requested: Vec<(String, String)> = items.iter().map(|it| (it.id.to_string_lossy().into_owned(), it.name.to_string_lossy().into_owned())).collect();
+        let is_dir = |it: &trash::TrashItem| recycle::physical_path(&it.id.to_string_lossy()).is_some_and(|p| p.is_dir());
+        let run = recycle::purge_chunks(
+            items,
+            recycle::CHUNK,
+            |batch| (!batch.iter().any(is_dir)).then_some(recycle::FILES_LIMIT),
+            |batch| trash::os_limited::purge_all(batch).map_err(|e| e.to_string()),
+            &PURGE_CANCEL,
+            |done, total| {
+                let _ = on_progress.send(PurgeProgress { done, total });
+            },
+        );
+        // Windows puede dar por buena la operación sin haber borrado lo que estaba en uso: manda lo que siga en la Papelera.
+        let still = own_thread(|| Ok(trash::os_limited::list().map_err(|e| e.to_string())?.into_iter().map(|it| it.id.to_string_lossy().into_owned()).collect::<HashSet<_>>()))?;
+        Ok(recycle::build_report(&requested, &run, &still, |id| recycle::physical_path(id).and_then(|p| recycle::blocked_reason(&p))))
+    })
+    .await
+}
+
+/// Deja de esperar a Windows: lo que aún no se haya entregado se queda en la Papelera.
+#[tauri::command]
+pub fn recycle_cancel() {
+    PURGE_CANCEL.store(true, Ordering::SeqCst);
 }

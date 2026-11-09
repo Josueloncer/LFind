@@ -9,7 +9,7 @@ import { useTerminal } from "./stores/terminal";
 import { Dialogs } from "./components/Dialogs";
 import { GlyphDefs } from "./components/Glyphs";
 import { Panes } from "./components/Panes";
-import { Sidebar } from "./components/Sidebar";
+import { Sidebar, SidebarResizer } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { Overlays } from "./components/Transfers";
 import { fs } from "./lib/fs";
@@ -19,7 +19,7 @@ import { resolveTheme } from "./lib/themes";
 import { useApp } from "./stores/app";
 import { useCustomize } from "./stores/customize";
 import { useBackgrounds } from "./stores/backgrounds";
-import { BG_SLOTS, MANAGED_VARS, appearanceVars, diffVars } from "./lib/appearance";
+import { BG_SLOTS, MANAGED_VARS, ZONES, appearanceVars, diffVars, zoneBakes, zoneBlur, zoneKey, zoneLayer } from "./lib/appearance";
 import { toggleDualPane } from "./stores/dual";
 import { useNav } from "./stores/nav";
 import { useOps } from "./stores/ops";
@@ -149,6 +149,7 @@ export default function App() {
   const bgLoaded = useBackgrounds((s) => s.urls);
   const bgUrls = useBackgrounds((s) => s.baked);
   const bgLive = useBackgrounds((s) => s.liveFilter);
+  const zoneUrls = useBackgrounds((s) => s.zoneBaked);
   const themeBase = useRef<{ theme: string; values: Record<string, number> } | null>(null);
   const writtenVars = useRef<Record<string, string>>({});
   useEffect(() => {
@@ -170,16 +171,17 @@ export default function App() {
     writtenVars.current = vars;
     useBackgrounds.getState().ensure(BG_SLOTS.flatMap((s) => appearance.backgrounds[s] ?? []));
   }, [appearance, theme, loaded]);
+  const zoneJobs = JSON.stringify(zoneBakes(appearance));
   useEffect(() => {
-    useBackgrounds.getState().bake(appearance.blur, appearance.contrast);
-  }, [bgLoaded, appearance.blur, appearance.contrast]);
+    useBackgrounds.getState().bake(appearance.blur, appearance.contrast, JSON.parse(zoneJobs));
+  }, [bgLoaded, appearance.blur, appearance.contrast, zoneJobs]);
   useEffect(() => {
     let timer = 0;
     const onResize = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         const a = usePrefs.getState().appearance;
-        useBackgrounds.getState().bake(a.blur, a.contrast);
+        useBackgrounds.getState().bake(a.blur, a.contrast, zoneBakes(a));
       }, 400);
     };
     window.addEventListener("resize", onResize);
@@ -204,6 +206,26 @@ export default function App() {
     if (BG_SLOTS.some((s) => appearance.backgrounds[s] && bgUrls[appearance.backgrounds[s]!])) root.dataset.bg = "1";
     else delete root.dataset.bg;
   }, [appearance.backgrounds, bgUrls]);
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const z of ZONES) {
+      if (z === "floating") continue;
+      const attr = `z${z[0].toUpperCase()}${z.slice(1)}`;
+      const layer = zoneLayer(appearance, z);
+      if (!layer) {
+        root.style.removeProperty(`--z-img-${z}`);
+        delete root.dataset[attr];
+        continue;
+      }
+      const url = layer.blur === appearance.blur ? bgUrls[layer.id] : zoneUrls[zoneKey(layer.id, layer.blur)];
+      if (!url) continue; // lo anterior sigue a la vista hasta que la imagen nueva esté lista: así no parpadea
+      root.style.setProperty(`--z-img-${z}`, `url("${url}")`);
+      root.dataset[attr] = layer.fixed ? "fixed" : "own";
+    }
+    const floating = appearance.zones.floating;
+    if (floating.transparency > 0 && BG_SLOTS.some((s) => appearance.backgrounds[s])) root.dataset.zFloating = zoneBlur(floating) > 0 ? "blur" : "plain";
+    else delete root.dataset.zFloating;
+  }, [appearance, bgUrls, zoneUrls]);
 
   // La ventana nace oculta: se muestra con la interfaz ya montada y las preferencias aplicadas.
   // Si el arranque se retrasa, se muestra igualmente a los 1,2 s (y Rust lo hace a los 6 s si todo falla).
@@ -281,6 +303,7 @@ export default function App() {
       <TitleBar />
       <div className="body">
         <Sidebar />
+        <SidebarResizer />
         <div className="workspace">
           <Panes />
           {terminalOpen && <Suspense fallback={null}><TerminalPanel /></Suspense>}

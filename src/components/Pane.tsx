@@ -252,7 +252,11 @@ export function Pane({ side }: { side: 0 | 1 }) {
     if (!ev.nativeEvent.isTrusted || !fs.available) return;
     ev.preventDefault();
     void fs.startNativeDrag(list).then((effect) => {
-      if (effect) useOps.setState((s) => ({ version: s.version + 1 }));
+      if (!effect) return;
+      // El Explorador mueve los archivos después de soltar, en segundo plano: se vuelve a mirar cuando ya haya terminado.
+      const refresh = () => useOps.setState((s) => ({ version: s.version + 1 }));
+      refresh();
+      window.setTimeout(refresh, 1200);
     }).catch(() => {}).finally(endDrag);
   };
   const canDrop = (t: Entry | null) => {

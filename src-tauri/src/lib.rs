@@ -113,6 +113,7 @@ pub fn run() {
             shellapps_cmd::recycle_list,
             shellapps_cmd::recycle_restore,
             shellapps_cmd::recycle_purge,
+            shellapps_cmd::recycle_cancel,
             analyzer_cmd::analyzer_availability,
             duplicates_cmd::dup_start,
             duplicates_cmd::dup_pause,

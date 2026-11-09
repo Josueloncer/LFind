@@ -1,9 +1,10 @@
 import { ChartPie, Copy, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, SlidersHorizontal, Trash2, TriangleAlert, Wrench, X } from "./icons";
 import { useEffect, useRef, useState } from "react";
-import type { ComponentType, MouseEvent, PointerEvent, ReactNode } from "react";
+import type { ComponentType, KeyboardEvent as ReactKeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import type { DriveUsage, Favorite, PathState, Place } from "../lib/fs";
 import { placeMenu } from "../lib/contextMenu";
 import type { PlaceMenuActions } from "../lib/contextMenu";
+import { DEFAULT_APPEARANCE, LIMITS, clampSidebarWidth, sidebarWidthAt } from "../lib/appearance";
 import { THEMES } from "../lib/themes";
 import { useUi } from "../stores/ui";
 import type { MenuItem } from "../stores/ui";
@@ -61,6 +62,66 @@ function LabelEditor({ value, onDone }: { value: string; onDone(v: string | null
 }
 
 const DRAG_MIN = 24;
+const WIDTH_VAR = "--sidebar-w-open";
+const WIDTH_STEP = 8;
+
+/**
+ * Borde para cambiar el ancho. Mientras se arrastra solo cambia una variable CSS, una vez por fotograma; la preferencia se guarda al soltar.
+ * No depende del lado: el asa de arriba mueve la barra, y este borde solo su ancho.
+ */
+export function SidebarResizer() {
+  const width = usePrefs((s) => s.appearance.sidebarWidth);
+  const side = usePrefs((s) => s.sidebarSide);
+  const commit = (w: number) => usePrefs.getState().setAppearance({ sidebarWidth: w });
+  const onDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    try { el.setPointerCapture(e.pointerId); } catch { /* el arrastre sigue funcionando sin captura */ }
+    const root = document.documentElement;
+    const app = el.closest<HTMLElement>(".app");
+    const before = root.style.getPropertyValue(WIDTH_VAR);
+    let current: number | null = null;
+    let frame = 0;
+    if (app) app.dataset.resizing = "1";
+    const move = (ev: globalThis.PointerEvent) => {
+      current = sidebarWidthAt(ev.clientX, side, window.innerWidth);
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        if (current !== null) root.style.setProperty(WIDTH_VAR, `${current}px`);
+      });
+    };
+    const finish = (keep: boolean) => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", cancel, true);
+      window.removeEventListener("keydown", key, true);
+      cancelAnimationFrame(frame);
+      if (app) delete app.dataset.resizing;
+      if (keep && current !== null) {
+        root.style.setProperty(WIDTH_VAR, `${current}px`);
+        commit(current);
+      } else if (before) root.style.setProperty(WIDTH_VAR, before);
+      else root.style.removeProperty(WIDTH_VAR);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const key = (ev: KeyboardEvent) => ev.key === "Escape" && (ev.stopPropagation(), finish(false));
+    // En la ventana: así el arrastre termina siempre, aunque el puntero acabe sobre otro elemento.
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("keydown", key, true);
+  };
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const grow = side === "left" ? "ArrowRight" : "ArrowLeft";
+    const shrink = side === "left" ? "ArrowLeft" : "ArrowRight";
+    if (e.key !== grow && e.key !== shrink) return;
+    e.preventDefault();
+    commit(clampSidebarWidth(width + (e.key === grow ? WIDTH_STEP : -WIDTH_STEP), window.innerWidth));
+  };
+  return <div className="side-resize" role="separator" aria-orientation="vertical" aria-label="Ancho de la barra lateral" aria-valuenow={width} aria-valuemin={LIMITS.sidebarWidth[0]} aria-valuemax={LIMITS.sidebarWidth[1]} tabIndex={0} title="Arrastra para cambiar el ancho · Doble clic: ancho original" onPointerDown={onDown} onDoubleClick={() => commit(clampSidebarWidth(DEFAULT_APPEARANCE.sidebarWidth, window.innerWidth))} onKeyDown={onKey} />;
+}
 
 /** Asa para llevar la barra al otro lado. Solo se mueve al cruzar la mitad de la ventana: un clic o un gesto corto no hacen nada. */
 function SidebarGrip() {

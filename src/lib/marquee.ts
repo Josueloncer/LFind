@@ -1,7 +1,7 @@
 import type { Entry, ViewMode } from "./fs";
 import type { Layout, Row } from "./layout";
 import { CONTENT_H, DETAILS_H, LIST, PAD_X, TILE } from "./viewGeometry";
-import { iconGeometry } from "./view";
+import { iconCells, iconGeometry } from "./view";
 
 // ───────── Selección por rectángulo (la lógica; FileView solo la conecta al ratón) ─────────
 
@@ -99,14 +99,14 @@ export function rowTops(rows: Row[]): number[] {
   return t;
 }
 
-export function makeGeometry(a: { mode: ViewMode; iconSize: number; width: number; layout: Layout; rpc: number }): Geometry {
+export function makeGeometry(a: { mode: ViewMode; iconSize: number; fontScale?: number; width: number; layout: Layout; rpc: number }): Geometry {
   const base = { mode: a.mode, width: a.width, count: a.layout.flat.length, rows: a.layout.rows, tops: rowTops(a.layout.rows), rpc: a.rpc };
   switch (a.mode) {
     case "tiles":
       return { ...base, cellW: TILE.w, boxW: TILE.w - 6, insetX: 3, insetY: 3 };
     case "icons": {
-      const g = iconGeometry(a.iconSize);
-      return g.inline ? { ...base, cellW: g.cellW, boxW: 214, insetX: 2, insetY: 2 } : { ...base, cellW: g.cellW, boxW: g.cellW - 6, insetX: 3, insetY: 4 };
+      const g = { ...iconGeometry(a.iconSize, a.fontScale), cellW: iconCells(a.iconSize, a.width).cellW };
+      return g.inline ? { ...base, cellW: g.cellW, boxW: 214, insetX: 2, insetY: 1 } : { ...base, cellW: g.cellW, boxW: g.cellW - 6, insetX: 3, insetY: 4 };
     }
     case "list":
       return { ...base, cellW: LIST.w, boxW: LIST.w - 8, insetX: 2, insetY: 1 };

@@ -159,16 +159,9 @@ impl Drop for PurgeSlot {
     }
 }
 
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PurgeProgress {
-    done: usize,
-    total: usize,
-}
-
 /// La confirmación se hace siempre en la interfaz, antes de llegar aquí. Solo se borra lo que llega en `ids`: una lista vacía es un error, nunca «todo».
 #[tauri::command]
-pub async fn recycle_purge(ids: Vec<String>, on_progress: Channel<PurgeProgress>) -> Result<recycle::PurgeReport, String> {
+pub async fn recycle_purge(ids: Vec<String>, on_progress: Channel<recycle::Progress>) -> Result<recycle::PurgeReport, String> {
     if ids.is_empty() {
         return Err("No hay elementos seleccionados.".into());
     }
@@ -181,15 +174,25 @@ pub async fn recycle_purge(ids: Vec<String>, on_progress: Channel<PurgeProgress>
         PURGE_CANCEL.store(false, Ordering::SeqCst);
         let items = own_thread(move || selected(&ids))?;
         let requested: Vec<(String, String)> = items.iter().map(|it| (it.id.to_string_lossy().into_owned(), it.name.to_string_lossy().into_owned())).collect();
-        let is_dir = |it: &trash::TrashItem| recycle::physical_path(&it.id.to_string_lossy()).is_some_and(|p| p.is_dir());
-        let run = recycle::purge_chunks(
-            items,
-            recycle::CHUNK,
-            |batch| (!batch.iter().any(is_dir)).then_some(recycle::FILES_LIMIT),
-            |batch| trash::os_limited::purge_all(batch).map_err(|e| e.to_string()),
+        let ids: Vec<String> = requested.iter().map(|(id, _)| id.clone()).collect();
+        let is_folder = |id: &String| recycle::physical_path(id).is_some_and(|p| p.is_dir());
+        let names: std::collections::HashMap<String, String> = requested.iter().cloned().collect();
+        drop(items);
+        let plan = recycle::batches(ids, recycle::CHUNK, is_folder, |id| names.get(id).cloned().unwrap_or_default());
+        let run = recycle::purge_batches(
+            plan,
+            |batch: Vec<String>, beat, may_stop| {
+                if !may_stop {
+                    if let Some(total) = batch.first().and_then(|id| recycle::physical_path(id)).and_then(|p| recycle::count_entries(&p, &beat)) {
+                        beat.expect(total);
+                    }
+                }
+                recycle::delete_items(&batch, beat, may_stop.then_some(&PURGE_CANCEL))
+            },
             &PURGE_CANCEL,
-            |done, total| {
-                let _ = on_progress.send(PurgeProgress { done, total });
+            recycle::STALL,
+            |p| {
+                let _ = on_progress.send(p);
             },
         );
         // Windows puede dar por buena la operación sin haber borrado lo que estaba en uso: manda lo que siga en la Papelera.

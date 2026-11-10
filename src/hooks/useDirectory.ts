@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fs } from "../lib/fs";
 import type { Entry } from "../lib/fs";
 import { mark, markOnce, reportOnce } from "../lib/perf";
+import { sameEntries } from "../lib/sameEntries";
 
 export interface DirState {
   entries: Entry[];
@@ -64,7 +65,8 @@ export function useDirectory(path: string | null) {
       } else if (e.type === "done") {
         clearTimeout(timer);
         if (!e.cancelled) {
-          setState({ entries: all, status: "ready", error: null });
+          // Si nada ha cambiado no se toca la lista: ni parpadeo ni trabajo de más.
+          setState((cur) => (quiet && cur.status === "ready" && sameEntries(cur.entries, all) ? cur : { entries: all, status: "ready", error: null }));
           mark("dir-done");
           reportOnce({ carpeta: path, entradas: e.total });
         }

@@ -162,6 +162,16 @@ export const DEFAULT_PREFS: Prefs = {
 
 // ───────── operaciones de archivo (espejo de src-tauri/commands.rs y nova-core::ops) ─────────
 
+export interface PurgeProgress {
+  done: number;
+  total: number;
+  /** Archivos y subcarpetas borrados en lo que se está procesando. */
+  files: number;
+  filesTotal: number | null;
+  current: string;
+  whole: boolean;
+}
+
 export interface PurgeReport {
   deleted: number;
   failed: { id: string; name: string; reason: string }[];
@@ -672,7 +682,7 @@ export interface FsProvider {
   startNativeDrag(paths: string[]): Promise<number>;
   recycleList(): Promise<{ items: RecycleItem[]; totalBytes: number | null }>;
   recycleRestore(ids: string[]): Promise<void>;
-  recyclePurge(ids: string[], onProgress: (p: { done: number; total: number }) => void): Promise<PurgeReport>;
+  recyclePurge(ids: string[], onProgress: (p: PurgeProgress) => void): Promise<PurgeReport>;
   recycleCancel(): Promise<void>;
   winRepair(): Promise<WinStatus>;
   termOpen(shell: TerminalShell, cwd: string | null, cols: number, rows: number, onData: (d: ArrayBuffer) => void, onExit: (code: number) => void): Promise<number>;

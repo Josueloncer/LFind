@@ -1,4 +1,4 @@
-import { fitColumns } from "../lib/view";
+import { MIN_ICON, fitColumns, iconCells } from "../lib/view";
 import { rowDelta } from "../lib/appearance";
 import { usePrefs } from "../stores/prefs";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +8,7 @@ import { kindLabel } from "../lib/fileKinds";
 import { formatBytes, formatDate } from "../lib/format";
 import type { Column, Entry, GroupBy, SortDir, SortKey, ViewMode } from "../lib/fs";
 import { buildLayout } from "../lib/layout";
-import { MarqueeSession, combineSelection, edgeScroll, hitTest, makeGeometry, namesOf, rectFrom, sameSet } from "../lib/marquee";
+import { MarqueeSession, combineSelection, edgeScroll, hitTest, makeGeometry, namesOf, rectFrom, rowTops, sameSet } from "../lib/marquee";
 import type { Rect } from "../lib/marquee";
 import type { ContextPoint } from "../lib/contextMenu";
 import { isThumbEligible } from "../lib/thumbKinds";
@@ -19,6 +19,7 @@ import { CONTENT_H, DETAILS_H, HEADER_H, LIST, TILE } from "../lib/viewGeometry"
 import { EntryIcon } from "./EntryIcon";
 import { ArrowDown, ArrowUp, Cloud, Link2 } from "./icons";
 import { Thumb } from "./Thumb";
+import { useZoomAnimation } from "../hooks/useZoomAnimation";
 
 export const COL_ORDER: Column[] = ["modified", "created", "type", "size"];
 export const COL_LABEL: Record<Column, string> = { modified: "Fecha de modificación", created: "Fecha de creación", type: "Tipo", size: "Tamaño" };
@@ -52,6 +53,8 @@ export interface FileViewProps {
   onContext(ev: ContextPoint, e: Entry | null): void;
   onHeaderContext(ev: MouseEvent): void;
   onZoom(dir: 1 | -1): void;
+  /** Ajuste continuo del tamaño de los iconos (Ctrl+rueda). */
+  onZoomBy(deltaY: number): void;
   onDragStart(ev: DragEvent, e: Entry): void;
   canDrop(target: Entry | null): boolean;
   dropEffect(ev: DragEvent, target: Entry | null): "copy" | "move";
@@ -154,6 +157,7 @@ const Item = memo(function Item({ e, i, variant, size, sel, focus, cut, renaming
     className: `item item-${variant}`,
     role: "option" as const,
     "aria-selected": sel,
+    "data-n": e.name,
     "data-sel": sel || undefined,
     "data-focus": focus || undefined,
     "data-cut": cut || undefined,
@@ -241,9 +245,11 @@ export function FileView(props: FileViewProps) {
     return () => ro.disconnect();
   }, [mode]);
 
-  const geo = iconGeometry(iconSize);
+  const fontScale = usePrefs((s) => s.appearance.fontScale);
+  const geo = iconGeometry(iconSize, fontScale);
   const variant: Variant = mode === "details" ? "details" : mode === "content" ? "content" : mode === "tiles" ? "tile" : mode === "list" ? "list" : geo.inline ? "small" : "icon";
-  const perRow = mode === "tiles" ? Math.max(1, Math.floor((dim.w - 16) / TILE.w)) : mode === "icons" ? Math.max(1, Math.floor((dim.w - 16) / geo.cellW)) : 1;
+  const iconGrid = iconCells(iconSize, dim.w);
+  const perRow = mode === "tiles" ? Math.max(1, Math.floor((dim.w - 16) / TILE.w)) : mode === "icons" ? iconGrid.perRow : 1;
   const rowExtra = usePrefs((s) => rowDelta(s.appearance.density));
   const itemH = mode === "details" ? DETAILS_H + rowExtra : mode === "content" ? CONTENT_H : mode === "tiles" ? TILE.h : mode === "icons" ? geo.cellH : LIST.h;
   // En un panel estrecho se retiran las últimas columnas: el nombre siempre se puede leer.
@@ -256,6 +262,13 @@ export function FileView(props: FileViewProps) {
   );
   const L = useRef(layout);
   L.current = layout;
+  // Posiciones calculadas de esta misma distribución: el virtualizador las actualiza un fotograma más tarde y la animación mediría mal.
+  const tops = useMemo(() => rowTops(layout.rows), [layout.rows]);
+  const zoomAnchor = useCallback((name: string) => {
+    const i = L.current.flat.findIndex((x) => x.name === name);
+    return i < 0 ? null : rowTops(L.current.rows)[L.current.itemRow[i]];
+  }, []);
+  useZoomAnimation(scroller, iconSize, mode === "icons", zoomAnchor);
   if (props.orderRef) props.orderRef.current = layout.flat;
 
   const vv = useVirtualizer({
@@ -366,9 +379,25 @@ export function FileView(props: FileViewProps) {
     if (!el) return;
     let acc = 0;
     let last = 0;
+    let pending = 0;
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      const delta = pending;
+      pending = 0;
+      if (delta) P.current.onZoomBy(delta);
+    };
     const onWheel = (ev: WheelEvent) => {
       if (!ev.ctrlKey) return; // sin Ctrl, el navegador desplaza como siempre
       ev.preventDefault();
+      const { mode: m, iconSize: size } = P.current;
+      if (m === "icons" && !(size <= MIN_ICON && ev.deltaY > 0)) {
+        // Continuo: como mucho un cambio por fotograma, por muchos eventos que lleguen.
+        acc = 0;
+        pending += ev.deltaY;
+        frame ||= requestAnimationFrame(flush);
+        return;
+      }
       const now = performance.now();
       if (now - last > 250) acc = 0;
       last = now;
@@ -379,7 +408,7 @@ export function FileView(props: FileViewProps) {
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => (cancelAnimationFrame(frame), el.removeEventListener("wheel", onWheel));
   }, []);
 
   // Mostrar un elemento concreto (recién creado o renombrado).
@@ -472,7 +501,7 @@ export function FileView(props: FileViewProps) {
     const mods = { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey };
     const base = new Set(P.current.selected);
     const sess = new MarqueeSession({ x: ev.clientX, y: ev.clientY });
-    const geom = makeGeometry({ mode: P.current.mode, iconSize: P.current.iconSize, width: el.clientWidth, layout: L.current, rpc });
+    const geom = makeGeometry({ mode: P.current.mode, iconSize: P.current.iconSize, fontScale: usePrefs.getState().appearance.fontScale, width: el.clientWidth, layout: L.current, rpc });
     const anchor = { x: ev.clientX - box0.left + el.scrollLeft, y: ev.clientY - box0.top + el.scrollTop };
     let pointer = { x: ev.clientX, y: ev.clientY };
     let raf = 0;
@@ -591,17 +620,17 @@ export function FileView(props: FileViewProps) {
             })}
           </div>
         ) : (
-          <div className="vs" style={{ height: vv.getTotalSize() }}>
+          <div className="vs" style={{ height: tops[tops.length - 1] ?? 0 }}>
             <div ref={marquee} className="marquee" />
             {vv.getVirtualItems().map((vr) => {
               const row = layout.rows[vr.index];
               if (!row) return null;
-              const pos = { height: row.h, transform: `translateY(${vr.start}px)` };
+              const pos = { height: row.h, transform: `translateY(${tops[vr.index]}px)` };
               if (row.kind === "header") return <div key={vr.index} className="ghdr" style={pos}><span>{row.label}</span><i>{row.count}</i></div>;
               const cells = [];
               for (let k = row.from; k < row.to; k++) cells.push(item(layout.flat[k], k));
               return (
-                <div key={vr.index} className="irow" style={{ ...pos, gridTemplateColumns: perRow > 1 ? `repeat(${perRow}, ${mode === "tiles" ? TILE.w : geo.cellW}px)` : undefined }}>
+                <div key={vr.index} className="irow" style={{ ...pos, gridTemplateColumns: perRow > 1 ? `repeat(${perRow}, ${mode === "tiles" ? TILE.w : iconGrid.cellW}px)` : undefined }}>
                   {cells}
                 </div>
               );

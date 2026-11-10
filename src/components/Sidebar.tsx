@@ -232,7 +232,7 @@ export function Sidebar() {
   const customizing = useCustomize((s) => s.active);
   const health = usePathHealth((s) => s.states);
   const tab = useNav(selectActiveTab);
-  const navigate = useNav((s) => s.navigate);
+  const navigate = useNav((s) => s.openLocation);
   const openTab = useNav((s) => s.openTab);
   const cur = tab?.path ?? "";
   const th = THEMES.find((t) => t.id === theme) ?? THEMES[0];

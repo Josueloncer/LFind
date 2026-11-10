@@ -22,33 +22,7 @@ export interface Appearance {
   font: string;
   fontScale: number;
   sidebarWidth: number;
-  /** Desenfoque y transparencia de cada zona, independientes entre sí. */
-  zones: Record<Zone, ZoneStyle>;
 }
-
-export const ZONES = ["sidebar", "main", "secondary", "floating"] as const;
-export type Zone = (typeof ZONES)[number];
-export interface ZoneStyle {
-  blurOn: boolean;
-  blur: number;
-  transparency: number;
-}
-
-/** La transparencia tiene un máximo para que los nombres se lean siempre; en lo flotante, menor, porque va sobre texto. */
-export const ZONE_LIMITS: Record<Zone, { blur: readonly [number, number]; transparency: readonly [number, number] }> = {
-  sidebar: { blur: [0, 40], transparency: [0, 32] },
-  main: { blur: [0, 40], transparency: [0, 32] },
-  secondary: { blur: [0, 40], transparency: [0, 32] },
-  floating: { blur: [0, 40], transparency: [0, 25] },
-};
-
-/** Los valores que corresponden a los ajustes globales de antes: quien ya tenía un fondo lo sigue viendo igual. */
-export const zonesFrom = (blur: number, surface: number): Record<Zone, ZoneStyle> => ({
-  sidebar: { blurOn: true, blur, transparency: Math.round((100 - surface) / 2) },
-  main: { blurOn: true, blur, transparency: 100 - surface },
-  secondary: { blurOn: true, blur, transparency: 100 - surface },
-  floating: { blurOn: false, blur: 14, transparency: 0 },
-});
 
 export interface CustomTheme {
   id: string;
@@ -83,7 +57,6 @@ export const DEFAULT_APPEARANCE: Appearance = {
   font: "theme",
   fontScale: 100,
   sidebarWidth: 240,
-  zones: zonesFrom(14, 82),
 };
 
 /** Lo mínimo que debe quedar para el contenido al ensanchar la barra lateral. */
@@ -96,39 +69,6 @@ export function clampSidebarWidth(width: number, windowWidth: number): number {
 
 /** Ancho que corresponde a la posición del puntero: la barra crece desde el borde de la ventana en el que esté. */
 export const sidebarWidthAt = (clientX: number, side: "left" | "right", windowWidth: number): number => clampSidebarWidth(side === "left" ? clientX : windowWidth - clientX, windowWidth);
-
-export interface ZoneLayer {
-  id: string;
-  blur: number;
-  /** Es la imagen de toda la ventana: se pinta alineada con ella, no ajustada a la zona. */
-  fixed: boolean;
-}
-
-export const zoneBlur = (z: ZoneStyle): number => (z.blurOn ? z.blur : 0);
-export const zoneKey = (id: string, blur: number): string => `${id}@${blur}`;
-
-/**
- * Imagen propia que necesita una zona. Una zona que coincide con la capa de la ventana no necesita ninguna: basta con dejarla ver.
- * Lo flotante pasa sobre contenido que cambia, así que no puede llevar una imagen preparada de antemano.
- */
-export function zoneLayer(a: Appearance, zone: Zone): ZoneLayer | null {
-  if (zone === "floating") return null;
-  const blur = zoneBlur(a.zones[zone]);
-  const own = zone === "sidebar" ? a.backgrounds.sidebar : a.backgrounds.main;
-  if (own) return { id: own, blur, fixed: false };
-  const general = a.backgrounds.general;
-  return general && blur !== a.blur ? { id: general, blur, fixed: true } : null;
-}
-
-/** Imágenes que hay que preparar además de las de la ventana, sin repetir las que se puedan compartir. */
-export function zoneBakes(a: Appearance): { id: string; blur: number }[] {
-  const seen = new Map<string, { id: string; blur: number }>();
-  for (const z of ZONES) {
-    const l = zoneLayer(a, z);
-    if (l && l.blur !== a.blur) seen.set(zoneKey(l.id, l.blur), { id: l.id, blur: l.blur });
-  }
-  return [...seen.values()];
-}
 
 /** Tipografías del sistema: ninguna se descarga. `theme` deja la del tema. */
 export const FONTS: readonly { id: string; label: string; stack: string | null }[] = [
@@ -177,10 +117,10 @@ export function fontChoices(installed: readonly string[], query = ""): FontChoic
 
 export const PRESETS: readonly { id: string; label: string; patch: Partial<Appearance> }[] = [
   { id: "base", label: "Original", patch: {} },
-  { id: "glass", label: "Cristal", patch: { surface: 70, blur: 26, radius: 140, zones: zonesFrom(26, 70) } },
+  { id: "glass", label: "Cristal", patch: { surface: 70, blur: 26, radius: 140 } },
   { id: "compact", label: "Compacto", patch: { density: "compact", spacing: 90, fontScale: 94, iconScale: 92, radius: 70, sidebarWidth: 210 } },
   { id: "comfort", label: "Cómodo", patch: { density: "comfortable", spacing: 112, fontScale: 106, iconScale: 110, sidebarWidth: 270 } },
-  { id: "sharp", label: "Nítido", patch: { radius: 30, surface: 92, blur: 6, zones: zonesFrom(6, 92) } },
+  { id: "sharp", label: "Nítido", patch: { radius: 30, surface: 92, blur: 6 } },
 ];
 
 const clamp = (v: unknown, [lo, hi]: readonly [number, number], fallback: number): number => {
@@ -202,12 +142,12 @@ export function normalizeAppearance(raw: unknown): Appearance {
   for (const k of Object.keys(LIMITS) as NumberKey[]) out[k] = clamp(o[k], LIMITS[k], DEFAULT_APPEARANCE[k]);
   if (o.density === "compact" || o.density === "comfortable") out.density = o.density;
   if (typeof o.font === "string" && fontStack(o.font) !== null || o.font === "theme") out.font = o.font as string;
-  const saved = (o.zones && typeof o.zones === "object" ? o.zones : {}) as Record<string, unknown>;
-  const legacy = zonesFrom(out.blur, out.surface);
-  out.zones = Object.fromEntries(ZONES.map((z) => {
-    const r = saved[z] && typeof saved[z] === "object" ? (saved[z] as Record<string, unknown>) : {};
-    return [z, { blurOn: typeof r.blurOn === "boolean" ? r.blurOn : legacy[z].blurOn, blur: clamp(r.blur, ZONE_LIMITS[z].blur, legacy[z].blur), transparency: clamp(r.transparency, ZONE_LIMITS[z].transparency, legacy[z].transparency) }];
-  })) as Record<Zone, ZoneStyle>;
+  // Quien viene de la personalización por zonas conserva lo que veía en el contenido, que es la superficie principal.
+  const main = (o.zones && typeof o.zones === "object" ? (o.zones as Record<string, unknown>).main : null) as Record<string, unknown> | null;
+  if (main && typeof main === "object") {
+    out.blur = main.blurOn === false ? 0 : clamp(main.blur, LIMITS.blur, out.blur);
+    if (typeof main.transparency === "number") out.surface = clamp(100 - main.transparency, LIMITS.surface, out.surface);
+  }
   return out;
 }
 
@@ -256,7 +196,7 @@ const RADII = ["--r-xs", "--r-s", "--r-m", "--r-l"];
 const ICONS = ["--icon-s", "--icon-m", "--icon-l"];
 const SIZES = ["--fs-xs", "--fs-s", "--fs-m", "--fs-l", "--fs-xl"];
 const COLOR_VARS = ["--accent", "--accent-rgb", "--accent-2", "--on-accent", "--focus-ring", "--sel", "--sel-edge", "--line", "--line-strong", "--text", "--text-2", "--text-3", "--bg-hover", "--bg-press", "--fold-back-a", "--fold-back-b", "--fold-front-a", "--fold-front-b", "--cat-folder"];
-const OTHER_VARS = ["--font", "--font-display", "--sidebar-w-open", "--cz-row", "--cz-surface", "--cz-blur", "--cz-intensity", "--cz-contrast", ...ZONES.flatMap((z) => [`--z-${z}-surface`, `--z-${z}-blur`])];
+const OTHER_VARS = ["--font", "--font-display", "--sidebar-w-open", "--cz-row", "--cz-surface", "--cz-blur", "--cz-intensity", "--cz-contrast"];
 
 /** Todas las variables que puede fijar la personalización; se retiran antes de medir el tema. */
 export const MANAGED_VARS: readonly string[] = [...SPACES, ...RADII, ...ICONS, ...SIZES, ...COLOR_VARS, ...OTHER_VARS];
@@ -304,10 +244,6 @@ export function appearanceVars(a: Appearance, base: ThemeBase): Record<string, s
   v["--cz-blur"] = `${a.blur}px`;
   v["--cz-intensity"] = String(a.intensity / 100);
   v["--cz-contrast"] = String(a.contrast / 100);
-  for (const z of ZONES) {
-    v[`--z-${z}-surface`] = `${100 - a.zones[z].transparency}%`;
-    v[`--z-${z}-blur`] = `${zoneBlur(a.zones[z])}px`;
-  }
   return v;
 }
 

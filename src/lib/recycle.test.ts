@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { confirmText, filterRecycle, purgeSummary, recycleBytes, sortRecycle } from "./recycle";
+import { confirmText, filterRecycle, progressDetail, progressValue, purgeSummary, recycleBytes, sortRecycle } from "./recycle";
 import type { RecycleItem } from "./fs";
 
 const it0 = (name: string, original: string, deleted: number, size: number | null = 10): RecycleItem => ({ id: name, name, original, deleted, size, entries: null });
@@ -46,6 +46,21 @@ describe("resultado de eliminar", () => {
   it("la pantalla no da por eliminado nada sin mirar el resultado", () => {
     const src = readFileSync(new URL("../components/RecycleView.tsx", import.meta.url), "utf8");
     expect(src).toMatch(/purgeSummary\(r\)\.clean/);
+  });
+});
+
+describe("progreso real", () => {
+  const p = (o: object) => ({ done: 2, total: 5, files: 0, filesTotal: null, current: "c", whole: false, ...o });
+  it("una carpeta a medias cuenta la parte que lleva", () => {
+    expect(progressValue(p({ files: 50, filesTotal: 200 }))).toBeCloseTo(2.25);
+    expect(progressValue(p({ files: 999, filesTotal: 200 }))).toBe(3);
+  });
+  it("sin cifra total solo cuenta elementos terminados", () => {
+    expect(progressValue(p({ files: 50 }))).toBe(2);
+  });
+  it("muestra cuánto lleva la carpeta en curso", () => {
+    expect(progressDetail(p({ whole: true, files: 1500, filesTotal: 2000 }))).toMatch(/^c · 1500 de 2000 archivos$/);
+    expect(progressDetail(p({ whole: false, files: 3 }))).toBe("c");
   });
 });
 

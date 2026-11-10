@@ -16,7 +16,7 @@ import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
 import { VISIT_DWELL_MS } from "../lib/locations";
 import { COMPUTER, DUPLICATES, RECYCLE, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
-import { ladderAt, ladderPos, zoomStep } from "../lib/view";
+import { ladderAt, ladderPos, zoomBy, zoomStep } from "../lib/view";
 import { effectiveView, isPinned, keepsPaneOrder, nextSort, paneView, splitViewPatch } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
@@ -182,7 +182,8 @@ export function Pane({ side }: { side: 0 | 1 }) {
 
   const refreshComputer = useCallback(() => void useApp.getState().refreshDrives().catch(() => {}), []);
   const refreshStorage = useCallback(() => useStorage.getState().refresh(), []);
-  const reload = isComputer ? refreshComputer : storage ? refreshStorage : dir.reload;
+  const refreshRecycle = useCallback(() => useOps.setState((s) => ({ version: s.version + 1 })), []);
+  const reload = isComputer ? refreshComputer : storage ? refreshStorage : tab?.path === RECYCLE ? refreshRecycle : dir.reload;
 
   // ───────── vista ─────────
   // Modo y tamaño de icono → vista global (se conserva al navegar, al cambiar de unidad y al reiniciar);
@@ -205,6 +206,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
   const onSort = (k: SortKey) => setView(nextSort(view, k));
   const onZoom = useCallback((d: 1 | -1) => setView(zoomStep(view, d)), [setView, view]);
+  const onZoomBy = useCallback((delta: number) => setView(zoomBy(view, delta)), [setView, view]);
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
 
   // ───────── menús ─────────
@@ -311,6 +313,15 @@ export function Pane({ side }: { side: 0 | 1 }) {
   // ───────── atajos de archivo ─────────
   const keys = useRef({ A, selected, view, reload, sendToOther });
   keys.current = { A, selected, view, reload, sendToOther };
+
+  // Volver a pulsar la ubicación abierta la actualiza, igual que F5.
+  const refreshAsked = useNav((s) => (s.refresh.side === side ? s.refresh.tick : 0));
+  const refreshSeen = useRef(refreshAsked);
+  useEffect(() => {
+    if (refreshAsked === refreshSeen.current) return;
+    refreshSeen.current = refreshAsked;
+    if (refreshAsked) keys.current.reload();
+  }, [refreshAsked]);
   useEffect(() => {
     if (!focused) return;
     const onKey = (e: KeyboardEvent) => {
@@ -400,7 +411,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
         sortKey={view.sortKey} sortDir={view.sortDir} onSort={onSort}
         selected={selected} onSelect={setSelected} cut={cutNames}
         renaming={renaming} onRename={(o, n) => (setRenaming(null), A.rename(o, n))} onCancelRename={() => setRenaming(null)}
-        onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom}
+        onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom} onZoomBy={onZoomBy}
         onDragStart={onDragStart} canDrop={canDrop} dropEffect={dropEffect} onDrop={onDrop} onDragEnd={endDrag}
         reveal={reveal} onRevealed={() => setReveal(null)} orderRef={orderRef} previewOpen={p.previewPane}
       />

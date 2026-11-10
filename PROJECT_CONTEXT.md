@@ -222,11 +222,22 @@ Detalle y pruebas: [UPDATE14_PROGRESS.md](docs/history/UPDATE14_PROGRESS.md).
 
 `SidebarResizer` escribe `--sidebar-w-open` una vez por fotograma y guarda `appearance.sidebarWidth` al soltar. Escucha en la ventana: no depender de la captura de puntero evita que un arrastre quede sin terminar.
 
-`trash::os_limited::purge_all` devuelve éxito aunque Windows no borre lo que está en uso. **Nunca se puede dar por borrado sin volver a listar:** `nova_core::recycle` trocea, vigila y compara con la Papelera. Lo que explica un bloqueo pide solo el permiso de borrar, sin leer contenido, para no descargar lo que esté en la nube.
-
-Cada zona (`Appearance.zones`) tiene sus variables `--z-<zona>-surface` y `--z-<zona>-blur`. Para no duplicar capas, una zona que coincide con el desenfoque de la ventana no lleva imagen: deja ver la de debajo. Si difiere, lleva una copia ya desenfocada (`zoneBaked`, por `id@blur`), con `background-attachment: fixed` para seguir alineada con la ventana. El único `backdrop-filter` es el de menús y diálogos, porque pasan sobre contenido que cambia.
+Windows puede dar por buena una eliminación sin haber borrado lo que está en uso. **Nunca se puede dar por borrado sin volver a listar la Papelera.** Lo que explica un bloqueo pide solo el permiso de borrar, sin leer contenido, para no descargar lo que esté en la nube.
 
 **Los diálogos Abrir y Guardar no se pueden sustituir.** Son un servidor COM dentro del proceso (`comdlg32.dll`), y la única forma de desviarlos es el secuestro de COM. No hay que intentarlo; ver el documento de progreso.
+
+### Vistas, zoom y Papelera por lotes (Update 15)
+Detalle y pruebas: [UPDATE15_PROGRESS.md](docs/history/UPDATE15_PROGRESS.md).
+
+**Medidas.** `lib/viewGeometry.ts` e `iconGeometry` son la única fuente: el pintado y la selección por rectángulo las comparten. `iconCells` reparte el ancho sobrante entre las celdas, y `makeGeometry` debe usar el mismo cálculo.
+
+**Zoom.** `iconSize` sigue siendo un entero en píxeles (32–256), y el 100 % equivale a 96 px. El control va de 0 a `LADDER_MAX`: 0 detalles, 1 lista, y de 2 en adelante iconos en escala logarítmica. Ctrl+rueda aplica como mucho un cambio por fotograma. `useZoomAnimation` mide antes de que React aplique el tamaño y anima solo `transform`, y no anima con más de 350 elementos a la vista. Con tamaños continuos, las filas se colocan con `rowTops` de la distribución actual, no con `vr.start`, que va un fotograma por detrás.
+
+**Actualizar al reseleccionar.** `useNav.openLocation` es la entrada de los clics del usuario; `navigate` no actualiza por sí solo, para que las rutas programáticas no provoquen lecturas. `useDirectory` no publica una recarga silenciosa idéntica.
+
+**Papelera.** `nova_core::recycle` usa `IFileOperation` con un receptor de progreso, porque notifica cada archivo dentro de una carpeta. Cada carpeta va en su propia operación y no se interrumpe: cancelar se aplica entre elementos, y si Windows deja de dar señales durante `STALL` el lote se da por perdido.
+
+El desenfoque del fondo es **conjunto** (`Appearance.blur` y `surface`), y las preferencias con `zones` se migran desde la zona de contenido en `normalizeAppearance`.
 
 ## 8. Reglas de diseño
 

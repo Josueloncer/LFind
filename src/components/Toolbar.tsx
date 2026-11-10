@@ -76,7 +76,7 @@ export function Toolbar({ side, filter, onFilter, onReload, view, columns, setVi
   const tab = useNav(selectPaneTab(side));
   const focused = useNav((s) => s.side === side);
   const dualOn = useNav((s) => !!s.other);
-  const { navigate, goBack, goForward, goUp, jump } = useNav();
+  const { navigate, openLocation, goBack, goForward, goUp, jump } = useNav();
   const showHidden = usePrefs((s) => s.showHidden);
   const favorites = usePrefs((s) => s.favorites);
   const sidebarCollapsed = usePrefs((s) => s.sidebarCollapsed);
@@ -321,7 +321,7 @@ export function Toolbar({ side, filter, onFilter, onReload, view, columns, setVi
         ) : (
           <>
             <div className="crumb-track" onClick={(e) => e.target === e.currentTarget && startEdit()} title={path ? "Clic en el espacio vacío para escribir una ruta (Ctrl+L)" : undefined}>
-              {crumbs.map((c, i) => <Crumb key={c.path ?? "pc"} label={c.label} path={c.path} last={i === crumbs.length - 1} onGo={navigate} onMenu={subfolderMenu} />)}
+              {crumbs.map((c, i) => <Crumb key={c.path ?? "pc"} label={c.label} path={c.path} last={i === crumbs.length - 1} onGo={openLocation} onMenu={subfolderMenu} />)}
               {path && <span className="crumb-fill" onClick={startEdit} />}
             </div>
             <button className="ibtn" disabled={!path} title="Actualizar (F5)" aria-label="Actualizar" onClick={onReload}><RotateCw /></button>

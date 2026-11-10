@@ -24,6 +24,11 @@ interface NavState {
   setActive(id: string): void;
   moveTab(id: string, before: string | null): void;
   navigate(path: string): void;
+  /** La ubicación que pulsa el usuario: si ya está abierta, la actualiza; si no, navega. */
+  openLocation(path: string): void;
+  refreshActive(): void;
+  /** Última actualización pedida por el usuario, y en qué panel. */
+  refresh: { tick: number; side: number; at: number };
   goBack(): void;
   goForward(): void;
   goUp(): void;
@@ -41,6 +46,8 @@ interface NavState {
 }
 
 let seq = 0;
+/** Un doble clic en la misma ubicación no debe leer la carpeta dos veces. */
+export const REFRESH_GAP = 400;
 const mk = (path: string): Tab => ({ id: `t${++seq}`, path, back: [], forward: [] });
 
 const patchActive = (s: NavState, fn: (t: Tab) => Tab): Partial<NavState> => ({
@@ -106,6 +113,21 @@ export const useNav = create<NavState>((set, get) => ({
   setActive: (id) => set({ activeId: id }),
 
   moveTab: (id, before) => set((s) => ({ tabs: [...moveByKey(s.tabs, (t) => t.id, id, before)] })),
+
+  refresh: { tick: 0, side: 0, at: 0 },
+
+  refreshActive() {
+    const now = Date.now();
+    if (now - get().refresh.at < REFRESH_GAP) return;
+    set((s) => ({ refresh: { tick: s.refresh.tick + 1, side: s.side, at: now } }));
+  },
+
+  openLocation(path) {
+    const { tabs, activeId } = get();
+    const cur = tabs.find((t) => t.id === activeId);
+    if (cur && samePath(cur.path, path)) get().refreshActive();
+    else get().navigate(path);
+  },
 
   navigate(path) {
     set((s) =>

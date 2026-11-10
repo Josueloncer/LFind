@@ -7,6 +7,7 @@ import type {
   Inspection,
   HashEvent,
   AvailStat,
+  PurgeProgress,
   PurgeReport,
   RecycleItem,
   TerminalShell,
@@ -190,8 +191,8 @@ export class TauriProvider implements FsProvider {
   startNativeDrag = (paths: string[]) => invoke<number>("start_native_drag", { paths });
   recycleList = () => invoke<{ items: RecycleItem[]; totalBytes: number | null }>("recycle_list");
   recycleRestore = (ids: string[]) => invoke<void>("recycle_restore", { ids });
-  recyclePurge = (ids: string[], onProgress: (p: { done: number; total: number }) => void) => {
-    const channel = new Channel<{ done: number; total: number }>();
+  recyclePurge = (ids: string[], onProgress: (p: PurgeProgress) => void) => {
+    const channel = new Channel<PurgeProgress>();
     channel.onmessage = onProgress;
     return invoke<PurgeReport>("recycle_purge", { ids, onProgress: channel });
   };

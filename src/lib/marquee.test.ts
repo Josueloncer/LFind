@@ -22,9 +22,9 @@ function geo(mode: ViewMode, n: number, o: { iconSize?: number; width?: number; 
 describe("selección por rectángulo: qué elementos toca", () => {
   it("detalles: filas completamente y parcialmente cubiertas", () => {
     const { g } = geo("details", 100);
-    // filas 2..4 (y de 64 a 160): el rectángulo toca por dentro la 2.ª y la 5.ª (parcial)
-    expect(hitTest({ x: 20, y: 70, w: 100, h: 80 }, g)).toEqual([2, 3, 4]);
-    expect(hitTest({ x: 20, y: 70, w: 100, h: 95 }, g)).toEqual([2, 3, 4, 5]);
+    // El rectángulo empieza dentro de la fila 2 y termina dentro de la 4 o de la 5.
+    expect(hitTest({ x: 20, y: 2 * DETAILS_H + 6, w: 100, h: 2.5 * DETAILS_H }, g)).toEqual([2, 3, 4]);
+    expect(hitTest({ x: 20, y: 2 * DETAILS_H + 6, w: 100, h: 3.5 * DETAILS_H }, g)).toEqual([2, 3, 4, 5]);
   });
 
   it("iconos: varias filas y columnas, también carpetas y archivos mezclados", () => {
@@ -40,8 +40,7 @@ describe("selección por rectángulo: qué elementos toca", () => {
 
   it("un rectángulo que solo roza el espacio entre elementos no selecciona nada", () => {
     const { g } = geo("icons", 40, { iconSize: 96 });
-    const cell = iconGeometry(96);
-    const gapX = 8 + cell.cellW - 2; // hueco entre la 1.ª y la 2.ª celda
+    const gapX = 8 + g.cellW - 2; // hueco entre la 1.ª y la 2.ª celda
     expect(hitTest({ x: gapX, y: 30, w: 3, h: 20 }, g)).toEqual([]);
     expect(hitTest({ x: 899, y: 5, w: 1, h: 1 }, g)).toEqual([]); // margen derecho vacío
   });

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { confirmText, filterRecycle, purgeSummary, recycleBytes, sortRecycle } from "../lib/recycle";
+import { confirmText, filterRecycle, progressDetail, progressValue, purgeSummary, recycleBytes, sortRecycle } from "../lib/recycle";
 import { errMsg, fs } from "../lib/fs";
-import type { PurgeReport, RecycleItem } from "../lib/fs";
+import type { PurgeProgress, PurgeReport, RecycleItem } from "../lib/fs";
 import { formatBytes, formatDate } from "../lib/format";
 import { useOps } from "../stores/ops";
 import { useUi } from "../stores/ui";
@@ -20,7 +20,7 @@ export function RecycleView() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [asking, setAsking] = useState<"purge" | "empty" | null>(null);
   const [busy, setBusy] = useState(false);
-  const [job, setJob] = useState<{ done: number; total: number } | null>(null);
+  const [job, setJob] = useState<PurgeProgress | null>(null);
   const [stopping, setStopping] = useState(false);
   const [report, setReport] = useState<PurgeReport | null>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -59,7 +59,7 @@ export function RecycleView() {
     setAsking(null);
     setBusy(true);
     setStopping(false);
-    setJob({ done: 0, total: ids.length });
+    setJob({ done: 0, total: ids.length, files: 0, filesTotal: null, current: "", whole: false });
     fs.recyclePurge(ids, setJob).then((r) => {
       if (purgeSummary(r).clean) toast(emptying ? "Papelera vaciada" : "Eliminado definitivamente", "success");
       else setReport(r);
@@ -127,8 +127,10 @@ export function RecycleView() {
           <div className="modal" role="alertdialog" aria-modal="true" aria-label="Eliminando definitivamente">
             <h2>Eliminando definitivamente…</h2>
             <div className="modal-body">
-              <progress className="rb-progress" max={job.total} value={job.done} aria-label="Progreso" />
-              <p role="status">{job.done.toLocaleString("es")} de {job.total.toLocaleString("es")}</p>
+              <progress className="rb-progress" max={job.total} value={progressValue(job)} aria-label="Progreso" />
+              <p role="status">{job.done.toLocaleString("es")} de {job.total.toLocaleString("es")} · {(job.total - job.done).toLocaleString("es")} pendientes</p>
+              {job.current && <p className="rb-current" title={job.current}>{progressDetail(job)}</p>}
+              {stopping && job.whole && <p className="rb-current">Se termina esta carpeta para no dejarla a medias.</p>}
             </div>
             <div className="modal-actions">
               <button className="btn" disabled={stopping} onClick={stop}>{stopping ? "Cancelando…" : "Cancelar"}</button>

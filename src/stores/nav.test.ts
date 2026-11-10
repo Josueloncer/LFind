@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { selectPaneTab, selectActiveTab, useNav } from "./nav";
+import { REFRESH_GAP, selectPaneTab, selectActiveTab, useNav } from "./nav";
 
 const tab = () => selectActiveTab(useNav.getState())!;
 
@@ -161,5 +161,39 @@ describe("orden independiente por panel (Update 12)", () => {
     useNav.getState().setPaneOrder(0, "C:\\a", size);
     useNav.getState().toggleDual();
     expect(selectPaneTab(0)(useNav.getState())?.orders).toBeUndefined();
+  });
+});
+
+describe("volver a pulsar la ubicación abierta", () => {
+  const refresh = () => useNav.getState().refresh;
+  beforeEach(() => useNav.setState({ tabs: [], activeId: null, other: null, side: 0, refresh: { tick: 0, side: 0, at: 0 } }));
+
+  it("actualiza sin tocar el historial", () => {
+    useNav.getState().init("C:\\a");
+    useNav.getState().openLocation("c:\\A\\");
+    expect(refresh().tick).toBe(1);
+    expect(tab().back).toEqual([]);
+  });
+  it("otra ubicación navega y no actualiza", () => {
+    useNav.getState().init("C:\\a");
+    useNav.getState().openLocation("C:\\b");
+    expect([refresh().tick, tab().path]).toEqual([0, "C:\\b"]);
+  });
+  it("un doble clic solo lee una vez", () => {
+    useNav.getState().init("C:\\a");
+    useNav.getState().openLocation("C:\\a");
+    useNav.getState().openLocation("C:\\a");
+    expect(refresh().tick).toBe(1);
+  });
+  it("pasado el margen vuelve a actualizar", () => {
+    useNav.getState().init("C:\\a");
+    useNav.setState({ refresh: { tick: 3, side: 0, at: Date.now() - REFRESH_GAP - 1 } });
+    useNav.getState().openLocation("C:\\a");
+    expect(refresh().tick).toBe(4);
+  });
+  it("navegar por programa a la misma carpeta no actualiza", () => {
+    useNav.getState().init("C:\\a");
+    useNav.getState().navigate("C:\\a");
+    expect(refresh().tick).toBe(0);
   });
 });

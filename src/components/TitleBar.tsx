@@ -73,14 +73,14 @@ function TabItem({ t, active, many, onSelect, onClose, dnd }: { t: Tab; active: 
 }
 
 export function TitleBar() {
-  const { tabs, activeId, setActive, closeTab, openTab, moveTab } = useNav();
+  const { tabs, activeId, setActive, closeTab, openTab, moveTab, refreshActive } = useNav();
   const dnd = useReorder({ group: "tabs", axis: "x", ids: tabs.map((t) => t.id), ignore: ".tab-close", onMove: moveTab });
   return (
     <header className="titlebar" data-tauri-drag-region>
       <div className="brand" data-tauri-drag-region><BrandMark /></div>
       <div className="tabs" role="tablist" data-tauri-drag-region>
         {tabs.map((t) => (
-          <TabItem key={t.id} t={t} active={t.id === activeId} many={tabs.length > 1} onSelect={() => setActive(t.id)} onClose={() => closeTab(t.id)} dnd={{ ...dnd.attrs(t.id), ...dnd.handle(t.id) }} />
+          <TabItem key={t.id} t={t} active={t.id === activeId} many={tabs.length > 1} onSelect={() => (t.id === activeId ? refreshActive() : setActive(t.id))} onClose={() => closeTab(t.id)} dnd={{ ...dnd.attrs(t.id), ...dnd.handle(t.id) }} />
         ))}
         {tabs.length > 0 && (
           <button className="ibtn tab-new" title="Nueva pestaña (Ctrl+T)" aria-label="Nueva pestaña" onClick={() => openTab()}>

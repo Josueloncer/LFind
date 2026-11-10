@@ -211,7 +211,7 @@ svg { display: block; }
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); min-width: 0; }
 .link-badge { width: 12px; height: 12px; color: var(--text-3); flex: none; margin-left: var(--sp-f5); }
 
-.item-details { display: grid; grid-template-columns: var(--dcols); height: calc(32px + var(--cz-row)); margin: 0 var(--sp-3); padding: 0 var(--sp-7) 0 var(--sp-3); width: calc(100% - 16px); }
+.item-details { display: grid; grid-template-columns: var(--dcols); height: calc(26px + var(--cz-row)); margin: 0 var(--sp-3); padding: 0 var(--sp-7) 0 var(--sp-3); width: calc(100% - 16px); }
 .cell-name { display: flex; align-items: center; gap: var(--sp-f11); min-width: 0; padding-right: var(--sp-4); color: var(--text); }
 .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-s); }
 .cell-num { text-align: right; padding-right: var(--sp-6); font-variant-numeric: tabular-nums; }
@@ -222,16 +222,17 @@ svg { display: block; }
 .nm-line { display: flex; align-items: center; min-width: 0; }
 .sub { font-size: var(--fs-s); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.item-icon { flex-direction: column; justify-content: flex-start; gap: var(--sp-f7); padding: var(--sp-4) var(--sp-2) var(--sp-2); margin: 0 var(--sp-f3); text-align: center; }
+.item-icon { flex-direction: column; justify-content: flex-start; gap: var(--sp-1); padding: var(--sp-1) var(--sp-0) var(--sp-0); margin: 0 var(--sp-f3); text-align: center; }
 .item-icon .glyph { filter: var(--shadow-glyph); }
 .gname { width: 100%; min-width: 0; font-size: var(--fs-s); line-height: var(--lh-tight); color: var(--text); overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.item-small, .item-list { height: 28px; gap: var(--sp-f9); padding: 0 var(--sp-4); margin: 0 var(--sp-0); }
+.item-small, .item-list { height: 24px; gap: var(--sp-f9); padding: 0 var(--sp-4); margin: 0 var(--sp-0); }
 .item-small { width: 214px; }
 .item-list { width: 224px; flex: none; }
 
 /* Renombrar en línea */
 .rename { font: inherit; color: var(--text); background: var(--bg-raised); border: 1.5px solid var(--accent); border-radius: var(--r-xs); padding: var(--sp-0) var(--sp-2); outline: 0; width: 100%; min-width: 0; user-select: text; }
 .item-icon .rename { text-align: center; }
+.gname .nm { white-space: normal; overflow: visible; }
 
 .empty-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
@@ -249,6 +250,7 @@ svg { display: block; }
 .zoom .ibtn { width: 24px; height: 22px; }
 .zoom .ibtn svg { width: 14px; height: 14px; }
 .zoom input[type=range] { width: 96px; accent-color: var(--accent); height: 3px; cursor: pointer; }
+.zoom-pct { min-width: 38px; text-align: right; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--text-3); }
 .status .busy { display: inline-flex; align-items: center; gap: var(--sp-f7); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.25; transform: scale(0.8); } }
@@ -738,42 +740,27 @@ body[data-reordering] [data-movable]::after { opacity: 0; }
 
 /* ───────── Personalización ───────── */
 :root { --cz-row: 0px; --cz-surface: 82%; --cz-blur: 14px; --cz-intensity: 1; --cz-contrast: 1; --cz-img-general: none; --cz-img-sidebar: none; --cz-img-main: none; --cz-img-preview: none; }
-:root { --z-sidebar-surface: 91%; --z-main-surface: 82%; --z-secondary-surface: 82%; --z-floating-surface: 100%; --z-sidebar-blur: 14px; --z-main-blur: 14px; --z-secondary-blur: 14px; --z-floating-blur: 0px; --z-img-sidebar: none; --z-img-main: none; --z-img-secondary: none; }
 html[data-bg-general] .app { position: relative; isolation: isolate; }
 /* El desenfoque y el contraste ya vienen aplicados en la imagen (`bakeBackground`): pintarla no necesita filtros. */
 html[data-bg-general] .app::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--cz-img-general) center / cover no-repeat; opacity: var(--cz-intensity); }
-html[data-bg-general] .preview { background: color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent); }
-html[data-bg-general] .panes > main:first-of-type { background: color-mix(in srgb, var(--bg-content) var(--z-main-surface), transparent); }
-html[data-bg-general] .panes > main:not(:first-of-type) { background: color-mix(in srgb, var(--bg-content) var(--z-secondary-surface), transparent); }
+html[data-bg-general] .main, html[data-bg-general] .preview { background: color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent); }
 /* La barra lateral y la de título llevan texto pequeño sobre el fondo: siempre más opacas que el contenido. Se usa --bg-content porque --bg-chrome es transparente con Mica. */
-html[data-bg-general] .sidebar { background: color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent); }
-html[data-bg-general] .titlebar { background: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
-/* Una zona con imagen propia. Si es la de toda la ventana, `fixed` la mantiene alineada con ella aunque lleve otro desenfoque. */
-html[data-z-sidebar] .sidebar, html[data-z-main] .panes > main:first-of-type, html[data-z-secondary] .panes > main:not(:first-of-type) { background: var(--bg-content); position: relative; isolation: isolate; overflow: hidden; }
-html[data-bg-preview] .preview { background: var(--bg-content); }
-html[data-bg-preview] .preview { position: relative; isolation: isolate; overflow: hidden; }
-html[data-z-sidebar] .sidebar::before, html[data-z-main] .panes > main:first-of-type::before, html[data-z-secondary] .panes > main:not(:first-of-type)::before, html[data-bg-preview] .preview::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--cz-intensity); }
-html[data-z-sidebar] .sidebar::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent) 0 0), var(--z-img-sidebar) center / cover no-repeat; }
-html[data-z-sidebar="fixed"] .sidebar::before { background-attachment: scroll, fixed; }
-html[data-z-main] .panes > main:first-of-type::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-main-surface), transparent) 0 0), var(--z-img-main) center / cover no-repeat; }
-html[data-z-main="fixed"] .panes > main:first-of-type::before { background-attachment: scroll, fixed; }
-html[data-z-secondary] .panes > main:not(:first-of-type)::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--z-secondary-surface), transparent) 0 0), var(--z-img-secondary) center / cover no-repeat; }
-html[data-z-secondary="fixed"] .panes > main:not(:first-of-type)::before { background-attachment: scroll, fixed; }
+html[data-bg-general] .sidebar, html[data-bg-general] .titlebar { background: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
+html[data-bg-sidebar] .sidebar { background: var(--bg-content); }
+html[data-bg-main] .main, html[data-bg-preview] .preview { background: var(--bg-content); }
+html[data-bg-sidebar] .sidebar, html[data-bg-main] .main, html[data-bg-preview] .preview { position: relative; isolation: isolate; overflow: hidden; }
+html[data-bg-sidebar] .sidebar::before, html[data-bg-main] .main::before, html[data-bg-preview] .preview::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--cz-intensity); }
+html[data-bg-sidebar] .sidebar::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent) 0 0), var(--cz-img-sidebar) center / cover no-repeat; }
+html[data-bg-main] .main::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent) 0 0), var(--cz-img-main) center / cover no-repeat; }
 html[data-bg-preview] .preview::before { background: linear-gradient(color-mix(in srgb, var(--bg-content) var(--cz-surface), transparent) 0 0), var(--cz-img-preview) center / cover no-repeat; }
 /* La esquina redondeada del contenido deja ver lo que hay detrás: sin velo se vería la imagen con toda su fuerza. Lleva el mismo que la barra lateral. */
-html[data-bg-general] .panes { --cz-veil: color-mix(in srgb, var(--bg-content) var(--z-sidebar-surface), transparent); }
+html[data-bg-general] .panes { --cz-veil: color-mix(in srgb, var(--bg-content) calc(50% + var(--cz-surface) / 2), transparent); }
 html[data-bg-general] .panes::before, html[data-bg-general] .pane-split::after { content: ""; position: absolute; top: 0; width: var(--r-l); height: var(--r-l); z-index: 1; pointer-events: none; background: radial-gradient(circle at 100% 100%, transparent calc(var(--r-l) - 0.5px), var(--cz-veil) var(--r-l)); }
 html[data-bg-general] .panes::before { left: 0; }
 html[data-bg-general] .pane-split::after { left: 100%; }
 html[data-bg-general] .pane-split { background: var(--cz-veil); }
 /* Solo si no se pudo preparar la imagen. */
-html[data-bg-filter] .app::before, html[data-bg-filter] .preview::before { inset: calc(var(--cz-blur) * -2); filter: blur(var(--cz-blur)) contrast(var(--cz-contrast)); }
-html[data-bg-filter][data-z-sidebar] .sidebar::before { inset: calc(var(--z-sidebar-blur) * -2); filter: blur(var(--z-sidebar-blur)) contrast(var(--cz-contrast)); }
-html[data-bg-filter][data-z-main] .panes > main:first-of-type::before { inset: calc(var(--z-main-blur) * -2); filter: blur(var(--z-main-blur)) contrast(var(--cz-contrast)); }
-html[data-bg-filter][data-z-secondary] .panes > main:not(:first-of-type)::before { inset: calc(var(--z-secondary-blur) * -2); filter: blur(var(--z-secondary-blur)) contrast(var(--cz-contrast)); }
-/* Lo flotante pasa sobre contenido que cambia: es el único sitio con desenfoque en vivo, y solo mientras está abierto. */
-html[data-z-floating] :is(.menu, .modal, .cp) { background: color-mix(in srgb, var(--bg-raised) var(--z-floating-surface), transparent); }
-html[data-z-floating="blur"] :is(.menu, .modal, .cp) { backdrop-filter: blur(var(--z-floating-blur)); }
+html[data-bg-filter] .app::before, html[data-bg-filter] .sidebar::before, html[data-bg-filter] .main::before, html[data-bg-filter] .preview::before { inset: calc(var(--cz-blur) * -2); filter: blur(var(--cz-blur)) contrast(var(--cz-contrast)); }
 .ap { position: fixed; top: var(--titlebar-h); right: var(--sp-3); bottom: var(--sp-3); width: min(372px, calc(100vw - var(--sp-9))); z-index: var(--z-overlay); display: flex; flex-direction: column; border-radius: var(--r-l); background: var(--bg-raised); box-shadow: var(--shadow-modal); animation: ap-in var(--t-med) var(--ease); }
 @keyframes ap-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ap { animation: none; } }
@@ -795,10 +782,6 @@ html[data-z-floating="blur"] :is(.menu, .modal, .cp) { backdrop-filter: blur(var
 .ap-slider { display: grid; grid-template-columns: 112px minmax(0, 1fr) 46px; align-items: center; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
 .ap-slider input { width: 100%; accent-color: var(--accent); }
 .ap-slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); }
-.ap-slider[data-off] { opacity: 0.5; }
-.ap-toggle { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
-.ap-toggle input { accent-color: var(--accent); }
-.ap-note { margin: 0; font-size: var(--fs-xs); color: var(--text-3); }
 .ap-color { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-s); color: var(--text-2); }
 .ap-color label { display: flex; align-items: center; gap: var(--sp-3); }
 .ap-color input { width: 28px; height: 22px; padding: 0; border: 0; border-radius: var(--r-xs); background: none; }
@@ -965,6 +948,7 @@ html[data-bg-general] .app[data-sidebar="right"] .pane-split::after { display: n
 .rb-name { color: var(--text); }
 .rb-foot { min-height: 18px; }
 .rb-progress { display: block; width: 100%; height: 6px; accent-color: var(--accent); }
+.rb-current { margin: var(--sp-1) 0 0; font-size: var(--fs-s); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rb-failed { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); max-height: 240px; overflow-y: auto; }
 .rb-failed li { display: flex; flex-direction: column; gap: var(--sp-0); min-width: 0; font-size: var(--fs-s); color: var(--text-2); }
 .rb-failed strong { font-weight: var(--fw-medium); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

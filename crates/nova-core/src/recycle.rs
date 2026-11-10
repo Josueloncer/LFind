@@ -280,6 +280,21 @@ fn first_block_inside(root: &Path) -> Option<(Block, String)> {
     None
 }
 
+/// Por qué Windows no ha podido enviar esto a la Papelera, cuando se puede saber. Una carpeta va entera o no va.
+pub fn trash_blocked_reason(path: &Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if meta.is_dir() {
+        return first_block_inside(path).map(|(block, name)| match block {
+            Block::InUse => format!("Contiene un archivo en uso: {name}. Ciérralo e inténtalo de nuevo."),
+            Block::Denied => format!("No hay permiso para mover parte de su contenido: {name}."),
+        });
+    }
+    block_of(path).map(|block| match block {
+        Block::InUse => "Está en uso por otra aplicación. Ciérrala e inténtalo de nuevo.".to_string(),
+        Block::Denied => "No hay permiso para moverlo a la Papelera.".to_string(),
+    })
+}
+
 /// Por qué Windows no ha podido borrar esto, cuando se puede saber.
 pub fn blocked_reason(path: &Path) -> Option<String> {
     let meta = std::fs::symlink_metadata(path).ok()?;

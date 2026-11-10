@@ -53,6 +53,7 @@ pub fn reveal(p: &Path) -> io::Result<()> {
 /// mediante el objeto COM WScript.Shell (los datos viajan en variables de entorno: sin riesgo de inyección).
 #[cfg(windows)]
 pub fn create_shortcut(target: &Path, link_path: &Path) -> io::Result<()> {
+    use std::os::windows::process::CommandExt;
     let script = "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:NOVA_LNK);$s.TargetPath=$env:NOVA_TARGET;$s.WorkingDirectory=$env:NOVA_WD;$s.Save()";
     let wd = if target.is_dir() { target } else { target.parent().unwrap_or(target) };
     let out = std::process::Command::new("powershell.exe")
@@ -60,6 +61,8 @@ pub fn create_shortcut(target: &Path, link_path: &Path) -> io::Result<()> {
         .env("NOVA_LNK", link_path)
         .env("NOVA_TARGET", target)
         .env("NOVA_WD", wd)
+        // Sin esto, desde una app de ventanas se abre una consola visible un instante (`-WindowStyle Hidden` llega tarde).
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .output()?;
     if out.status.success() && link_path.exists() {
         Ok(())

@@ -74,6 +74,8 @@ mod imp {
         fn RegQueryValueExW(k: HKey, name: *const u16, r: *mut u32, kind: *mut u32, data: *mut u8, cb: *mut u32) -> i32;
         fn RegDeleteValueW(k: HKey, name: *const u16) -> i32;
         fn RegDeleteTreeW(k: HKey, sub: *const u16) -> i32;
+        fn RegDeleteKeyW(k: HKey, sub: *const u16) -> i32;
+        fn RegQueryInfoKeyW(k: HKey, class: *mut u16, cch_class: *mut u32, r: *mut u32, subkeys: *mut u32, max_sub: *mut u32, max_class: *mut u32, values: *mut u32, max_name: *mut u32, max_data: *mut u32, sd: *mut u32, written: *mut c_void) -> i32;
         fn RegCloseKey(k: HKey) -> i32;
     }
     #[link(name = "shell32")]
@@ -152,6 +154,22 @@ mod imp {
     pub fn remove_tree(key: &str) -> Result<(), String> {
         let r = unsafe { RegDeleteTreeW(HKCU, wide(key).as_ptr()) };
         if r == 0 || r == ERROR_FILE_NOT_FOUND { Ok(()) } else { Err(format!("No se pudo modificar el Registro ({r}).")) }
+    }
+
+    /// Borra la clave solo si no tiene valores ni subclaves: nunca se lleva nada que no sea de LFind.
+    pub fn remove_if_empty(key: &str) {
+        unsafe {
+            let mut h: HKey = 0;
+            if RegOpenKeyExW(HKCU, wide(key).as_ptr(), 0, KEY_READ, &mut h) != 0 {
+                return;
+            }
+            let (mut subkeys, mut values) = (1u32, 1u32);
+            let r = RegQueryInfoKeyW(h, null_mut(), null_mut(), null_mut(), &mut subkeys, null_mut(), null_mut(), &mut values, null_mut(), null_mut(), null_mut(), null_mut());
+            RegCloseKey(h);
+            if r == 0 && subkeys == 0 && values == 0 {
+                RegDeleteKeyW(HKCU, wide(key).as_ptr());
+            }
+        }
     }
 
     pub fn exists(key: &str) -> bool {
@@ -248,6 +266,7 @@ impl Integration {
             (Feature::Preferred, false) => {
                 self.restore_default("Directory")?;
                 self.restore_default("Drive")?;
+                self.forget_backup()?;
             }
             (Feature::ContextFolders, true) => {
                 self.set_verb(&self.folder_verb(), "Abrir en LFind", "%1")?;
@@ -282,8 +301,17 @@ impl Integration {
         for f in [Feature::Preferred, Feature::ContextFolders, Feature::ContextDrives, Feature::Startup] {
             self.set(f, false)?;
         }
-        imp::remove_tree(&self.backup)?;
+        self.forget_backup()?;
         Ok(self.status())
+    }
+
+    /// La copia del valor anterior solo existe mientras LFind es el explorador preferido; su carpeta, si queda vacía, tampoco se deja.
+    fn forget_backup(&self) -> Result<(), String> {
+        imp::remove_tree(&self.backup)?;
+        if let Some((parent, _)) = self.backup.rsplit_once('\\') {
+            imp::remove_if_empty(parent);
+        }
+        Ok(())
     }
 }
 
@@ -351,6 +379,21 @@ mod tests {
             assert_eq!(imp::read(&format!("{}\\command", t.0.background_verb()), "").unwrap(), "\"C:\\Programas\\LFind\\lfind.exe\" \"%V\"");
             assert!(!t.0.set(Feature::ContextFolders, false).unwrap().context_folders);
             assert!(!imp::exists(&t.0.background_verb()));
+        }
+
+        #[test]
+        fn turning_preferred_off_leaves_no_empty_keys_but_keeps_foreign_values() {
+            let t = sandbox();
+            let i = Integration { backup: format!("{}\\Propia\\Integration", t.1), ..t.0.clone() };
+            i.set(Feature::Preferred, true).unwrap();
+            assert!(imp::exists(&i.backup));
+            i.set(Feature::Preferred, false).unwrap();
+            assert!(!imp::exists(&format!("{}\\Propia", t.1)), "ni la copia ni su carpeta vacía");
+            imp::write(&format!("{}\\Propia", t.1), "ajeno", "1").unwrap();
+            i.set(Feature::Preferred, true).unwrap();
+            i.set(Feature::Preferred, false).unwrap();
+            assert!(!imp::exists(&i.backup));
+            assert_eq!(imp::read(&format!("{}\\Propia", t.1), "ajeno").as_deref(), Some("1"), "lo que no es de LFind se queda");
         }
 
         #[test]

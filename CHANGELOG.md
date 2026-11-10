@@ -1,5 +1,20 @@
 # LFind — Registro de cambios
 
+## Update 15: vistas compactas, zoom continuo y Papelera más fiable
+- Volver a pulsar la carpeta abierta en la barra lateral, en la ruta o en su pestaña la actualiza, sin perder la selección ni la posición.
+- Las vistas de lista, detalles e iconos son más compactas, y los nombres largos de los iconos ocupan dos líneas en vez de cortarse.
+- El zoom de los iconos es continuo, del 33 % al 267 %, con el porcentaje junto al control, y se conserva al reiniciar. Ctrl+rueda lo ajusta poco a poco y con una transición suave, que se desactiva si Windows pide reducir el movimiento.
+- Eliminar de la Papelera muestra el progreso archivo a archivo, también dentro de carpetas grandes, y es más rápido. Cancelar ya no deja carpetas a medias.
+- El fondo vuelve a usar un único desenfoque y una única transparencia para toda la ventana. Tus ajustes se conservan.
+- Corregido: al enviar a la Papelera varios elementos con uno en uso, LFind decía que habían fallado todos aunque los demás sí estaban en la Papelera. Ahora indica solo el que falló y por qué.
+- Corregido: «Crear acceso directo» ya no muestra un instante una ventana de consola.
+- Restaurar desde la Papelera vuelve a crear la carpeta original si ya no existe, explica en español por qué no se pudo restaurar algo y comprueba que de verdad se ha restaurado.
+
+## Update 14: barra lateral a medida y Papelera fiable
+- El ancho de la barra lateral se ajusta arrastrando su borde, entre 180 y 480 px, y se recuerda. El doble clic en el borde vuelve al ancho normal.
+- Eliminar definitivamente desde la Papelera muestra el progreso, se puede cancelar y comprueba el resultado. Si algo no se puede borrar, dice cuál y por qué.
+- Corregido: tras mover archivos al Explorador de Windows, LFind seguía mostrándolos en la carpeta de origen.
+
 ## Update 13: herramientas profesionales
 - Nueva paleta de comandos (Ctrl+K): busca y ejecuta cualquier acción, carpeta o ajuste con el teclado.
 - Nuevo inspector de archivos (Ctrl+I): detalles, propiedades multimedia, EXIF, permisos y hash a petición.

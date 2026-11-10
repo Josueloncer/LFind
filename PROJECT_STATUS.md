@@ -3,7 +3,7 @@
 Estado vigente del proyecto. Es el único documento de estado: las correcciones pequeñas se anotan aquí, sin crear informes nuevos.
 Historial completo, incluido el inventario anterior: [docs/history/](docs/history/) ([estado hasta Update 11](docs/history/PROJECT_STATUS_hasta-update-11.md)).
 
-**Publicado:** Update 12. **En el árbol, sin commit:** Update 13 ([informe](docs/history/UPDATE13_HERRAMIENTAS.md)).
+**Publicado:** Update 15. **En el árbol, sin commit:** correcciones de la auditoría final ([FINAL_AUDIT_REPORT.md](FINAL_AUDIT_REPORT.md)). Informes: [Update 13](docs/history/UPDATE13_HERRAMIENTAS.md), [Update 14](docs/history/UPDATE14_PROGRESS.md), [Update 15](docs/history/UPDATE15_PROGRESS.md).
 
 ## Funcionalidades
 
@@ -26,8 +26,14 @@ Historial completo, incluido el inventario anterior: [docs/history/](docs/histor
 | Integración con Windows | Terminado dentro de lo que Windows permite (Update 13) |
 | Papelera de reciclaje | Terminado; «Vaciar» solo comprobado hasta su confirmación |
 | Arrastre nativo hacia otras aplicaciones | Implementado; **sin probar con destino externo** (ver abajo) |
+| Barra lateral redimensionable | Terminado (Update 14) |
+| Zoom continuo, vistas compactas, actualizar al volver a pulsar | Terminado (Update 15) |
 
-## Última verificación (Update 13)
+## Última verificación (auditoría final)
+
+Detalle, mediciones y clasificación de hallazgos: [FINAL_AUDIT_REPORT.md](FINAL_AUDIT_REPORT.md). Corregido: el lote enviado a la Papelera que fallaba a medias se informaba como fallido entero, la consola que parpadeaba al crear un acceso directo, la restauración de la Papelera (carpeta original desaparecida y mensajes en inglés), y una clave vacía del Registro al desactivar la integración.
+
+## Verificación de Update 13
 
 Resultados, mediciones y limitaciones completas: [informe de Update 13](docs/history/UPDATE13_HERRAMIENTAS.md).
 
@@ -145,7 +151,9 @@ En la app real, con una instalación aislada (preferencias e índice reales inta
 - **Terminal:** la sincronización del shell al explorador depende del indicador; un perfil que reemplace `prompt` después de abrirse la anula. Una sesión a la vez.
 - **Inspector:** un PDF sin cabecera linealizada ni árbol de páginas visible no muestra el número de páginas.
 - **Explorador preferido:** `Win+E`, el Explorador abierto y los diálogos de abrir y guardar siguen siendo de Windows.
-- **Notas de versión:** `CHANGELOG.md` no tiene sección de Update 10.
+- **Notas de versión:** `CHANGELOG.md` no tiene sección de Update 10. Las Updates 14 y 15 se publicaron con las notas de la 13; la próxima publicación lleva arriba las de la 15 y las correcciones de la auditoría.
+- **Instalador:** sin firma Authenticode (SmartScreen avisa la primera vez). El editor aparece como «nova» y no debe cambiarse sin plan de migración (ver PROJECT_CONTEXT, «Auditoría final»).
+- **Mover entre unidades y cancelar:** lo ya copiado se queda en el destino y el original no se toca. No se pierde nada, pero queda una copia parcial que hay que borrar a mano.
 
 ## Riesgos técnicos abiertos
 

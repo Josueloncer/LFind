@@ -148,7 +148,7 @@ docs/                    CONTEXT_MENU.md, history/ (informes de cada actualizaci
 Flujos completos y diagramas en `PROJECT_ARCHITECTURE.md`.
 
 ### 7.1 Navegación y carpetas
-`useNav` guarda pestañas e historial. `Pane` usa `useDirectory(path)` **solo para la pestaña activa**, que recibe lotes por `Channel` y cancela la lectura anterior. `useSortedEntries` ordena; `FileView` virtualiza (5 modos, agrupación, selección por rectángulo, teclado, arrastre). No hay caché de listados ni observador de cambios: lo externo aparece con F5 o tras una operación.
+`useNav` guarda pestañas e historial. `Pane` usa `useDirectory(path)` **solo para la pestaña activa**, que recibe lotes por `Channel` y cancela la lectura anterior. `useSortedEntries` ordena; `FileView` virtualiza (5 modos, agrupación, selección por rectángulo, teclado, arrastre). No hay caché de listados ni observador de cambios: lo externo aparece con F5, al volver a pulsar la ubicación abierta o tras una operación.
 
 ### 7.2 Operaciones de archivo
 `useOps` es una cola (2 en paralelo, deduplicada) → `start_op` → `nova-core::ops`. Conflictos resueltos por canal hacia la interfaz. Deshacer: pila en memoria de Rust (30 entradas, se pierde al cerrar).
@@ -239,6 +239,13 @@ Detalle y pruebas: [UPDATE15_PROGRESS.md](docs/history/UPDATE15_PROGRESS.md).
 
 El desenfoque del fondo es **conjunto** (`Appearance.blur` y `surface`), y las preferencias con `zones` se migran desde la zona de contenido en `normalizeAppearance`.
 
+### Auditoría final
+Informe: [FINAL_AUDIT_REPORT.md](FINAL_AUDIT_REPORT.md). Reglas que deja:
+- **La biblioteca `trash` no es fiable para saber qué pasó.** Un lote que falla a medias ya ha enviado el resto, así que `ops::trash_items` solo reintenta lo que sigue en su sitio. `recycle_restore` comprueba en disco que cada elemento haya vuelto. Los motivos se traducen con `recycle::trash_blocked_reason` y con los códigos `COPYENGINE_E_SHARING_VIOLATION_*`.
+- **Todo proceso de consola lanzado desde LFind lleva `CREATE_NO_WINDOW`** (`0x0800_0000`), salvo los que abren una ventana a propósito: la terminal externa y los destinos de «Enviar a».
+- **Integración con Windows:** al desactivar el explorador preferido se borra la copia del valor anterior, y `Software\LFind` se retira solo si queda sin valores ni subclaves (`imp::remove_if_empty`).
+- **No cambiar `bundle.publisher` ni `identifier`.** El instalador NSIS guarda la carpeta de instalación en `HKCU\Software\<editor>\<producto>` (hoy `Software\nova\LFind`), y cambiar el editor haría que una actualización no la encontrara.
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.
@@ -282,4 +289,4 @@ Riesgos y cifras reales: `PROJECT_STATUS.md` §5.
 
 ## 10. Limitaciones conocidas
 
-PDF con páginas gigantes pueden tardar minutos y usar cientos de MB en la webview · HEIC, parte de RAW y otros dependen de proveedores de Windows · el visor no ejecuta PostScript, así que un EPS sin vista incluida no se muestra · `isolate` no contiene falta de memoria, desbordamiento de pila ni fallos de código nativo cargado en el proceso (manejadores de miniaturas de terceros): para eso haría falta un proceso aparte · los `ErrorBoundary` solo capturan errores de render, no de eventos ni promesas · Sin observador de cambios · sin caché de listados por pestaña · deshacer solo en memoria · sin una instancia única · búsqueda solo por nombre, no por contenido · resultados de búsqueda con acciones limitadas · comprimir y extraer sin progreso ni cancelación · WinRAR, Git y otras extensiones COM no aparecen en el menú (decisión 04.2) · carpetas con `desktop.ini` no muestran icono propio (decisión 04.3) · instalador sin firmar y sin actualizador · solo Windows x64.
+PDF con páginas gigantes pueden tardar minutos y usar cientos de MB en la webview · HEIC, parte de RAW y otros dependen de proveedores de Windows · el visor no ejecuta PostScript, así que un EPS sin vista incluida no se muestra · `isolate` no contiene falta de memoria, desbordamiento de pila ni fallos de código nativo cargado en el proceso (manejadores de miniaturas de terceros): para eso haría falta un proceso aparte · los `ErrorBoundary` solo capturan errores de render, no de eventos ni promesas · Sin observador de cambios · sin caché de listados por pestaña · deshacer solo en memoria · búsqueda solo por nombre, no por contenido · resultados de búsqueda con acciones limitadas · comprimir y extraer sin progreso ni cancelación · WinRAR, Git y otras extensiones COM no aparecen en el menú (decisión 04.2) · carpetas con `desktop.ini` no muestran icono propio (decisión 04.3) · instalador sin firma Authenticode: SmartScreen avisa en la primera instalación (las actualizaciones sí van firmadas con la clave del actualizador) · solo Windows x64.

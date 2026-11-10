@@ -712,7 +712,13 @@ pub fn trash_items(
         if batch(chunk).is_ok() {
             out.completed += chunk.len() as u64;
         } else {
+            // Un lote que falla a medias ya ha enviado el resto: lo que no sigue en su sitio está en la Papelera, y
+            // reintentarlo daría un error falso.
             for p in chunk {
+                if fs::symlink_metadata(p).is_err() {
+                    out.completed += 1;
+                    continue;
+                }
                 match single(p) {
                     Ok(()) => out.completed += 1,
                     Err(message) => out.errors.push(OpError { path: p.display().to_string(), message, kind: ErrKind::Other }),
@@ -1031,6 +1037,38 @@ mod tests {
         assert_eq!(o.errors[0].path, bad.display().to_string());
         assert_eq!(log.last().unwrap().files_done, 150);
         assert!(bad.exists() && !names[0].exists());
+        let _ = fs::remove_dir_all(d);
+    }
+
+    /// Como Windows: el lote envía todo lo que puede y luego informa del fallo. Lo enviado no puede contar como error.
+    #[test]
+    fn trash_batch_that_fails_halfway_counts_what_was_sent() {
+        let d = tmp("trash3");
+        let names: Vec<PathBuf> = (0..6).map(|i| d.join(format!("f{i}.txt"))).collect();
+        names.iter().for_each(|p| w(p, "x"));
+        let bad = names[3].clone();
+        let mut singles = vec![];
+        let (o, _) = run(
+            |c| {
+                trash_items(
+                    &names,
+                    c,
+                    &mut |chunk| {
+                        chunk.iter().filter(|p| **p != bad).for_each(|p| fs::remove_file(p).unwrap());
+                        Err("Some operations were aborted".into())
+                    },
+                    &mut |p| {
+                        singles.push(p.to_path_buf());
+                        Err("en uso".into())
+                    },
+                )
+            },
+            Decision::Skip,
+        );
+        assert_eq!(o.completed, 5);
+        assert_eq!(o.errors.len(), 1);
+        assert_eq!(o.errors[0].path, bad.display().to_string());
+        assert_eq!(singles, vec![bad], "solo se reintenta lo que sigue en su sitio");
         let _ = fs::remove_dir_all(d);
     }
 

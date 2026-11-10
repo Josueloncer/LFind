@@ -140,10 +140,32 @@ fn selected(ids: &[String]) -> Result<Vec<trash::TrashItem>, String> {
 pub async fn recycle_restore(ids: Vec<String>) -> Result<(), String> {
     blocking(move || {
         own_thread(move || {
-            trash::os_limited::restore_all(selected(&ids)?).map_err(|e| match e {
+            let items = selected(&ids)?;
+            let targets: Vec<_> = items.iter().map(|it| it.original_path()).collect();
+            // Como el Explorador: si la carpeta original ya no existe, se vuelve a crear. Solo cuando nada choca, para no
+            // dejar carpetas vacías por una restauración que se va a rechazar.
+            let mut seen = HashSet::new();
+            let clash = targets.iter().any(|t| t.exists() || !seen.insert(t.to_string_lossy().to_lowercase()));
+            if !clash {
+                for it in &items {
+                    if !it.original_parent.exists() {
+                        std::fs::create_dir_all(&it.original_parent).map_err(|e| format!("No se pudo volver a crear la carpeta original {}: {e}", it.original_parent.display()))?;
+                    }
+                }
+            }
+            trash::os_limited::restore_all(items).map_err(|e| match e {
                 trash::Error::RestoreCollision { path, .. } => format!("Ya existe un elemento en la ubicación original: {}", path.display()),
-                other => other.to_string(),
-            })
+                trash::Error::RestoreTwins { path, .. } => format!("Hay dos elementos seleccionados que vienen del mismo sitio: {}. Restáuralos de uno en uno.", path.display()),
+                // COPYENGINE_E_SHARING_VIOLATION_SRC / _DEST
+                trash::Error::Os { code: -2144927705 | -2144927704, .. } => "Un elemento está en uso por otra aplicación. Ciérrala e inténtalo de nuevo.".into(),
+                other => format!("No se pudo restaurar: {other}"),
+            })?;
+            // No se da por hecho: lo que no está en su sitio no se ha restaurado.
+            let missing = targets.iter().filter(|t| std::fs::symlink_metadata(t).is_err()).count();
+            if missing > 0 {
+                return Err(format!("Windows no restauró {missing} de {} elementos.", targets.len()));
+            }
+            Ok(())
         })
     })
     .await

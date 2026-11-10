@@ -244,7 +244,10 @@ pub enum OpEvent {
 }
 
 fn send_to_trash(p: &Path) -> Result<(), String> {
-    trash::delete(p).map_err(|e| format!("No se pudo enviar a la Papelera: {e}. Usa Mayús+Supr para eliminar de forma permanente."))
+    trash::delete(p).map_err(|e| match nova_core::recycle::trash_blocked_reason(p) {
+        Some(reason) => reason,
+        None => format!("No se pudo enviar a la Papelera: {e}. Usa Mayús+Supr para eliminar de forma permanente."),
+    })
 }
 
 fn parse_all(list: &[String]) -> Result<Vec<PathBuf>, String> {

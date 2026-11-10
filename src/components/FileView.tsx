@@ -74,6 +74,8 @@ export interface FileViewProps {
   orderRef?: { current: Entry[] };
   /** Con el panel de vista previa abierto, ←/→ recorren los archivos también en las vistas de una columna. */
   previewOpen?: boolean;
+  /** Cada vez que cambia, la lista vuelve al principio (volver a pulsar la ubicación abierta). */
+  toTop?: number;
 }
 
 interface Handlers {
@@ -451,6 +453,15 @@ export function FileView(props: FileViewProps) {
       window.removeEventListener("blur", onBlur);
     };
   }, []);
+
+  // Volver al principio, en todas las vistas (la de lista se desplaza en horizontal).
+  const toTopSeen = useRef(props.toTop);
+  useEffect(() => {
+    if (props.toTop === toTopSeen.current) return;
+    toTopSeen.current = props.toTop;
+    const el = scroller.current;
+    if (el) (el.scrollTop = 0), (el.scrollLeft = 0);
+  }, [props.toTop]);
 
   // Mostrar un elemento concreto (recién creado o renombrado).
   const { reveal, onRevealed } = props;

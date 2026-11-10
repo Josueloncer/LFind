@@ -9,6 +9,7 @@ import { basename } from "../lib/path";
 import { copyText } from "../stores/clipboard";
 import { useOps } from "../stores/ops";
 import { useUi } from "../stores/ui";
+import { FolderIconDialog } from "./FolderIconDialog";
 import { IndexDialog } from "./IndexDialog";
 import { Modal } from "./Modal";
 import { UpdateDialog } from "./UpdateDialog";
@@ -155,6 +156,7 @@ export function Dialogs() {
       {d?.type === "index" && <IndexDialog />}
       {d?.type === "update" && <UpdateDialog />}
       {d?.type === "settings" && <SettingsDialog />}
+      {d?.type === "folderIcon" && <FolderIconDialog path={d.path} />}
       <ConflictDialog />
     </>
   );

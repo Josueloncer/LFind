@@ -7,6 +7,7 @@ import { useFileActions } from "../hooks/useFileActions";
 import { dropInto } from "../hooks/useDropTarget";
 import { useSortedEntries } from "../hooks/useSortedEntries";
 import { beginDrag, canDropInto, draggedPaths, dropOperation, endDrag } from "../lib/dnd";
+import { externalDragActive, externalEffect } from "../lib/externalDrop";
 import { fs } from "../lib/fs";
 import type { Column, Entry, SearchHit, SortKey } from "../lib/fs";
 import { buildContextMenu } from "../lib/contextMenu";
@@ -268,9 +269,10 @@ export function Pane({ side }: { side: 0 | 1 }) {
   };
   const canDrop = (t: Entry | null) => {
     const d = draggedPaths();
-    return !!d && !!path && canDropInto(d, destOf(t));
+    if (!d) return externalDragActive() && !!path && !isVirtual(destOf(t));
+    return !!path && canDropInto(d, destOf(t));
   };
-  const dropEffect = (ev: DragEvent, t: Entry | null) => dropOperation(draggedPaths() ?? [], destOf(t), ev);
+  const dropEffect = (ev: DragEvent, t: Entry | null) => (draggedPaths() ? dropOperation(draggedPaths() ?? [], destOf(t), ev) : externalEffect(ev));
   const onDrop = (ev: DragEvent, t: Entry | null) => void dropInto(ev, destOf(t));
 
   // ───────── visor: anterior/siguiente en el contexto actual (carpeta o resultados) ─────────
@@ -319,7 +321,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
   const keys = useRef({ A, selected, view, reload, sendToOther });
   keys.current = { A, selected, view, reload, sendToOther };
 
-  // Volver a pulsar la ubicación abierta la actualiza, igual que F5.
+  // Volver a pulsar la ubicación abierta la actualiza y vuelve al principio de la lista (F5 actualiza sin moverse).
   const refreshAsked = useNav((s) => (s.refresh.side === side ? s.refresh.tick : 0));
   const refreshSeen = useRef(refreshAsked);
   useEffect(() => {
@@ -418,7 +420,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
         renaming={renaming} onRename={(o, n) => (setRenaming(null), A.rename(o, n))} onCancelRename={() => setRenaming(null)}
         onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom} onZoomTo={onZoomTo}
         onDragStart={onDragStart} canDrop={canDrop} dropEffect={dropEffect} onDrop={onDrop} onDragEnd={endDrag}
-        reveal={reveal} onRevealed={() => setReveal(null)} orderRef={orderRef} previewOpen={p.previewPane}
+        reveal={reveal} onRevealed={() => setReveal(null)} orderRef={orderRef} previewOpen={p.previewPane} toTop={refreshAsked}
       />
     );
   }

@@ -53,6 +53,18 @@ export function renamePin(pins: readonly Favorite[], path: string, label: string
   return pins.map((p) => (canonicalKey(p.path) === key ? { ...p, label: clean } : p));
 }
 
+/** Cambia el icono visible de un acceso fijado; `null` vuelve al predeterminado. La carpeta real no se toca. */
+export function setPinIcon(pins: readonly Favorite[], path: string, icon: string | null): readonly Favorite[] {
+  const key = canonicalKey(path);
+  const at = pins.findIndex((p) => canonicalKey(p.path) === key);
+  if (at < 0 || (pins[at].icon ?? null) === icon) return pins;
+  return pins.map((p, i) => {
+    if (i !== at) return p;
+    const { icon: _old, ...rest } = p;
+    return icon ? { ...rest, icon } : rest;
+  });
+}
+
 /** ¿Soltar aquí cambiaría algo? Justo antes o después de sí mismo el orden queda igual, así que no se ofrece. */
 export const canMovePin = (count: number, from: number, before: number): boolean =>
   Number.isInteger(from) && Number.isInteger(before) && from >= 0 && from < count && before >= 0 && before <= count && before !== from && before !== from + 1;

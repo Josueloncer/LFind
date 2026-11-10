@@ -1,7 +1,7 @@
 import { insertionFromY } from "./locations";
 import { describe, expect, it } from "vitest";
 import type { DriveUsage, Place } from "./fs/types";
-import { MAX_CLOUD_QUERY, MAX_RECENTS, PASS_THROUGH_MS, applyCloudResults, canMovePin, cloudCandidates, driveKindLabel, dropMissingRecents, groupDrives, isPinned, movePin, recordVisit, removeRecent, renamePin, togglePin, usedPercent, visibleRecents } from "./locations";
+import { MAX_CLOUD_QUERY, MAX_RECENTS, PASS_THROUGH_MS, applyCloudResults, canMovePin, cloudCandidates, driveKindLabel, dropMissingRecents, groupDrives, isPinned, movePin, recordVisit, removeRecent, renamePin, setPinIcon, togglePin, usedPercent, visibleRecents } from "./locations";
 import { COMPUTER, basename, canonicalKey, isDriveRoot, parent, samePath, upOf } from "./path";
 import { crumbsFor } from "./addressBar";
 
@@ -79,6 +79,17 @@ describe("accesos fijados", () => {
     expect(renamePin(pins, "c:\\b", "  Trabajo ")[1]).toEqual({ path: "C:\\b", label: "Trabajo" });
     expect(renamePin(pins, "C:\\b", "   ")).toBe(pins);
     expect(renamePin(pins, "C:\\no", "x")).toBe(pins);
+  });
+  it("icono propio: se asigna, se cambia y se restaura sin tocar ruta ni nombre", () => {
+    const a = setPinIcon(pins, "c:/B/", "rocket");
+    expect(a[1]).toEqual({ path: "C:\\b", label: "B", icon: "rocket" });
+    expect(a[0]).toBe(pins[0]);
+    expect(setPinIcon(a, "C:\\b", "rocket")).toBe(a);
+    expect(setPinIcon(a, "C:\\b", "music")[1].icon).toBe("music");
+    expect(setPinIcon(a, "C:\\b", null)[1]).toEqual({ path: "C:\\b", label: "B" });
+    expect(setPinIcon(pins, "C:\\no", "rocket")).toBe(pins);
+    expect(renamePin(a, "C:\\b", "Trabajo")[1].icon).toBe("rocket");
+    expect(movePin(a, 1, 0)[0].icon).toBe("rocket");
   });
   it("reordena", () => {
     expect(movePin(pins, 0, 3).map((p) => p.label)).toEqual(["B", "C", "A"]);

@@ -94,6 +94,8 @@ export interface PlaceMenuActions {
   pinned: boolean;
   togglePin(): void;
   rename?(): void;
+  /** Solo en carpetas fijadas: elegir su icono en LFind. */
+  changeIcon?(): void;
   moveUp?(): void;
   moveDown?(): void;
   copyPath(): void;
@@ -111,6 +113,7 @@ export function placeMenu(a: PlaceMenuActions): MenuItem[] {
     sep,
     { kind: "item", label: pinLabel(a.pinned), icon: "pin", run: a.togglePin },
     ...opt("Cambiar nombre", a.rename, "rename"),
+    ...opt("Cambiar icono…", a.changeIcon, "star"),
     ...opt("Analizar almacenamiento", a.analyze, "props"),
     ...opt("Subir en la lista", a.moveUp),
     ...opt("Bajar en la lista", a.moveDown),

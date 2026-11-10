@@ -3,7 +3,7 @@ import { DEFAULT_LAYOUT, DEFAULT_PREFS, fs } from "../lib/fs";
 import type { Layout, Prefs } from "../lib/fs";
 import { BG_SLOTS, DEFAULT_APPEARANCE, normalizeAppearance, normalizeThemes } from "../lib/appearance";
 import type { Appearance } from "../lib/appearance";
-import { movePin, recordVisit, removeRecent, renamePin, togglePin } from "../lib/locations";
+import { movePin, recordVisit, removeRecent, renamePin, setPinIcon, togglePin } from "../lib/locations";
 import { applyOrder, moveByKey, moveKey } from "../lib/reorder";
 import { normalizeLayout } from "../lib/uiLayout";
 import { canonicalKey } from "../lib/path";
@@ -19,6 +19,8 @@ interface PrefsState extends Prefs {
   toggleFavorite(path: string, label: string): void;
   /** Cambia solo el nombre visible del acceso fijado. */
   renameFavorite(path: string, label: string): void;
+  /** Icono del acceso fijado (`null`: el predeterminado). */
+  setFavoriteIcon(path: string, icon: string | null): void;
   moveFavorite(from: number, before: number): void;
   /** Cambia la posición en Recientes; cada elemento conserva su fecha y sus acciones. */
   moveRecent(key: string, before: string | null): void;
@@ -99,6 +101,12 @@ export const usePrefs = create<PrefsState>((set, get) => ({
   renameFavorite(path, label) {
     const cur = get().favorites;
     const next = renamePin(cur, path, label);
+    if (next !== cur) get().update({ favorites: [...next] });
+  },
+
+  setFavoriteIcon(path, icon) {
+    const cur = get().favorites;
+    const next = setPinIcon(cur, path, icon);
     if (next !== cur) get().update({ favorites: [...next] });
   },
 

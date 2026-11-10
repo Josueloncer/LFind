@@ -277,6 +277,18 @@ Detalle: [UPDATE16_PROGRESS.md, parte 3](docs/history/UPDATE16_PROGRESS.md#parte
 - **Perfil de PowerShell:** se decide con `terminal::powershell_profile_plan`. Si no puede cargarse, se usa `-NoProfile` con una explicación. **Nunca** se pasa `-ExecutionPolicy` ni se cambia la política o el perfil.
 - **Elevación:** solo para «Abrir terminal como administrador», con `runas` y la carpeta en los argumentos. El resto de LFind funciona sin permisos de administrador.
 
+### Iconos de carpetas, arrastre externo, volver arriba y logo (Update 17)
+Detalle: [UPDATE17_PROGRESS.md](docs/history/UPDATE17_PROGRESS.md).
+
+- **Iconos de los fijados.** El campo opcional `Favorite.icon` guarda el id de `FOLDER_ICONS` (`src/components/folderIcons.ts`, lucide). Es solo visual: la carpeta de Windows no cambia. Para añadir un icono: su import, su entrada en `FOLDER_ICONS` y su id en una categoría.
+- **Arrastre desde otras aplicaciones.** El destino OLE es el de WebView2, que está en otro proceso, así que no se envuelve, y `dragDropEnabled` debe seguir en `false`. Las rutas llegan con `chrome.webview.postMessageWithAdditionalObjects` (`dropin_cmd.rs` y `lib/externalDrop.ts`).
+  - Las carpetas no se pueden enviar: se envía uno de sus archivos y su ruta se deduce de él.
+  - La app cancela toda navegación a `file:`.
+  - Los arrastres que empiezan en LFind no pasan por aquí.
+- **Volver arriba.** `FileView.toTop` cambia cuando se vuelve a pulsar la ubicación abierta (no con F5).
+- **Logo.** La fuente es `src-tauri/icons/app-icon.svg` (`npx tauri icon`; copiar solo los cinco archivos del proyecto); `BrandMark` usa la misma geometría.
+- **Tema.** Ya no hay botón en la barra lateral: se elige en Personalizar → Apariencia.
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.

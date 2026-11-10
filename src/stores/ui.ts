@@ -20,6 +20,7 @@ export type Dialog =
   | { type: "index" }
   | { type: "update" }
   | { type: "settings" }
+  | { type: "folderIcon"; path: string }
   | null;
 
 interface UiState {

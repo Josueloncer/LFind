@@ -108,6 +108,9 @@ pub struct FolderView {
 pub struct Favorite {
     pub path: String,
     pub label: String,
+    /// Icono elegido en LFind (id de la biblioteca de la interfaz). Solo visual: la carpeta real no cambia. Sin él, el predeterminado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// Distribución personalizada de la interfaz. Listas de identificadores estables; vacías, la distribución original.
@@ -469,7 +472,7 @@ mod tests {
         let p = load(&f);
         assert_eq!(p.recent_folders.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(), ["C:\\A", "C:\\B"], "se conserva el orden");
         assert!(p.recents.is_empty());
-        assert_eq!(p.favorites, vec![Favorite { path: "C:\\X".into(), label: "Mi X".into() }], "sin perderlos y sin duplicados");
+        assert_eq!(p.favorites, vec![Favorite { path: "C:\\X".into(), label: "Mi X".into(), icon: None }], "sin perderlos y sin duplicados");
         assert_eq!(p.sort_dir, SortDir::Desc);
         assert_eq!(p.folder_views.iter().map(|v| v.sort_dir).collect::<Vec<_>>(), [SortDir::Desc, SortDir::Asc, SortDir::Desc], "el nombre sigue ascendente");
         // Una vez migrado, una elección explícita del usuario ya no se toca.
@@ -487,11 +490,27 @@ mod tests {
         let p = Prefs {
             theme: Theme::Dark,
             view_mode: ViewMode::Icons,
-            favorites: vec![Favorite { path: "C:\\Proyectos".into(), label: "Proyectos".into() }],
+            favorites: vec![
+                Favorite { path: "C:\\Proyectos".into(), label: "Proyectos".into(), icon: Some("rocket".into()) },
+                Favorite { path: "C:\\Fotos".into(), label: "Fotos".into(), icon: None },
+            ],
             ..Prefs::default()
         };
         save(&f, &p).unwrap();
         assert_eq!(load(&f), p);
+        let _ = fs::remove_dir_all(d);
+    }
+
+    #[test]
+    fn favorites_saved_before_custom_icons_still_load() {
+        let d = dir("fav-old");
+        fs::create_dir_all(&d).unwrap();
+        let f = d.join("prefs.json");
+        fs::write(&f, r#"{"favorites":[{"path":"C:\\Viejo","label":"Viejo"}]}"#).unwrap();
+        let p = load(&f);
+        assert_eq!(p.favorites, vec![Favorite { path: "C:\\Viejo".into(), label: "Viejo".into(), icon: None }]);
+        save(&f, &p).unwrap();
+        assert!(!fs::read_to_string(&f).unwrap().contains("\"icon\""), "sin icono no se escribe el campo");
         let _ = fs::remove_dir_all(d);
     }
 

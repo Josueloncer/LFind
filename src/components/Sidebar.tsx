@@ -1,13 +1,11 @@
-import { ChartPie, Copy, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Palette, Pin, SlidersHorizontal, Trash2, TriangleAlert, Wrench, X } from "./icons";
+import { ChartPie, Copy, CircleArrowUp, Clock, Cloud, Download, FileText, Film, HardDrive, Home, ImageIcon, Monitor, Music, Pin, SlidersHorizontal, Trash2, TriangleAlert, Wrench, X } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import type { DriveUsage, Favorite, PathState, Place } from "../lib/fs";
 import { placeMenu } from "../lib/contextMenu";
 import type { PlaceMenuActions } from "../lib/contextMenu";
 import { DEFAULT_APPEARANCE, LIMITS, clampSidebarWidth, sidebarWidthAt } from "../lib/appearance";
-import { THEMES } from "../lib/themes";
 import { useUi } from "../stores/ui";
-import type { MenuItem } from "../stores/ui";
 import { driveLabel } from "../lib/addressBar";
 import { formatBytes } from "../lib/format";
 import { useDropTarget } from "../hooks/useDropTarget";
@@ -20,6 +18,8 @@ import { useApp } from "../stores/app";
 import { copyText } from "../stores/clipboard";
 import { useCustomize } from "../stores/customize";
 import { usePalette } from "../stores/palette";
+import { folderIcon } from "./folderIcons";
+import { togglePinWithIconOffer } from "../stores/pinOffer";
 import { useTerminal } from "../stores/terminal";
 import { selectActiveTab, useNav } from "../stores/nav";
 import { usePathHealth } from "../stores/pathHealth";
@@ -225,7 +225,6 @@ export function Sidebar() {
   const usage = useApp((s) => s.usage);
   const recents = usePrefs((s) => s.recentFolders);
   const favorites = usePrefs((s) => s.favorites);
-  const theme = usePrefs((s) => s.theme);
   const collapsed = usePrefs((s) => s.sidebarCollapsed);
   const layout = usePrefs((s) => s.layout);
   const { update, toggleFavorite, renameFavorite, moveLocation, moveRecent, setLayout, forgetRecent, clearRecents } = usePrefs.getState();
@@ -235,7 +234,6 @@ export function Sidebar() {
   const navigate = useNav((s) => s.openLocation);
   const openTab = useNav((s) => s.openTab);
   const cur = tab?.path ?? "";
-  const th = THEMES.find((t) => t.id === theme) ?? THEMES[0];
   const openMenu = useUi((s) => s.openMenu);
   const openDialog = useUi((s) => s.openDialog);
   const toast = useUi((s) => s.toast);
@@ -244,7 +242,6 @@ export function Sidebar() {
   const [allRecents, setAllRecents] = useState(false);
   const analyzing = useStorage((s) => !!s.job);
 
-  // Selector de tema: menú con los seis; el cambio es inmediato y se guarda con las preferencias.
   const pickTools = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     openMenu(r.left, r.top - 5 * 32, [
@@ -255,15 +252,6 @@ export function Sidebar() {
       { kind: "item", label: "Configuración…", run: () => openDialog({ type: "settings" }) },
     ]);
   };
-  const pickTheme = (e: MouseEvent<HTMLButtonElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    openMenu(r.left, r.top - (THEMES.length + 2) * 32, [
-      { kind: "header", label: "Tema" },
-      ...THEMES.map((t): MenuItem => ({ kind: "item", label: t.label, checked: t.id === theme, run: () => update({ theme: t.id }) })),
-      { kind: "sep" },
-      { kind: "item", label: "Personalización…", run: () => useCustomize.getState().openAppearance() },
-    ]);
-  };
 
   const menu = (path: string, label: string, extra: Partial<PlaceMenuActions> = {}) => (ev: MouseEvent) => {
     ev.preventDefault();
@@ -271,7 +259,7 @@ export function Sidebar() {
       open: () => navigate(path),
       openInNewTab: () => openTab(path),
       pinned: isPinned(usePrefs.getState().favorites, path),
-      togglePin: () => toggleFavorite(path, label),
+      togglePin: () => togglePinWithIconOffer(path, label),
       copyPath: () => void copyText(path).then((ok) => toast(ok ? "Ruta copiada" : "No se pudo copiar al portapapeles", ok ? "success" : "error")),
       properties: () => openDialog({ type: "properties", paths: [path] }),
       analyze: () => useStorage.getState().analyze(path),
@@ -280,6 +268,7 @@ export function Sidebar() {
   };
 
   const pinMenu = (f: Favorite, i: number, ids: string[]) => menu(f.path, f.label, {
+    changeIcon: () => openDialog({ type: "folderIcon", path: f.path }),
     rename() {
       // En modo raíl no hay sitio para el campo: se abre el panel.
       if (collapsed) update({ sidebarCollapsed: false });
@@ -321,7 +310,7 @@ export function Sidebar() {
             if (f) {
               return (
                 <Item
-                  key={key} label={f.label} path={f.path} Icon={Pin} active={samePath(cur, f.path)} onOpen={navigate}
+                  key={key} label={f.label} path={f.path} Icon={folderIcon(f.icon) ?? Pin} active={samePath(cur, f.path)} onOpen={navigate}
                   onRemove={() => toggleFavorite(f.path, f.label)} removeLabel="Quitar de Ubicaciones" state={health[key]} onMenu={pinMenu(f, i, locationIds)}
                   dnd={dnd} editing={editing === key}
                   onEdited={(v) => (setEditing(null), v !== null && renameFavorite(f.path, v))}
@@ -398,10 +387,6 @@ export function Sidebar() {
         <button className="side-theme" aria-pressed={customizing} title="Personalizar interfaz: reorganizar y ocultar elementos" aria-label="Personalizar interfaz" onClick={() => (customizing ? useCustomize.getState().exit() : useCustomize.getState().enter())}>
           <SlidersHorizontal />
           <span className="side-label">Personalizar interfaz</span>
-        </button>
-        <button className="side-theme" title={`Tema: ${th.label} (clic para cambiar)`} onClick={pickTheme}>
-          <Palette />
-          <span className="side-label">Tema: {th.label}</span>
         </button>
         <button className="side-theme" title="Herramientas y configuración" aria-label="Herramientas" onClick={pickTools}>
           <Wrench />

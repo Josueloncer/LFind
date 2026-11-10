@@ -23,6 +23,12 @@ tauri-plugin-updater = "2"
 # Una sola instancia: abrir una carpeta desde Windows la lleva a la ventana existente y evita dos indexadores cruzados.
 tauri-plugin-single-instance = "2"
 
+# Soltar archivos de otras aplicaciones (Explorador, WinRAR…): WebView2 entrega sus rutas reales por
+# `postMessageWithAdditionalObjects`. Son las mismas versiones que ya trae `wry`: no se descarga nada nuevo.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "=0.39.1"
+windows-core = "=0.62.2"
+
 # `tauri dev` compila en modo debug. En debug, serializar 100 000 entradas a JSON
 # tarda ~221 ms frente a ~14 ms con optimización (medido con el banco de pruebas
 # `crates/nova-core/examples/bench_dir.rs`, en Linux). Se optimiza solo el código

@@ -1,5 +1,12 @@
 # LFind — Registro de cambios
 
+## Update 17: iconos para tus carpetas y un logo nuevo
+- Elige un icono para cada carpeta fijada en Ubicaciones, entre más de 130, por categorías y con búsqueda. Al fijar una carpeta te lo ofrece, y puedes cambiarlo o volver al predeterminado cuando quieras. Solo cambia en LFind, no en Windows.
+- Arrastra archivos y carpetas desde el Explorador de Windows a LFind para copiarlos, con Mayús para moverlos, con progreso y aviso si ya existen.
+- Volver a pulsar la carpeta abierta la actualiza y te lleva al principio de la lista.
+- Nuevo logo de LFind: una carpeta con una lupa, en la aplicación, la barra de tareas y el instalador.
+- El tema se elige en Personalizar interfaz → Apariencia; se quita el botón duplicado de la barra lateral.
+
 ## Update 16: abrir la ubicación de un acceso directo
 - Nuevo «Abrir ubicación del archivo» en el menú contextual de los accesos directos: LFind abre la carpeta del destino y lo deja seleccionado, sin abrir otra ventana.
 - Funciona con accesos directos a programas, documentos y carpetas, y también con los que instalan Office y otros programas de Windows Installer.

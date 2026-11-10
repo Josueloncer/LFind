@@ -3,6 +3,7 @@ import type { DragEvent } from "react";
 import { MIME, canDropInto, draggedPaths, dropOperation, endDrag } from "../lib/dnd";
 import { isVirtual } from "../lib/path";
 import { useOps } from "../stores/ops";
+import { externalDragActive, externalEffect, sendExternalDrop } from "../lib/externalDrop";
 
 /** Paths que se están arrastrando (desde nuestro propio estado o, si no, del DataTransfer). */
 export function payload(ev: DragEvent): string[] | null {
@@ -20,7 +21,9 @@ export function payload(ev: DragEvent): string[] | null {
 export function dropInto(ev: DragEvent, dest: string): boolean {
   const paths = payload(ev);
   endDrag();
-  if (!paths || !canDropInto(paths, dest)) return false;
+  // Desde otra aplicación (Explorador, WinRAR…): las rutas las pone WebView2.
+  if (!paths) return externalDragActive() && !isVirtual(dest) && sendExternalDrop(ev, dest);
+  if (!canDropInto(paths, dest)) return false;
   useOps.getState().start({ kind: dropOperation(paths, dest, ev), sources: paths, dest });
   return true;
 }
@@ -36,6 +39,12 @@ export function useDropTarget(dest: string | null) {
     ? {
         onDragOver(ev: DragEvent) {
           const p = draggedPaths();
+          if (!p && externalDragActive()) {
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = externalEffect(ev);
+            if (!over) setOver(true);
+            return;
+          }
           if (!p || !canDropInto(p, dest)) return;
           ev.preventDefault();
           ev.dataTransfer.dropEffect = dropOperation(p, dest, ev);

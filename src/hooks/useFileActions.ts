@@ -10,6 +10,7 @@ import { copyText, useClipboard } from "../stores/clipboard";
 import { useNav } from "../stores/nav";
 import { useOps } from "../stores/ops";
 import { useSearch } from "../stores/search";
+import { togglePinWithIconOffer } from "../stores/pinOffer";
 import { usePrefs } from "../stores/prefs";
 import { pullFromSystem, pushToSystem } from "../lib/systemClipboard";
 import { useUi } from "../stores/ui";
@@ -92,9 +93,9 @@ export function useFileActions(a: Args) {
         const p = l.length ? paths(l) : path ? [path] : [];
         if (p.length) useUi.getState().openDialog({ type: "properties", paths: p });
       },
-      togglePin: (e: Entry) => usePrefs.getState().toggleFavorite(pathOf(e), e.name),
+      togglePin: (e: Entry) => togglePinWithIconOffer(pathOf(e), e.name),
       isPinned: (e: Entry) => isPinned(usePrefs.getState().favorites, pathOf(e)),
-      togglePinFolder: () => path && usePrefs.getState().toggleFavorite(path, basename(path)),
+      togglePinFolder: () => path && togglePinWithIconOffer(path, basename(path)),
       folderPinned: () => !!path && isPinned(usePrefs.getState().favorites, path),
       openWith(e: Entry) {
         const target = pathOf(e);

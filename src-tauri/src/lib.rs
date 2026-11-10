@@ -2,6 +2,7 @@ mod analyzer_cmd;
 mod backgrounds_cmd;
 mod clipboard_cmd;
 mod commands;
+mod dropin_cmd;
 mod shellapps_cmd;
 mod terminal_cmd;
 mod windows_cmd;
@@ -58,6 +59,8 @@ pub fn run() {
             // Mica solo existe en Windows 11. Si el sistema lo rechaza, la interfaz
             // usa superficies opacas (ver `get_platform_info`).
             if let Some(win) = app.get_webview_window("main") {
+                // Soltar archivos desde otras aplicaciones (ver `dropin_cmd`).
+                dropin_cmd::install(&win);
                 let ok = win
                     .set_effects(EffectsBuilder::new().effect(Effect::Mica).build())
                     .is_ok();

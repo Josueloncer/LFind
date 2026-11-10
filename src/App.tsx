@@ -4,6 +4,7 @@ import { AppearancePanel } from "./components/AppearancePanel";
 import { CommandPalette } from "./components/CommandPalette";
 import { CustomizeBar } from "./components/CustomizeBar";
 import { registerBuiltinCommands } from "./lib/builtinCommands";
+import { watchExternalDrags } from "./lib/externalDrop";
 import { usePalette } from "./stores/palette";
 import { useTerminal } from "./stores/terminal";
 import { Dialogs } from "./components/Dialogs";
@@ -227,6 +228,7 @@ export default function App() {
   }, []);
 
   useEffect(registerBuiltinCommands, []);
+  useEffect(watchExternalDrags, []);
   const terminalOpen = useTerminal((s) => s.open);
   const sidebarSide = usePrefs((s) => s.sidebarSide);
 

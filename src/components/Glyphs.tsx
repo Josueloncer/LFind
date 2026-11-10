@@ -67,10 +67,21 @@ export function EntryGlyph({ entry, size = 22 }: { entry: Entry; size?: number }
   return entry.kind === "dir" ? <FolderGlyph style={st} /> : <FileGlyph entry={entry} showExt={size >= 56} style={st} />;
 }
 
+/** Marca de LFind: carpeta con una lupa encajada en su esquina. Misma geometría que `src-tauri/icons/app-icon.svg`. */
 export function BrandMark() {
   return (
-    <svg viewBox="0 0 24 24" aria-label="LFind">
-      <path d="M12 1.5l2.1 8.4 8.4 2.1-8.4 2.1L12 22.5l-2.1-8.4L1.5 12l8.4-2.1z" fill="url(#nv-mark)" />
+    <svg viewBox="10.5 12 47 47" aria-label="LFind">
+      <defs>
+        <mask id="nv-brand-cut">
+          <rect x="0" y="0" width="64" height="64" fill="#fff" />
+          <circle cx="40.75" cy="40.75" r="12.25" fill="#000" />
+        </mask>
+      </defs>
+      <path mask="url(#nv-brand-cut)" fill="url(#nv-mark)" d="M12.5 19.9a3.9 3.9 0 0 1 3.9-3.9h9.4a3.5 3.5 0 0 1 2.7 1.25l2.9 3.4h18.8a3.9 3.9 0 0 1 3.9 3.9v20.9a3.9 3.9 0 0 1-3.9 3.9H16.4a3.9 3.9 0 0 1-3.9-3.9z" />
+      <g fill="none" stroke="url(#nv-mark)" strokeLinecap="round">
+        <circle cx="40.75" cy="40.75" r="7.6" strokeWidth="4" />
+        <path d="M46.5 46.5l5.75 5.75" strokeWidth="5" />
+      </g>
     </svg>
   );
 }

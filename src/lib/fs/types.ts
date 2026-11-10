@@ -66,6 +66,8 @@ export interface FolderView {
 export interface Favorite {
   path: string;
   label: string;
+  /** Icono elegido en LFind (id de `FOLDER_ICONS`). Solo visual: la carpeta de Windows no cambia. Sin él, el predeterminado. */
+  icon?: string;
 }
 
 /** Carpeta visitada de verdad. `at`: última visita (ms desde epoch; 0 si viene de una versión anterior). */

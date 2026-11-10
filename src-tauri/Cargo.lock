@@ -2341,6 +2341,8 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "trash",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]

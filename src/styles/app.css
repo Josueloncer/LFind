@@ -955,3 +955,23 @@ html[data-bg-general] .app[data-sidebar="right"] .pane-split::after { display: n
 .an-avail { grid-template-columns: minmax(0, 1fr) 90px 100px 110px !important; }
 .an-avail-note { display: block; font-style: normal; color: var(--text-3); font-size: var(--fs-xs); }
 .an-row[aria-pressed="true"] { background: var(--sel); }
+
+/* Icono de una carpeta fijada: diálogo compacto, vista previa como la fila de la barra lateral. */
+.fi-preview { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-m); background: var(--bg-field); }
+.fi-preview-row { display: flex; align-items: center; gap: var(--sp-4); min-width: 0; }
+.fi-preview-icon { width: var(--icon-l); height: var(--icon-l); flex: none; color: var(--accent); }
+.fi-preview-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
+.fi-preview-note { flex: none; color: var(--text-3); font-size: var(--fs-s); }
+.fi-search { width: 100%; height: var(--ctl-h); margin-top: var(--sp-4); padding: 0 var(--sp-4); border: 0; border-radius: var(--r-s); outline: 0; color: var(--text); background: var(--bg-field); user-select: text; }
+.fi-search:focus { box-shadow: 0 0 0 1.5px var(--focus-ring); }
+.fi-cats { display: flex; gap: var(--sp-1); margin-top: var(--sp-3); overflow-x: auto; scrollbar-width: thin; padding-bottom: var(--sp-0); }
+.fi-cats button { flex: none; height: var(--ctl-h-xs); padding: 0 var(--sp-4); border-radius: 999px; color: var(--text-2); font-size: var(--fs-s); transition: background var(--t-fast), color var(--t-fast); }
+.fi-cats button:hover { background: var(--bg-hover); color: var(--text); }
+.fi-cats button[aria-selected="true"] { background: var(--sel); color: var(--text); box-shadow: inset 0 0 0 1px var(--sel-edge); }
+.fi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: var(--sp-1); margin-top: var(--sp-3); max-height: 216px; overflow-y: auto; padding: var(--sp-0); }
+.fi-grid button { height: 36px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-2); transition: background var(--t-fast), color var(--t-fast); }
+.fi-grid button:hover { background: var(--bg-hover); color: var(--text); }
+.fi-grid button[aria-selected="true"] { background: var(--sel); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--sel-edge); }
+.fi-grid svg { width: var(--icon-l); height: var(--icon-l); }
+.fi-empty { grid-column: 1 / -1; margin: var(--sp-6) 0; text-align: center; color: var(--text-3); }
+.modal-actions .fi-default { margin-right: auto; }

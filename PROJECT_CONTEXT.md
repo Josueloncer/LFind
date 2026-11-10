@@ -231,7 +231,16 @@ Detalle y pruebas: [UPDATE15_PROGRESS.md](docs/history/UPDATE15_PROGRESS.md).
 
 **Medidas.** `lib/viewGeometry.ts` e `iconGeometry` son la única fuente: el pintado y la selección por rectángulo las comparten. `iconCells` reparte el ancho sobrante entre las celdas, y `makeGeometry` debe usar el mismo cálculo.
 
-**Zoom.** `iconSize` sigue siendo un entero en píxeles (32–256), y el 100 % equivale a 96 px. El control va de 0 a `LADDER_MAX`: 0 detalles, 1 lista, y de 2 en adelante iconos en escala logarítmica. Ctrl+rueda aplica como mucho un cambio por fotograma. `useZoomAnimation` mide antes de que React aplique el tamaño y anima solo `transform`, y no anima con más de 350 elementos a la vista. Con tamaños continuos, las filas se colocan con `rowTops` de la distribución actual, no con `vr.start`, que va un fotograma por detrás.
+**Zoom.** `iconSize` sigue siendo un entero en píxeles (32–256), y el 100 % equivale a 96 px. El control va de 0 a `LADDER_MAX`: 0 detalles, 1 lista, y de 2 en adelante iconos en escala logarítmica. Ctrl+rueda aplica como mucho un cambio por fotograma. `useZoomAnimation` mide antes de que React aplique el tamaño y anima solo `transform`, y no anima con más de 350 elementos a la vista.
+
+**Trackpad (corrección para portátiles, [detalle](docs/history/LAPTOP_PROGRESS.md)).**
+- **Pinzado.** Llega como Ctrl+rueda sintético, sin la tecla Ctrl: `FileView` sigue la tecla real con `keydown`/`keyup`. El pinzado usa `PINCH_GAIN` para que el tamaño siga a los dedos.
+- **Tamaño exacto.** Se acumula con decimales (`nextExactSize`) y se redondea solo al pintar. Así no depende de cuántos eventos lleguen, y nunca cambia más de `MAX_FRAME_RATIO` por fotograma.
+- **Animación.** Solo se anima un punto suelto de la rueda (`isWheelNotch` con una pausa previa de más de `GESTURE_GAP`). Un gesto continuo se sigue sin animar.
+- **Ancla.** Se calcula con la distribución que estaba en pantalla, no con `getBoundingClientRect`, que incluye la animación en curso.
+- **Inercia y cambio de vista.** La inercia sin Ctrl se descarta durante `GESTURE_TAIL`, y un gesto cambia de vista una sola vez hasta una pausa de `GESTURE_PAUSE`.
+
+**Barra superior.** `--titlebar-h` es de 36 px, en píxeles CSS que escalan con el DPI como la barra nativa. No hay que fijarla en píxeles físicos. Con tamaños continuos, las filas se colocan con `rowTops` de la distribución actual, no con `vr.start`, que va un fotograma por detrás.
 
 **Actualizar al reseleccionar.** `useNav.openLocation` es la entrada de los clics del usuario; `navigate` no actualiza por sí solo, para que las rutas programáticas no provoquen lecturas. `useDirectory` no publica una recarga silenciosa idéntica.
 

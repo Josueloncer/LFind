@@ -50,7 +50,8 @@
   --sp-f22: 22px;
 
   /* Tamaños de componentes */
-  --titlebar-h: 46px;
+  /* Cerca de los 32 DIP de Windows 11, con sitio para pestañas de 28 px. En píxeles CSS: escala con el DPI como la barra nativa. */
+  --titlebar-h: 36px;
   --toolbar-h: 52px;
   --statusbar-h: 30px;
   --header-h: 30px;

@@ -1,4 +1,4 @@
-import { MIN_ICON, fitColumns, iconCells } from "../lib/view";
+import { MIN_ICON, PINCH_GAIN, fitColumns, iconCells, isWheelNotch, nextExactSize, wheelUnits } from "../lib/view";
 import { rowDelta } from "../lib/appearance";
 import { usePrefs } from "../stores/prefs";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +29,13 @@ const orderColumns = (c: Column[]) => COL_ORDER.filter((x) => c.includes(x));
 
 type Variant = "details" | "content" | "tile" | "icon" | "small" | "list";
 
+/** Eventos de rueda más próximos que esto son el mismo gesto. */
+const GESTURE_GAP = 90;
+/** Tras el último Ctrl+rueda de un trackpad, la inercia que llega sin Ctrl se descarta durante este tiempo (se renueva con cada evento). */
+const GESTURE_TAIL = 150;
+/** Pausa que da el gesto por terminado: el acumulado y el bloqueo de cambio de vista se reinician. */
+const GESTURE_PAUSE = 300;
+
 export interface FileViewProps {
   entries: Entry[];
   /** Carpeta que se está mostrando (para componer la ruta de cada elemento). */
@@ -53,8 +60,8 @@ export interface FileViewProps {
   onContext(ev: ContextPoint, e: Entry | null): void;
   onHeaderContext(ev: MouseEvent): void;
   onZoom(dir: 1 | -1): void;
-  /** Ajuste continuo del tamaño de los iconos (Ctrl+rueda). */
-  onZoomBy(deltaY: number): void;
+  /** Ajuste continuo del tamaño de los iconos (Ctrl+rueda o pinzar), en píxeles con decimales. */
+  onZoomTo(size: number): void;
   onDragStart(ev: DragEvent, e: Entry): void;
   canDrop(target: Entry | null): boolean;
   dropEffect(ev: DragEvent, target: Entry | null): "copy" | "move";
@@ -264,11 +271,13 @@ export function FileView(props: FileViewProps) {
   L.current = layout;
   // Posiciones calculadas de esta misma distribución: el virtualizador las actualiza un fotograma más tarde y la animación mediría mal.
   const tops = useMemo(() => rowTops(layout.rows), [layout.rows]);
+  // Ligada a su distribución: el hook guarda la anterior para saber dónde estaba el ancla sin medir el DOM, que puede estar animándose.
   const zoomAnchor = useCallback((name: string) => {
-    const i = L.current.flat.findIndex((x) => x.name === name);
-    return i < 0 ? null : rowTops(L.current.rows)[L.current.itemRow[i]];
-  }, []);
-  useZoomAnimation(scroller, iconSize, mode === "icons", zoomAnchor);
+    const i = layout.flat.findIndex((x) => x.name === name);
+    return i < 0 ? null : tops[layout.itemRow[i]];
+  }, [layout, tops]);
+  const zoomMotion = useRef(true);
+  useZoomAnimation(scroller, iconSize, mode === "icons", zoomAnchor, zoomMotion);
   if (props.orderRef) props.orderRef.current = layout.flat;
 
   const vv = useVirtualizer({
@@ -374,6 +383,7 @@ export function FileView(props: FileViewProps) {
   }), [pick]);
 
   // Ctrl + rueda: cambia el tamaño de los iconos sin interferir con el desplazamiento normal.
+  // Un trackpad envía decenas de eventos pequeños por gesto (pinzar llega como Ctrl+rueda sintético); una rueda, saltos sueltos.
   useEffect(() => {
     const el = root.current;
     if (!el) return;
@@ -381,34 +391,65 @@ export function FileView(props: FileViewProps) {
     let last = 0;
     let pending = 0;
     let frame = 0;
+    let exact = 0; // tamaño con decimales del gesto en curso
+    let ctrlHeld = false; // la tecla de verdad: sin ella, un Ctrl+rueda es un pinzado
+    let tailUntil = 0;
+    let lockedUntilPause = false;
     const flush = () => {
       frame = 0;
-      const delta = pending;
+      const units = pending;
       pending = 0;
-      if (delta) P.current.onZoomBy(delta);
+      const cur = P.current.iconSize;
+      if (Math.round(exact) !== cur) exact = cur; // otro control lo cambió entre medias
+      exact = nextExactSize(exact, units);
+      if (Math.round(exact) !== cur) P.current.onZoomTo(exact);
     };
+    const onKey = (e: KeyboardEvent) => void (ctrlHeld = e.ctrlKey);
+    const onBlur = () => void (ctrlHeld = false);
     const onWheel = (ev: WheelEvent) => {
-      if (!ev.ctrlKey) return; // sin Ctrl, el navegador desplaza como siempre
+      const now = performance.now();
+      if (!ev.ctrlKey) {
+        // La inercia del trackpad sigue llegando al soltar Ctrl: sería un desplazamiento que nadie ha pedido.
+        if (now < tailUntil) (ev.preventDefault(), (tailUntil = now + GESTURE_TAIL));
+        return;
+      }
       ev.preventDefault();
+      const gap = now - last;
+      last = now;
+      const notch = isWheelNotch(ev.deltaY, ev.deltaMode);
+      // Solo se anima un punto suelto de la rueda. Un gesto del trackpad o una rueda girando rápido ya son movimiento: se
+      // siguen directamente, sin lanzar una animación por fotograma.
+      zoomMotion.current = notch && gap > GESTURE_GAP;
+      tailUntil = notch ? 0 : now + GESTURE_TAIL;
+      if (gap > GESTURE_PAUSE) (acc = 0), (lockedUntilPause = false);
+      if (lockedUntilPause) return;
       const { mode: m, iconSize: size } = P.current;
       if (m === "icons" && !(size <= MIN_ICON && ev.deltaY > 0)) {
         // Continuo: como mucho un cambio por fotograma, por muchos eventos que lleguen.
         acc = 0;
-        pending += ev.deltaY;
+        pending += wheelUnits(ev.deltaY, ev.deltaMode, !ctrlHeld && !notch);
         frame ||= requestAnimationFrame(flush);
         return;
       }
-      const now = performance.now();
-      if (now - last > 250) acc = 0;
-      last = now;
-      acc += ev.deltaY;
+      acc += ev.deltaY * (notch ? 1 : PINCH_GAIN);
       if (Math.abs(acc) >= 50) {
         P.current.onZoom(acc < 0 ? 1 : -1);
         acc = 0;
+        // Un gesto continuo cambia de vista una sola vez (detalles → lista → iconos no pasa en un mismo pinzado).
+        if (!notch) lockedUntilPause = true;
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => (cancelAnimationFrame(frame), el.removeEventListener("wheel", onWheel));
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   // Mostrar un elemento concreto (recién creado o renombrado).

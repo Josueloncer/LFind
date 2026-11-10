@@ -1,23 +1,49 @@
 import { fitColumns } from "./view";
 import { describe, expect, it } from "vitest";
-import { ICON_100, LADDER_MAX, MAX_ICON, MIN_ICON, iconCells, iconGeometry, iconPercent, ladderAt, ladderOfIcon, ladderPos, zoomBy, zoomStep } from "./view";
+import { ICON_100, LADDER_MAX, MAX_FRAME_RATIO, MAX_ICON, MIN_ICON, iconCells, iconGeometry, iconPercent, isWheelNotch, ladderAt, ladderOfIcon, ladderPos, nextExactSize, wheelUnits, zoomStep, zoomTo } from "./view";
 
 const icons = (iconSize: number) => ({ viewMode: "icons" as const, iconSize });
+/** Un gesto: cada evento es un fotograma. */
+const gesture = (start: number, deltas: number[], pinch: boolean) => deltas.reduce((s, d) => nextExactSize(s, wheelUnits(d, 0, pinch)), start);
 
 describe("zoom continuo", () => {
-  it("Ctrl+rueda cambia el tamaño de forma gradual, no a saltos", () => {
-    const a = zoomBy(icons(96), -100).iconSize;
+  it("un punto de la rueda cambia el tamaño de forma gradual, no a saltos", () => {
+    const a = Math.round(nextExactSize(96, wheelUnits(-100, 0, false)));
     expect(a).toBeGreaterThan(96);
     expect(a).toBeLessThan(115);
-    expect(zoomBy(icons(96), 100).iconSize).toBeLessThan(96);
+    expect(nextExactSize(96, wheelUnits(100, 0, false))).toBeLessThan(96);
+    expect(wheelUnits(-3, 1, false)).toBe(wheelUnits(-99, 0, false)); // rueda por líneas
   });
-  it("un giro mínimo también avanza", () => {
-    expect(zoomBy(icons(96), -1).iconSize).toBe(97);
-    expect(zoomBy(icons(96), 1).iconSize).toBe(95);
+  it("un gesto lento del trackpad avanza en proporción, no un píxel por fotograma", () => {
+    // 60 fotogramas con 0,5 de desplazamiento cada uno: 30 unidades en total, un 3,5 %.
+    const slow = gesture(96, Array(60).fill(-0.5), false);
+    expect(slow).toBeGreaterThan(96);
+    expect(slow).toBeLessThan(100);
+    // El mismo recorrido en 6 fotogramas da el mismo tamaño: no depende de cuántos eventos lleguen.
+    expect(gesture(96, Array(6).fill(-5), false)).toBeCloseTo(slow, 6);
+  });
+  it("pinzar sigue a los dedos: pinzar al doble duplica los iconos", () => {
+    // Chromium: deltaY = 100·ln(1/escala). Pinzar ×2 en 20 eventos.
+    const step = (-100 * Math.log(2)) / 20;
+    expect(gesture(64, Array(20).fill(step), true)).toBeCloseTo(128, 4);
+    expect(gesture(128, Array(20).fill(-step), true)).toBeCloseTo(64, 4);
+  });
+  it("un evento brusco no da un salto", () => {
+    expect(nextExactSize(96, wheelUnits(-5000, 0, false))).toBeCloseTo(96 * MAX_FRAME_RATIO, 6);
+    expect(nextExactSize(96, wheelUnits(-60, 0, true))).toBeCloseTo(96 * MAX_FRAME_RATIO, 6);
+  });
+  it("distingue la rueda del trackpad", () => {
+    expect(isWheelNotch(100, 0)).toBe(true);
+    expect(isWheelNotch(-120, 0)).toBe(true);
+    expect(isWheelNotch(3, 1)).toBe(true);
+    expect(isWheelNotch(-2.5, 0)).toBe(false);
+    expect(isWheelNotch(-14, 0)).toBe(false);
   });
   it("se detiene en los límites", () => {
-    expect(zoomBy(icons(MAX_ICON), -500).iconSize).toBe(MAX_ICON);
-    expect(zoomBy(icons(MIN_ICON + 1), 500).iconSize).toBe(MIN_ICON);
+    expect(nextExactSize(MAX_ICON, wheelUnits(-500, 0, false))).toBe(MAX_ICON);
+    expect(nextExactSize(MIN_ICON + 1, wheelUnits(500, 0, false))).toBe(MIN_ICON);
+    expect(zoomTo(96.6)).toEqual(icons(97));
+    expect(zoomTo(1000).iconSize).toBe(MAX_ICON);
   });
   it("hay más de 11 tamaños distintos", () => {
     const seen = new Set<number>();

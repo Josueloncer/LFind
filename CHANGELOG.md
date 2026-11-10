@@ -1,5 +1,12 @@
 # LFind — Registro de cambios
 
+## Mejoras para portátiles
+- La barra superior es más baja (36 px en lugar de 46) y deja más espacio para tus archivos, también con el escalado de Windows al 125 % o al 150 %.
+- Pinzar en el trackpad hace zoom siguiendo a los dedos, de forma progresiva y sin rebotes. Un gesto lento ya no se acelera.
+- Al soltar Ctrl tras hacer zoom con el trackpad, la inercia ya no desplaza la lista.
+- Un mismo gesto cambia de vista una sola vez: de detalles pasa a lista, no directamente a iconos.
+- La rueda del ratón funciona como antes: un punto suelto sigue animándose y girarla rápido acompaña el giro sin animar cada paso.
+
 ## Update 15: vistas compactas, zoom continuo y Papelera más fiable
 - Volver a pulsar la carpeta abierta en la barra lateral, en la ruta o en su pestaña la actualiza, sin perder la selección ni la posición.
 - Las vistas de lista, detalles e iconos son más compactas, y los nombres largos de los iconos ocupan dos líneas en vez de cortarse.

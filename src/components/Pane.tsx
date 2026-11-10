@@ -16,7 +16,7 @@ import { systemHasFiles, watchSystemClipboard } from "../lib/systemClipboard";
 import { useShellData } from "../stores/shellData";
 import { VISIT_DWELL_MS } from "../lib/locations";
 import { COMPUTER, DUPLICATES, RECYCLE, basename, isStorage, isVirtual, join, parent, parseStorageRoute, samePath } from "../lib/path";
-import { ladderAt, ladderPos, zoomBy, zoomStep } from "../lib/view";
+import { ladderAt, ladderPos, zoomStep, zoomTo } from "../lib/view";
 import { effectiveView, isPinned, keepsPaneOrder, nextSort, paneView, splitViewPatch } from "../lib/viewState";
 import type { EffectiveView } from "../lib/viewState";
 import { useApp } from "../stores/app";
@@ -206,7 +206,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
   const togglePin = useCallback(() => path && setPinned(path, !pinned), [path, pinned, setPinned]);
   const onSort = (k: SortKey) => setView(nextSort(view, k));
   const onZoom = useCallback((d: 1 | -1) => setView(zoomStep(view, d)), [setView, view]);
-  const onZoomBy = useCallback((delta: number) => setView(zoomBy(view, delta)), [setView, view]);
+  const onZoomTo = useCallback((size: number) => setView(zoomTo(size)), [setView]);
   const setColumns = useCallback((c: Column[]) => update({ columns: c }), [update]);
 
   // ───────── menús ─────────
@@ -411,7 +411,7 @@ export function Pane({ side }: { side: 0 | 1 }) {
         sortKey={view.sortKey} sortDir={view.sortDir} onSort={onSort}
         selected={selected} onSelect={setSelected} cut={cutNames}
         renaming={renaming} onRename={(o, n) => (setRenaming(null), A.rename(o, n))} onCancelRename={() => setRenaming(null)}
-        onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom} onZoomBy={onZoomBy}
+        onOpen={A.open} onContext={onContext} onHeaderContext={onHeaderContext} onZoom={onZoom} onZoomTo={onZoomTo}
         onDragStart={onDragStart} canDrop={canDrop} dropEffect={dropEffect} onDrop={onDrop} onDragEnd={endDrag}
         reveal={reveal} onRevealed={() => setReveal(null)} orderRef={orderRef} previewOpen={p.previewPane}
       />

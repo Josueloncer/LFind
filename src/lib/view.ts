@@ -48,12 +48,33 @@ export function ladderAt(pos: number, keepSize: number): ViewSpec {
 const WHEEL_DOUBLING = 600; // unidades de rueda para duplicar el tamaño: un punto de la rueda (100) cambia un 12 %
 const STEP_FACTOR = 2 ** (100 / WHEEL_DOUBLING);
 
-/** Ajuste continuo con Ctrl+rueda. Siempre cambia al menos un píxel, para que un giro lento también avance. */
-export function zoomBy(cur: ViewSpec, deltaY: number): ViewSpec {
-  const next = cur.iconSize * 2 ** (-deltaY / WHEEL_DOUBLING);
-  const moved = Math.round(next) === cur.iconSize ? cur.iconSize + Math.sign(-deltaY) : next;
-  return { viewMode: "icons", iconSize: clampIcon(moved) };
+/**
+ * Pinzar en el trackpad llega como Ctrl+rueda sintético: Chromium envía `deltaY = 100·ln(1/escala)`. Con esta ganancia el
+ * tamaño sigue a los dedos (pinzar al doble duplica los iconos) en vez de avanzar 600 veces más despacio que una rueda.
+ */
+export const PINCH_GAIN = WHEEL_DOUBLING / (100 * Math.LN2);
+/** Cambio máximo por fotograma: un evento brusco no puede dar un salto. */
+export const MAX_FRAME_RATIO = 1.25;
+
+/** Una rueda de ratón da saltos de 100 o más por punto; un trackpad, valores pequeños y casi siempre con decimales. */
+export const isWheelNotch = (deltaY: number, deltaMode: number): boolean => deltaMode !== 0 || (Math.abs(deltaY) >= 50 && Number.isInteger(deltaY));
+
+/** Unidades de zoom de un evento, en la escala de la rueda (600 duplican el tamaño). */
+export function wheelUnits(deltaY: number, deltaMode: number, pinch: boolean): number {
+  const px = deltaY * (deltaMode === 1 ? 33 : deltaMode === 2 ? 600 : 1);
+  return pinch ? px * PINCH_GAIN : px;
 }
+
+/**
+ * Tamaño exacto (con decimales) tras `units`. Se acumula sin redondear: así un gesto lento avanza en proporción a lo que se
+ * mueven los dedos, no un píxel por fotograma. El redondeo solo se aplica al pintar.
+ */
+export function nextExactSize(exact: number, units: number): number {
+  const ratio = Math.min(MAX_FRAME_RATIO, Math.max(1 / MAX_FRAME_RATIO, 2 ** (-units / WHEEL_DOUBLING)));
+  return Math.max(MIN_ICON, Math.min(MAX_ICON, exact * ratio));
+}
+
+export const zoomTo = (size: number): ViewSpec => ({ viewMode: "icons", iconSize: clampIcon(size) });
 
 /** Un paso entero: pasa de una vista a otra (detalles, lista, iconos) y, dentro de los iconos, equivale a un punto de la rueda. */
 export function zoomStep(cur: ViewSpec, dir: 1 | -1): ViewSpec {

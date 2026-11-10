@@ -17,6 +17,9 @@ export function isArchive(name: string): boolean {
   return i > 0 && ARCHIVE_EXT.has(name.slice(i + 1).toLowerCase());
 }
 
+/** Acceso directo de Windows: el único tipo cuya ubicación de destino sabe leer LFind (las `.url` no apuntan a un archivo). */
+export const isShortcut = (e: Entry): boolean => e.kind !== "dir" && e.name.toLowerCase().endsWith(".lnk");
+
 /** Punto donde se pidió el menú (ratón o teclado). */
 export interface ContextPoint {
   clientX: number;
@@ -46,8 +49,10 @@ export interface MenuActions {
   open(e: Entry): void;
   openInNewTab(e: Entry): void;
   openWith(e: Entry): void;
+  /** Accesos directos: abre en LFind la carpeta del destino y lo selecciona. */
+  openTargetLocation(e: Entry): void;
   reveal(e: Entry): void;
-  openTerminal(dir?: Entry): void;
+  openTerminal(dir?: Entry, admin?: boolean): void;
   openFolderInExplorer(): void;
   cut(l: Entry[]): void;
   copy(l: Entry[]): void;
@@ -145,8 +150,10 @@ function itemMenu(s: MenuState, a: MenuActions): MenuItem[] {
   return [
     ...(one ? [{ kind: "item", label: "Abrir", icon: "open", shortcut: "Intro", run: () => a.open(e) } as MenuItem] : []),
     ...(fileOne ? [{ kind: "item", label: "Abrir con…", icon: "openwith", run: () => a.openWith(e) } as MenuItem] : []),
+    ...(one && isShortcut(e) ? [{ kind: "item", label: "Abrir ubicación del archivo", icon: "location", run: () => a.openTargetLocation(e) } as MenuItem] : []),
     ...(dirOne ? [{ kind: "item", label: "Abrir en una pestaña nueva", icon: "tab", run: () => a.openInNewTab(e) } as MenuItem] : []),
     ...(dirOne ? [{ kind: "item", label: "Abrir terminal aquí", icon: "terminal", run: () => a.openTerminal(e) } as MenuItem] : []),
+    ...(dirOne ? [{ kind: "item", label: "Abrir terminal como administrador", icon: "terminal", run: () => a.openTerminal(e, true) } as MenuItem] : []),
     ...(fileOne ? [{ kind: "item", label: "Mostrar en el Explorador de Windows", icon: "reveal", run: () => a.reveal(e) } as MenuItem] : []),
     sep,
     { kind: "item", label: "Cortar", icon: "cut", shortcut: "Ctrl+X", run: () => a.cut(list) },
@@ -188,6 +195,7 @@ function backgroundMenu(s: MenuState, a: MenuActions): MenuItem[] {
     sep,
     { kind: "item", label: "Actualizar", icon: "refresh", shortcut: "F5", run: a.reload },
     { kind: "item", label: "Abrir terminal aquí", icon: "terminal", run: () => a.openTerminal() },
+    { kind: "item", label: "Abrir terminal como administrador", icon: "terminal", run: () => a.openTerminal(undefined, true) },
     { kind: "item", label: "Abrir esta carpeta en el Explorador de Windows", icon: "explorer", run: a.openFolderInExplorer },
     { kind: "item", label: "Copiar ruta de la carpeta", icon: "path", run: () => a.copyPaths([]) },
     { kind: "item", label: pinLabel(a.folderPinned()), icon: "pin", run: a.togglePinFolder },

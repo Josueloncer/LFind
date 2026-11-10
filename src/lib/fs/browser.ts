@@ -69,6 +69,7 @@ export class BrowserProvider implements FsProvider {
   openPath = NA as FsProvider["openPath"];
   revealPath = NA as FsProvider["revealPath"];
   createShortcut = NA as FsProvider["createShortcut"];
+  resolveShortcut = NA as FsProvider["resolveShortcut"];
   getProperties = NA as FsProvider["getProperties"];
   getDriveUsage = NA as FsProvider["getDriveUsage"];
   resolvePath = NA as FsProvider["resolvePath"];

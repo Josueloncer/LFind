@@ -255,6 +255,28 @@ Informe: [FINAL_AUDIT_REPORT.md](FINAL_AUDIT_REPORT.md). Reglas que deja:
 - **Integración con Windows:** al desactivar el explorador preferido se borra la copia del valor anterior, y `Software\LFind` se retira solo si queda sin valores ni subclaves (`imp::remove_if_empty`).
 - **No cambiar `bundle.publisher` ni `identifier`.** El instalador NSIS guarda la carpeta de instalación en `HKCU\Software\<editor>\<producto>` (hoy `Software\nova\LFind`), y cambiar el editor haría que una actualización no la encontrara.
 
+### Abrir ubicación de un acceso directo (Update 16)
+Detalle: [UPDATE16_PROGRESS.md](docs/history/UPDATE16_PROGRESS.md).
+
+- **Lectura del destino.** `nova_core::lnk` lee el `.lnk` con `IShellLinkW` + `IPersistFile`, mediante vtables propias y un hilo con COM propio. **No se llama a `Resolve`**, porque puede buscar por el disco y mostrar diálogos.
+- **Casos especiales.** Los accesos anunciados de Windows Installer (`SLDF_HAS_DARWINID`) se resuelven con `MsiGetShortcutTargetW` + `MsiGetComponentPathW`. Los que apuntan a un elemento del shell sin ruta dan un error que nombra el elemento (`SHGetNameFromIDList`).
+- **Navegación y selección.** El menú ofrece la opción solo para un único `.lnk` (`isShortcut`). La acción reutiliza la vía de «Abrir ubicación» de la búsqueda: navegar a la carpeta y `useSearch.setReveal`. `Pane` selecciona el elemento al leerse la carpeta; compara sin distinguir mayúsculas y avisa si el destino no está a la vista.
+- **Regla de `Pane`:** para seleccionar y mostrar un elemento hay que esperar a que `useDirectory` diga a qué carpeta pertenece la lista (`DirState.path`) y a que termine la ordenación (`sorting`). Por encima de `SYNC_MAX` se ordena en un Worker, y mientras tanto la lista llega sin ordenar.
+
+### Rendimiento al entrar en carpetas (Update 16)
+Medidas y método: [UPDATE16_PROGRESS.md, parte 2](docs/history/UPDATE16_PROGRESS.md#parte-2-rendimiento-al-entrar-en-carpetas). Primera fila en 30–50 ms, y en 150–220 ms con la CPU de la interfaz ×4. Lo caro son las miniaturas de fotos: unos 43 ms por foto de 12 MP, sobre todo decodificar.
+
+- **Épocas de miniaturas.** El backend nunca acepta una época menor que la mayor que ha visto. Por eso `thumbService` empieza en `Date.now()`: tras recargar la página, empezar en 0 dejaba sin miniaturas toda la sesión.
+- **Orientación EXIF.** Se aplica a la miniatura ya reducida, nunca a la foto completa.
+- **Descartado, con datos:** reducir por bloques antes del filtro (pierde calidad) y pedir primero la caché de Windows (más lento cuando no la tiene). No reintentarlo sin medir de nuevo.
+
+### Terminales (Update 16)
+Detalle: [UPDATE16_PROGRESS.md, parte 3](docs/history/UPDATE16_PROGRESS.md#parte-3-terminales-cmd-y-powershell).
+
+- **Consolas externas:** nunca con `std::process::Command` + `CREATE_NEW_CONSOLE`. Desde una app de ventanas pasa una entrada estándar nula y la consola no lee el teclado. Hay que usar `shell::new_console`, que llama a `CreateProcessW` sin `STARTF_USESTDHANDLES`.
+- **Perfil de PowerShell:** se decide con `terminal::powershell_profile_plan`. Si no puede cargarse, se usa `-NoProfile` con una explicación. **Nunca** se pasa `-ExecutionPolicy` ni se cambia la política o el perfil.
+- **Elevación:** solo para «Abrir terminal como administrador», con `runas` y la carpeta en los argumentos. El resto de LFind funciona sin permisos de administrador.
+
 ## 8. Reglas de diseño
 
 LFind debe conservar una identidad **premium, minimalista, moderna y consistente**. Ningún componente nuevo puede tener una apariencia distinta al resto.

@@ -13,22 +13,27 @@ pub struct TerminalState {
     sessions: Mutex<HashMap<u64, Session>>,
 }
 
-/// No lanza ningún comando: solo abre el shell.
+/// No lanza ningún comando: solo abre el shell. Asíncrono: comprobar la carpeta, decidir el perfil de PowerShell y crear el
+/// proceso no deben ocupar el hilo de la ventana.
 #[tauri::command]
-pub fn term_open(shell: Shell, cwd: Option<String>, cols: u16, rows: u16, on_data: Channel<InvokeResponseBody>, on_exit: Channel<u32>, state: State<'_, TerminalState>) -> Result<u64, String> {
-    let dir = start_dir(cwd.as_deref());
-    let session = Session::start(
-        shell,
-        &dir,
-        cols,
-        rows,
-        Box::new(move |bytes| {
-            let _ = on_data.send(InvokeResponseBody::Raw(bytes));
-        }),
-        Box::new(move |code| {
-            let _ = on_exit.send(code);
-        }),
-    )?;
+pub async fn term_open(shell: Shell, cwd: Option<String>, cols: u16, rows: u16, on_data: Channel<InvokeResponseBody>, on_exit: Channel<u32>, state: State<'_, TerminalState>) -> Result<u64, String> {
+    let session = tauri::async_runtime::spawn_blocking(move || {
+        let dir = start_dir(cwd.as_deref());
+        Session::start(
+            shell,
+            &dir,
+            cols,
+            rows,
+            Box::new(move |bytes| {
+                let _ = on_data.send(InvokeResponseBody::Raw(bytes));
+            }),
+            Box::new(move |code| {
+                let _ = on_exit.send(code);
+            }),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     let id = state.next.fetch_add(1, Ordering::Relaxed) + 1;
     state.sessions.lock().unwrap().insert(id, session);
     Ok(id)

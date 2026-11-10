@@ -42,6 +42,7 @@ export { default as ExternalLink } from "lucide-react/dist/esm/icons/external-li
 export { default as FilePlus } from "lucide-react/dist/esm/icons/file-plus.js";
 export { default as FolderOpen } from "lucide-react/dist/esm/icons/folder-open.js";
 export { default as FolderPlus } from "lucide-react/dist/esm/icons/folder-plus.js";
+export { default as FolderSearch } from "lucide-react/dist/esm/icons/folder-search.js";
 export { default as Info } from "lucide-react/dist/esm/icons/info.js";
 export { default as Layers } from "lucide-react/dist/esm/icons/layers.js";
 export { default as Link } from "lucide-react/dist/esm/icons/link.js";

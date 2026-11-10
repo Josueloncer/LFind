@@ -1,5 +1,17 @@
 # LFind — Registro de cambios
 
+## Update 16: abrir la ubicación de un acceso directo
+- Nuevo «Abrir ubicación del archivo» en el menú contextual de los accesos directos: LFind abre la carpeta del destino y lo deja seleccionado, sin abrir otra ventana.
+- Funciona con accesos directos a programas, documentos y carpetas, y también con los que instalan Office y otros programas de Windows Installer.
+- Si el destino ya no existe, o es un elemento especial de Windows como el Panel de control, LFind lo explica en lugar de no hacer nada.
+- Corregido: en carpetas con más de 3 000 elementos, «Abrir ubicación» de la búsqueda y lo recién creado o renombrado podían quedar seleccionados pero fuera de la vista.
+- Las miniaturas de las fotos hechas con el móvil se generan el doble de rápido.
+- Corregido: después de usar «Recargar» en la pantalla de error, las miniaturas dejaban de aparecer.
+- Corregido: «Abrir terminal aquí» podía abrir una consola en la que no se podía escribir. Ahora también abre CMD si es el shell elegido.
+- Si la configuración de Windows no permite cargar tu perfil de PowerShell, la terminal se abre sin él y explica por qué, en lugar de mostrar un error. LFind no cambia ninguna política de seguridad.
+- Nuevo «Abrir terminal como administrador» en el menú de las carpetas, con el aviso de permisos de Windows.
+- Lo que escribes en la terminal integrada mientras se abre ya no se pierde.
+
 ## Mejoras para portátiles
 - La barra superior es más baja (36 px en lugar de 46) y deja más espacio para tus archivos, también con el escalado de Windows al 125 % o al 150 %.
 - Pinzar en el trackpad hace zoom siguiendo a los dedos, de forma progresiva y sin rebotes. Un gesto lento ya no se acelera.

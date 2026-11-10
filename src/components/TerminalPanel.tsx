@@ -72,10 +72,14 @@ export default function TerminalPanel() {
       if (disposed) return void fs.termClose(id).catch(() => {});
       state.id = id;
       fs.termResize(id, term.cols, term.rows).catch(() => {});
+      // Lo escrito mientras arrancaba el shell no se pierde: se entrega ahora, en orden.
+      if (early.length) void fs.termWrite(id, early.splice(0).join("")).catch(() => {});
     }).catch((e) => useUi.getState().toast(errMsg(e), "error"));
+    const early: string[] = [];
     const send = term.onData((d) => {
       trackInput(state.input, d);
       if (state.id !== null) void fs.termWrite(state.id, d).catch(() => {});
+      else early.push(d);
     });
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown" || !e.ctrlKey || e.key.toLowerCase() === "c" && !term.hasSelection()) return true;

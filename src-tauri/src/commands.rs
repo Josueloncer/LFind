@@ -458,6 +458,13 @@ pub async fn create_shortcut(target: String) -> Result<String, ops::OpError> {
     .map_err(|e| ops::OpError { path: String::new(), message: e.to_string(), kind: ops::ErrKind::Other })?
 }
 
+/// Destino de un acceso directo (`.lnk`), para «Abrir ubicación del archivo». Solo lee: no abre ni repara nada.
+#[tauri::command]
+pub async fn resolve_shortcut(path: String) -> Result<nova_core::lnk::ShortcutTarget, String> {
+    let p = safety::parse_path(&path)?;
+    tauri::async_runtime::spawn_blocking(move || nova_core::lnk::resolve(&p)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn get_properties(path: String) -> Result<props::FileProps, String> {
     let p = safety::parse_path(&path)?;

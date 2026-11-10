@@ -87,18 +87,110 @@ pub fn open_with(p: &Path) -> io::Result<()> {
     open_path(p)
 }
 
-/// Terminal en `dir`: Windows Terminal (`wt.exe -d`) y, si no está instalado, una consola de PowerShell.
+/// Terminal en su propia ventana, en `dir`, con el shell elegido.
+///  * Windows Terminal (`wt.exe -d`) si está instalado.
+///  * Si no, una consola nueva creada con `CreateProcessW` directamente. `std::process::Command` siempre pasa la entrada estándar
+///    del padre, y en una aplicación de ventanas como LFind esa entrada es nula: la consola aparecía, pero no se podía escribir.
+///  * `admin`: con el aviso de UAC de Windows. Si el usuario lo rechaza, se informa sin más.
 #[cfg(windows)]
-pub fn open_terminal(dir: &Path) -> io::Result<()> {
-    use std::os::windows::process::CommandExt;
-    if std::process::Command::new("wt.exe").arg("-d").arg(dir).spawn().is_ok() {
-        return Ok(());
+pub fn open_terminal(dir: &Path, shell: crate::terminal::Shell, admin: bool) -> io::Result<()> {
+    use crate::terminal::{powershell_profile_plan, ProfilePlan, Shell};
+    let plan = if shell == Shell::Powershell { powershell_profile_plan() } else { ProfilePlan::default() };
+    if admin {
+        return run_elevated(&shell.exe(), &shell.console_args(&plan, Some(dir)));
     }
-    std::process::Command::new("powershell.exe").arg("-NoExit").current_dir(dir).creation_flags(0x0000_0010).spawn().map(|_| ()) // CREATE_NEW_CONSOLE
+    let args = shell.console_args(&plan, None);
+    if let Ok(mut c) = windows_terminal() {
+        use std::os::windows::process::CommandExt;
+        c.arg("-d").arg(dir).arg(shell.exe()).raw_arg(&args);
+        if c.spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    new_console(&format!("\"{}\" {args}", shell.exe().display()), dir)
+}
+
+/// Windows Terminal instalado (alias de ejecución de la Tienda incluido).
+#[cfg(windows)]
+fn windows_terminal() -> io::Result<std::process::Command> {
+    let alias = std::env::var_os("LOCALAPPDATA").map(|l| std::path::PathBuf::from(l).join("Microsoft\\WindowsApps\\wt.exe"));
+    match alias.filter(|p| p.exists()) {
+        Some(p) => Ok(std::process::Command::new(p)),
+        None => Err(io::Error::new(io::ErrorKind::NotFound, "Windows Terminal no está instalado.")),
+    }
+}
+
+/// Proceso de consola en una ventana propia, sin heredar nada de LFind: Windows le da su consola con teclado y pantalla propios.
+#[cfg(windows)]
+fn new_console(command_line: &str, dir: &Path) -> io::Result<()> {
+    use crate::sys::win;
+    #[repr(C)]
+    struct StartupInfo {
+        cb: u32,
+        reserved: *mut u16,
+        desktop: *mut u16,
+        title: *mut u16,
+        dims: [u32; 7],
+        flags: u32,
+        show: u16,
+        r2: u16,
+        r3: *mut u8,
+        stdin: isize,
+        stdout: isize,
+        stderr: isize,
+    }
+    #[repr(C)]
+    struct ProcessInfo {
+        process: isize,
+        thread: isize,
+        pid: u32,
+        tid: u32,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateProcessW(app: *const u16, cmd: *mut u16, pa: *mut u8, ta: *mut u8, inherit: i32, flags: u32, env: *mut u8, cwd: *const u16, si: *mut StartupInfo, pi: *mut ProcessInfo) -> i32;
+        fn CloseHandle(h: isize) -> i32;
+    }
+    const CREATE_NEW_CONSOLE: u32 = 0x10;
+    const CREATE_UNICODE_ENVIRONMENT: u32 = 0x400;
+    let mut cmd: Vec<u16> = command_line.encode_utf16().chain(Some(0)).collect();
+    let cwd = win::wide(dir.as_os_str());
+    unsafe {
+        let mut si: StartupInfo = std::mem::zeroed();
+        si.cb = std::mem::size_of::<StartupInfo>() as u32;
+        let mut pi: ProcessInfo = std::mem::zeroed();
+        // Sin STARTF_USESTDHANDLES y sin heredar handles: la consola nueva aporta la entrada y la salida.
+        if CreateProcessW(std::ptr::null(), cmd.as_mut_ptr(), std::ptr::null_mut(), std::ptr::null_mut(), 0, CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT, std::ptr::null_mut(), cwd.as_ptr(), &mut si, &mut pi) == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        CloseHandle(pi.thread);
+        CloseHandle(pi.process);
+    }
+    Ok(())
+}
+
+/// Con el aviso de UAC. La carpeta va en los argumentos: Windows no respeta la carpeta de trabajo al elevar.
+#[cfg(windows)]
+fn run_elevated(exe: &Path, args: &str) -> io::Result<()> {
+    use crate::sys::win;
+    let (verb, file, params) = (win::wide("runas".as_ref()), win::wide(exe.as_os_str()), win::wide(args.as_ref()));
+    unsafe {
+        let com = win::CoInitializeEx(std::ptr::null_mut(), 2) >= 0;
+        let r = win::ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), params.as_ptr(), std::ptr::null(), 1);
+        if com {
+            win::CoUninitialize();
+        }
+        match r {
+            r if r > 32 => Ok(()),
+            // SE_ERR_ACCESSDENIED: el usuario dijo que no en el aviso de UAC (o una directiva lo impide).
+            5 => Err(io::Error::new(io::ErrorKind::PermissionDenied, "No se concedió el permiso de administrador. La terminal no se ha abierto.")),
+            c => Err(io::Error::new(io::ErrorKind::Other, format!("Windows no pudo abrir la terminal como administrador (código {c})."))),
+        }
+    }
 }
 
 #[cfg(not(windows))]
-pub fn open_terminal(dir: &Path) -> io::Result<()> {
+pub fn open_terminal(dir: &Path, _shell: crate::terminal::Shell, _admin: bool) -> io::Result<()> {
     std::process::Command::new("x-terminal-emulator").current_dir(dir).spawn().map(|_| ())
 }
 

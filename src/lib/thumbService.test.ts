@@ -85,6 +85,21 @@ describe("ThumbService (cola de miniaturas de la interfaz)", () => {
     expect((await b.promise).ok).toBe(true);
   });
 
+  it("tras recargar la página no se reutilizan épocas antiguas: el backend las rechazaría todas", async () => {
+    const f = fake();
+    // Sesión anterior: muchas carpetas visitadas. El backend recuerda la época más alta.
+    const before = new ThumbService(f.backend, undefined, 1_000_000);
+    for (let i = 0; i < 50; i++) before.newEpoch();
+    const backendEpoch = Math.max(...f.epochs);
+    // Recarga: un servicio nuevo, unos segundos después.
+    const after = new ThumbService(f.backend, undefined, 1_000_000 + 5_000);
+    const e = after.newEpoch();
+    expect(e).toBeGreaterThan(backendEpoch);
+    after.request("x", "x", 128);
+    await tick();
+    expect(f.calls.at(-1)!.epoch).toBeGreaterThan(backendEpoch);
+  });
+
   it("cambiar de carpeta descarta la cola, avisa al backend y las nuevas llevan la época nueva", async () => {
     const f = fake();
     const s = svc(f, { maxInflight: 1 });

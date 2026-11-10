@@ -8,9 +8,11 @@ export interface DirState {
   entries: Entry[];
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
+  /** Carpeta a la que pertenecen `entries`. Justo al cambiar de ruta, el estado anterior sigue un render más. */
+  path: string | null;
 }
 
-const IDLE: DirState = { entries: [], status: "idle", error: null };
+const IDLE: DirState = { entries: [], status: "idle", error: null, path: null };
 const FLUSH_MS = 60;
 
 /**
@@ -42,12 +44,12 @@ export function useDirectory(path: string | null) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let first = true;
     const all: Entry[] = [];
-    if (!quiet) setState({ entries: [], status: "loading", error: null });
+    if (!quiet) setState({ entries: [], status: "loading", error: null, path });
     markOnce("dir-open");
 
     const flush = () => {
       timer = undefined;
-      if (live) setState({ entries: all.slice(), status: "loading", error: null });
+      if (live) setState({ entries: all.slice(), status: "loading", error: null, path });
     };
 
     const handle = fs.openDir(path, (e) => {
@@ -66,13 +68,13 @@ export function useDirectory(path: string | null) {
         clearTimeout(timer);
         if (!e.cancelled) {
           // Si nada ha cambiado no se toca la lista: ni parpadeo ni trabajo de más.
-          setState((cur) => (quiet && cur.status === "ready" && sameEntries(cur.entries, all) ? cur : { entries: all, status: "ready", error: null }));
+          setState((cur) => (quiet && cur.status === "ready" && sameEntries(cur.entries, all) ? cur : { entries: all, status: "ready", error: null, path }));
           mark("dir-done");
           reportOnce({ carpeta: path, entradas: e.total });
         }
       } else {
         clearTimeout(timer);
-        setState({ entries: [], status: "error", error: e.message });
+        setState({ entries: [], status: "error", error: e.message, path });
       }
     });
 

@@ -334,6 +334,14 @@ export interface OpHandle {
   pause(paused: boolean): void;
   resolve(decision: Decision, applyAll: boolean): void;
 }
+/** Adónde apunta un acceso directo de Windows. */
+export interface ShortcutTarget {
+  path: string;
+  isDir: boolean;
+  /** Solo informativo: los argumentos no cambian el destino. */
+  arguments: string;
+}
+
 export interface FileProps {
   name: string;
   path: string;
@@ -602,6 +610,8 @@ export interface FsProvider {
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
   createShortcut(target: string): Promise<string>;
+  /** Destino de un acceso directo `.lnk`. Rechaza con el motivo en español si no existe o no es un archivo ni una carpeta. */
+  resolveShortcut(path: string): Promise<ShortcutTarget>;
   getProperties(path: string): Promise<FileProps>;
   startStats(paths: string[], onEvent: (e: StatsEvent) => void): { cancel(): void };
   getDriveUsage(root: string): Promise<DriveUsage>;
@@ -643,7 +653,8 @@ export interface FsProvider {
   /** «Abrir con…»: el diálogo de Windows para elegir aplicación. */
   openWith(path: string): Promise<void>;
   /** Terminal (Windows Terminal si existe; si no, PowerShell) en una carpeta. */
-  openTerminal(dir: string): Promise<void>;
+  /** Terminal en su propia ventana. `admin`: con el aviso de UAC; si se rechaza, la promesa falla con el motivo. */
+  openTerminal(dir: string, shell?: TerminalShell, admin?: boolean): Promise<void>;
   /** Comprime en un `.zip` dentro de `dir`; devuelve la ruta del archivo creado. */
   compressPaths(paths: string[], dir: string): Promise<string>;
   /** Extrae un archivo comprimido en una carpeta nueva junto a él; devuelve la carpeta. */

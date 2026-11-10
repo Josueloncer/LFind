@@ -9,6 +9,7 @@ import { basename, join, parent, samePath } from "../lib/path";
 import { copyText, useClipboard } from "../stores/clipboard";
 import { useNav } from "../stores/nav";
 import { useOps } from "../stores/ops";
+import { useSearch } from "../stores/search";
 import { usePrefs } from "../stores/prefs";
 import { pullFromSystem, pushToSystem } from "../lib/systemClipboard";
 import { useUi } from "../stores/ui";
@@ -105,9 +106,21 @@ export function useFileActions(a: Args) {
           ui.openMenu(x, y, [{ kind: "header", label: "Abrir con" }, ...apps.map((app): MenuItem => ({ kind: "item", label: app, run: () => void fs.openWithApp(target, app).catch(fail) })), { kind: "sep" }, other]);
         }).catch(fail);
       },
-      openTerminal: (e?: Entry) => {
+      // Misma vía que «Abrir ubicación» de la búsqueda: se navega a la carpeta del destino y, al leerla, se selecciona.
+      openTargetLocation(e: Entry) {
+        fs.resolveShortcut(pathOf(e))
+          .then((t) => {
+            const dir = parent(t.path);
+            if (!dir) return useNav.getState().navigate(t.path); // la raíz de una unidad no tiene carpeta que la contenga
+            useSearch.getState().setReveal(t.path);
+            useNav.getState().navigate(dir);
+          })
+          .catch(fail);
+      },
+      // El shell es el elegido en el panel de terminal (PowerShell o CMD).
+      openTerminal: (e?: Entry, admin = false) => {
         const d = e ? pathOf(e) : path;
-        if (d) fs.openTerminal(d).catch(fail);
+        if (d) fs.openTerminal(d, usePrefs.getState().terminalShell, admin).catch(fail);
       },
       compress(l: Entry[] = sel) {
         if (!path || !l.length) return;

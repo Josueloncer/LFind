@@ -29,6 +29,31 @@ describe("menú contextual propio", () => {
     expect(l).toEqual(expect.arrayContaining(["Abrir en una pestaña nueva", "Abrir terminal aquí", "Pegar en la carpeta", "Fijar en Ubicaciones"]));
     expect(l).not.toContain("Abrir con…");
   });
+  it("acceso directo: «Abrir ubicación del archivo», solo si es un único .lnk", () => {
+    const a = actions();
+    const lnk = file("Bloc de notas.LNK");
+    const m = buildContextMenu(state([lnk]), a);
+    const l = labels(m);
+    expect(l.indexOf("Abrir ubicación del archivo")).toBe(l.indexOf("Abrir con…") + 1);
+    find(m, "Abrir ubicación del archivo").run();
+    expect(a.openTargetLocation).toHaveBeenCalledWith(lnk);
+    for (const other of [[file("a.txt")], [file("web.url")], [dir("carpeta.lnk")], [lnk, file("b.lnk")]]) {
+      expect(labels(buildContextMenu(state(other), actions()))).not.toContain("Abrir ubicación del archivo");
+    }
+  });
+  it("terminal: aquí y como administrador, en una carpeta y en el fondo", () => {
+    const a = actions();
+    const d = dir("proyecto");
+    const m = buildContextMenu(state([d]), a);
+    find(m, "Abrir terminal aquí").run();
+    expect(a.openTerminal).toHaveBeenLastCalledWith(d);
+    find(m, "Abrir terminal como administrador").run();
+    expect(a.openTerminal).toHaveBeenLastCalledWith(d, true);
+    const bg = buildContextMenu(state([]), a);
+    find(bg, "Abrir terminal como administrador").run();
+    expect(a.openTerminal).toHaveBeenLastCalledWith(undefined, true);
+    expect(labels(buildContextMenu(state([file("a.txt")]), actions()))).not.toContain("Abrir terminal como administrador");
+  });
   it("archivo comprimido: ofrece extraer", () => {
     expect(isArchive("x.ZIP")).toBe(true);
     expect(isArchive("x.txt")).toBe(false);

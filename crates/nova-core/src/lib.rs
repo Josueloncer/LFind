@@ -17,6 +17,7 @@ pub mod icons;
 pub mod index;
 #[cfg(any(windows, nova_winck))]
 pub mod icons_win;
+pub mod lnk;
 pub mod names;
 pub mod newmenu;
 pub mod ops;

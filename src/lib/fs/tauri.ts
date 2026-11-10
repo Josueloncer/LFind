@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { schemeOf } from "../themes";
 import { DEFAULT_PREFS } from "./types";
 import type {
+  ShortcutTarget,
   Inspection,
   HashEvent,
   AvailStat,
@@ -101,6 +102,7 @@ export class TauriProvider implements FsProvider {
   openPath = (path: string) => invoke<void>("open_path", { path });
   revealPath = (path: string) => invoke<void>("reveal_path", { path });
   createShortcut = (target: string) => invoke<string>("create_shortcut", { target });
+  resolveShortcut = (path: string) => invoke<ShortcutTarget>("resolve_shortcut", { path });
   getProperties = (path: string) => invoke<FileProps>("get_properties", { path });
   getDriveUsage = (root: string) => invoke<DriveUsage>("get_drive_usage", { root });
   resolvePath = (input: string) => invoke<ResolvedPath>("resolve_path", { input });
@@ -124,7 +126,7 @@ export class TauriProvider implements FsProvider {
   clipboardSequence = () => invoke<number>("clipboard_sequence");
   clipboardHasFiles = () => invoke<boolean>("clipboard_has_files");
   openWith = (path: string) => invoke<void>("open_with", { path });
-  openTerminal = (dir: string) => invoke<void>("open_terminal", { dir });
+  openTerminal = (dir: string, shell?: TerminalShell, admin?: boolean) => invoke<void>("open_terminal", { dir, shell, admin });
   compressPaths = (paths: string[], dir: string) => invoke<string>("compress_paths", { paths, dir });
   extractArchive = (path: string) => invoke<string>("extract_archive", { path });
   getSendTo = () => invoke<SendToItem[]>("list_send_to");

@@ -91,6 +91,7 @@ pub fn run() {
             commands::open_path,
             commands::reveal_path,
             commands::create_shortcut,
+            commands::resolve_shortcut,
             commands::get_properties,
             commands::start_stats,
             commands::get_drive_usage,

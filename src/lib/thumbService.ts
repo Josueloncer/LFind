@@ -46,7 +46,7 @@ export interface ThumbOptions {
  *  - caché LRU acotada en memoria y memoria de fallos para no reintentar en cada desplazamiento.
  */
 export class ThumbService {
-  private epoch = 0;
+  private epoch: number;
   private gen = 0;
   private queue: Req[] = [];
   private inflight = 0;
@@ -55,7 +55,14 @@ export class ThumbService {
   private failed = new Map<string, ThumbFailKind>();
   private listeners = new Set<() => void>();
 
-  constructor(private backend: ThumbBackend, private opts: ThumbOptions = { maxInflight: 4, maxCache: 400, maxFailed: 3000, timeoutMs: 30_000 }) {}
+  /**
+   * `firstEpoch`: el backend solo acepta épocas que no retrocedan, y su contador sobrevive a una recarga de la página
+   * («Recargar» tras un error). Si el de aquí volviera a 0, todas las miniaturas se darían por obsoletas hasta haber
+   * cambiado de carpeta tantas veces como antes. Por eso la aplicación empieza en la hora actual en milisegundos.
+   */
+  constructor(private backend: ThumbBackend, private opts: ThumbOptions = { maxInflight: 4, maxCache: 400, maxFailed: 3000, timeoutMs: 30_000 }, firstEpoch = 0) {
+    this.epoch = firstEpoch;
+  }
 
   currentEpoch() {
     return this.epoch;
@@ -199,7 +206,11 @@ export class ThumbService {
 }
 
 /** Instancia de la aplicación. */
-export const thumbService = new ThumbService({
-  getThumbnail: (p, px, e) => fs.getThumbnail(p, px, e),
-  setThumbEpoch: (e) => fs.setThumbEpoch(e),
-});
+export const thumbService = new ThumbService(
+  {
+    getThumbnail: (p, px, e) => fs.getThumbnail(p, px, e),
+    setThumbEpoch: (e) => fs.setThumbEpoch(e),
+  },
+  undefined,
+  Date.now(),
+);

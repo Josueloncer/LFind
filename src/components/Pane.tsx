@@ -147,26 +147,31 @@ export function Pane({ side }: { side: 0 | 1 }) {
   const A = useFileActions({ path, visible, selected, reload: dir.reload, afterCreate, afterRename, startRename });
 
   // Un elemento recién creado/renombrado: se selecciona, se muestra y (si es nuevo) pasa a modo renombrar.
+  // Con más de 3 000 elementos se ordena en un Worker y, mientras, la lista llega sin ordenar: hay que esperar, o se
+  // desplazaría a la posición que el elemento tiene en la lista desordenada.
   useEffect(() => {
     const pd = pending.current;
-    if (!pd || dir.status !== "ready" || !visible.some((e) => e.name === pd.name)) return;
+    if (!pd || dir.status !== "ready" || sorting || !visible.some((e) => e.name === pd.name)) return;
     pending.current = null;
     setSelected(new Set([pd.name]));
     setReveal(pd.name);
     if (pd.rename) setRenaming(pd.name);
-  }, [visible, dir.status]);
+  }, [visible, dir.status, sorting]);
 
-  // «Abrir ubicación» desde la búsqueda global: al leerse la carpeta contenedora se selecciona el elemento y se muestra.
+  // «Abrir ubicación» (búsqueda global y accesos directos): al leerse la carpeta contenedora se selecciona el elemento y se muestra.
   useEffect(() => {
-    if (!revealReq || !focused || dir.status !== "ready" || !path) return;
+    if (!revealReq || !focused || dir.status !== "ready" || sorting || !path || !dir.path || !samePath(dir.path, path)) return;
     if (Date.now() - revealReq.at > 15_000) return useSearch.getState().setReveal(null);
     const par = parent(revealReq.path);
     const name = basename(revealReq.path);
-    if (!par || !samePath(par, path) || !visible.some((e) => e.name === name)) return;
+    if (!par || !samePath(par, path)) return;
+    // Un acceso directo puede guardar la ruta con otras mayúsculas: en Windows es el mismo elemento.
+    const hit = visible.find((e) => e.name === name) ?? visible.find((e) => e.name.toLowerCase() === name.toLowerCase());
     useSearch.getState().setReveal(null);
-    setSelected(new Set([name]));
-    setReveal(name);
-  }, [revealReq, focused, dir.status, path, visible]);
+    if (!hit) return useUi.getState().toast(`«${name}» no se ve en esta carpeta: puede ser un elemento oculto o del sistema, o haberse movido.`);
+    setSelected(new Set([hit.name]));
+    setReveal(hit.name);
+  }, [revealReq, focused, dir.status, dir.path, path, visible, sorting]);
 
   // Recientes: carpetas que el usuario abrió y en las que se detuvo. No cuentan la inicial, las recargas ni las de paso.
   const visited = useRef(new Map<string, string>());

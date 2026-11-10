@@ -25,12 +25,13 @@ pub async fn open_with(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn open_terminal(dir: String) -> Result<(), String> {
+pub async fn open_terminal(dir: String, shell: Option<nova_core::terminal::Shell>, admin: Option<bool>) -> Result<(), String> {
     let p = existing(&dir)?;
     if !p.is_dir() {
         return Err("Eso no es una carpeta.".into());
     }
-    blocking(move || shell::open_terminal(&p).map_err(|e| e.to_string())).await
+    let sh = shell.unwrap_or(nova_core::terminal::Shell::Powershell);
+    blocking(move || shell::open_terminal(&p, sh, admin.unwrap_or(false)).map_err(|e| e.to_string())).await
 }
 
 /// Comprime `paths` (todos dentro de `dir`) en un `.zip` nuevo. Devuelve la ruta del zip.

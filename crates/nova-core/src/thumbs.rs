@@ -177,11 +177,14 @@ impl ThumbProvider for RasterProvider {
         if cancelled() {
             return Err(ThumbError::Cancelled);
         }
-        let mut img = DynamicImage::from_decoder(decoder).map_err(map_image_err)?;
-        img.apply_orientation(orientation);
+        let img = DynamicImage::from_decoder(decoder).map_err(map_image_err)?;
         if cancelled() {
             return Err(ThumbError::Cancelled);
         }
+        // Se reduce primero y se gira después: girar la foto completa costaba otra copia de decenas de MB y su tiempo. El
+        // marco de `px`×`px` es cuadrado y un giro de 90° es exacto, así que el resultado es el mismo.
+        let mut img = if img.width() > px || img.height() > px { img.thumbnail(px, px) } else { img };
+        img.apply_orientation(orientation);
         encode_thumb(img, px)
     }
 }
@@ -625,6 +628,7 @@ mod tests {
     fn svc(dir: &Path, parallel: usize, providers: Vec<Box<dyn ThumbProvider>>) -> ThumbService {
         ThumbService::new(ThumbConfig { cache_dir: dir.join("cache"), max_cache_bytes: 50 << 20, parallel }, providers)
     }
+
     fn no() -> bool {
         false
     }

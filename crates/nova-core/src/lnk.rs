@@ -248,7 +248,11 @@ mod tests {
     use std::path::PathBuf;
 
     fn tmp(tag: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("lfind-lnk-{tag}-{}", std::process::id()));
+        // Ruta larga: en los equipos de CI la carpeta temporal llega con nombres cortos (`RUNNER~1`) y el acceso directo
+        // guarda la larga.
+        let real = fs::canonicalize(std::env::temp_dir()).unwrap();
+        let base = PathBuf::from(real.to_string_lossy().trim_start_matches(r"\\?\"));
+        let d = base.join(format!("lfind-lnk-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d

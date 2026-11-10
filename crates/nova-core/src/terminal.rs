@@ -620,12 +620,17 @@ mod tests {
         assert!(wait(&t, "132"));
     }
 
+    /// La carpeta temporal con su ruta larga: las consolas informan la larga, y en los equipos de CI la temporal llega con
+    /// nombres cortos (`RUNNER~1`).
+    fn long_temp() -> std::path::PathBuf {
+        let real = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        std::path::PathBuf::from(real.to_string_lossy().trim_start_matches(r"\\?\").trim_end_matches('\\'))
+    }
+
     #[test]
     fn both_shells_report_their_folder_invisibly() {
-        // PowerShell informa la ruta larga: en los equipos de CI la carpeta temporal llega con nombres cortos (`RUNNER~1`).
-        let real = std::fs::canonicalize(std::env::temp_dir()).unwrap();
-        let folder = real.to_string_lossy().trim_start_matches(r"\\?\").trim_end_matches('\\').to_string();
-        let dir = std::path::PathBuf::from(&folder);
+        let dir = long_temp();
+        let folder = dir.display().to_string();
         for shell in [Shell::Cmd, Shell::Powershell] {
             let t = open(Some(&shell.command_line(&ProfilePlan::default())), &dir);
             assert!(wait(&t, &format!("]9;9;{folder}")), "{shell:?}: {}", t.text.lock().unwrap());
@@ -672,7 +677,7 @@ mod tests {
 
     #[test]
     fn external_consoles_open_in_the_folder_even_with_awkward_names() {
-        let dir = std::env::temp_dir().join("lfind term 'comilla' (x)");
+        let dir = long_temp().join("lfind term 'comilla' (x)");
         std::fs::create_dir_all(&dir).unwrap();
         let cmd = Shell::Cmd.console_args(&ProfilePlan::default(), Some(&dir));
         assert_eq!(cmd, format!("/k cd /d \"{}\"", dir.display()));
